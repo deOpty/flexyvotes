@@ -15,15 +15,18 @@
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label fw-bold text-muted small">Price (GHS)</label>
                             <input type="number" name="price" class="form-control" step="0.01" value="{{ ticket.price }}" required>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label fw-bold text-muted small">Old Price (GHS)</label>
                             <input type="number" name="old_price" class="form-control" step="0.01" value="{{ ticket.old_price|default_if_none:'' }}">
                         </div>
-
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold text-muted small">Quantity Available</label>
+                            <input type="number" name="quantity_available" class="form-control" value="{{ ticket.quantity_available }}" min="0" required>
+                        </div>
                     </div>
                     
                     <div class="mb-3">
