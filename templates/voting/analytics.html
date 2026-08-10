@@ -1,0 +1,138 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-wine">Analytics: {{ event.title }}</h2>
+            <p class="text-muted">Total Revenue: <b>₵{{ event.get_total_revenue }}</b> | Your Payout: <b>₵{{ event.get_organizer_payout }}</b></p>
+        </div>
+        <button onclick="downloadPDF()" class="btn btn-gold px-3"><i class="bi bi-download me-1"></i> Download Report (PDF)</button>
+    </div>
+    <hr>
+
+    <!-- Chart Sections (One for each category) -->
+    <div class="row mb-5">
+        {% for chart in chart_data %}
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title mb-4 text-wine">Category: {{ chart.category_name }}</h5>
+                    <canvas id="chart-{{ forloop.counter }}" style="max-height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Data Table Section -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3 text-wine">Detailed Breakdown</h5>
+                    <table class="table table-sm table-hover" id="analyticsTable">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Candidate</th>
+                                <th>Pay-to-Votes</th>
+                                <th>Free (Tie-Breaker) Votes</th>
+                                <th>Total Votes</th>
+                                <th>Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for candidate in all_candidates %}
+                            <tr>
+                                <td>{{ candidate.category.name|default:"Uncategorized" }}</td>
+                                <td>{{ candidate.name }}</td>
+                                <td>{{ candidate.main_votes }}</td>
+                                <td>{{ candidate.tie_breaker_votes }}</td>
+                                <td class="fw-bold">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</td>
+                                <td>₵{{ candidate.revenue }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No votes yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
+    // 1. Render a Grouped Bar Chart for EACH category
+    const chartData = {{ chart_data|safe }};
+    chartData.forEach((chart, index) => {
+        const ctx = document.getElementById(`chart-₵{index + 1}`).getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chart.labels,
+                datasets: [
+                    {
+                        label: 'Pay-to-Vote',
+                        data: chart.main_data,
+                        backgroundColor: '#800020', // Wine
+                        borderColor: '#800020',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Free Vote (Ticket)',
+                        data: chart.tie_breaker_data,
+                        backgroundColor: '#FFD700', // Gold
+                        borderColor: '#FFD700',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { display: true, position: 'bottom' } }
+            }
+        });
+    });
+
+    // 2. Download PDF Function
+    function downloadPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const canvases = document.querySelectorAll('canvas');
+        let yPosition = 20;
+        
+        canvases.forEach((canvas, index) => {
+            const cardBody = canvas.closest('.card-body');
+            const titleElement = cardBody.querySelector('h5');
+            const titleText = titleElement ? titleElement.innerText : `Chart ₵{index + 1}`;
+            
+            if (yPosition > 250) { doc.addPage(); yPosition = 20; }
+            
+            doc.setFontSize(16);
+            doc.setTextColor(128, 0, 32);
+            doc.text(titleText, 105, yPosition, { align: 'center' });
+            yPosition += 10;
+            
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = 180; 
+            const imgHeight = (canvas.height / canvas.width) * imgWidth;
+            
+            if (yPosition + imgHeight > 280) { doc.addPage(); yPosition = 20; }
+            
+            const xPosition = (210 - imgWidth) / 2;
+            doc.addImage(imgData, 'PNG', xPosition, yPosition, imgWidth, imgHeight);
+            yPosition += imgHeight + 15;
+        });
+        
+        doc.save('{{ event.title }}_analytics.pdf');
+    }
+</script>
+{% endblock %}

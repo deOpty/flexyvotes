@@ -1,0 +1,39 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-5 text-center">
+                <i class="bi bi-shield-check fs-1 text-wine mb-3"></i>
+                <h3 class="fw-bold text-wine mb-4">Verify E-Ticket</h3>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="input-group mb-3">
+                        <input type="text" name="reference" class="form-control text-uppercase" placeholder="Enter Reference (e.g., TK-AB1234)" required>
+                        <button class="btn btn-wine" type="submit">Verify</button>
+                    </div>
+                </form>
+
+                {% if error_message %}
+                <div class="alert alert-danger mt-4">
+                    <i class="bi bi-x-circle-fill me-2"></i>{{ error_message }}
+                </div>
+                {% endif %}
+
+                {% if ticket_found %}
+                <div class="alert alert-success text-start mt-4">
+                    <h5 class="alert-heading"><i class="bi bi-check-circle-fill me-2"></i>Valid Ticket!</h5>
+                    <hr>
+                    <p class="mb-1"><b>Event:</b> {{ ticket_found.ticket.event.title }}</p>
+                    <p class="mb-1"><b>Name:</b> {{ ticket_found.buyer_name }}</p>
+                    <p class="mb-1"><b>Ticket Type:</b> {{ ticket_found.ticket.name }}</p>
+                    <p class="mb-0"><b>Quantity:</b> {{ ticket_found.quantity }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

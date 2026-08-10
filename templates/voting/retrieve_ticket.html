@@ -1,0 +1,29 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-5 text-center">
+                <i class="bi bi-phone fs-1 text-wine mb-3"></i>
+                <h3 class="fw-bold text-wine mb-4">Retrieve E-Ticket</h3>
+                <p class="text-muted small">Bought your ticket via USSD? Enter your Phone Number or Ticket Reference below to view your ticket.</p>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="input-group mb-3">
+                        <input type="text" name="phone_or_ref" class="form-control" placeholder="e.g., 233500000000 or TK-AB1234" required>
+                        <button class="btn btn-wine" type="submit">View Ticket</button>
+                    </div>
+                </form>
+
+                {% if error_message %}
+                <div class="alert alert-danger mt-4">
+                    <i class="bi bi-x-circle-fill me-2"></i>{{ error_message }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

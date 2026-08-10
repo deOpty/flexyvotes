@@ -1,0 +1,40 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+            <div class="card-body p-5">
+                <div class="text-center mb-4">
+                    <i class="bi bi-shield-lock-fill fs-1 text-wine"></i>
+                    <h3 class="mt-2 mb-0 text-wine fw-bold">Organizer Login</h3>
+                    <p class="text-muted small">Sign in to manage your events</p>
+                </div>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-person-fill text-wine"></i></span>
+                            <input type="text" name="username" class="form-control border-start-0 ps-0" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock-fill text-wine"></i></span>
+                            <input type="password" name="password" class="form-control border-start-0 ps-0" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-wine w-100 py-2 fw-bold">Login</button>
+                </form>
+                
+                <p class="text-center mt-4 mb-0 small text-muted">
+                    Don't have an account? <a href="{% url 'register' %}" class="text-wine fw-bold text-decoration-none">Register here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,212 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<style>
+    /* How It Works Tab Colors */
+    #howItWorksTabs .nav-link {
+        color: #800020; /* Wine text */
+        border: 1px solid #800020; /* Wine border */
+        background-color: transparent;
+    }
+    #howItWorksTabs .nav-link.active {
+        background-color: #800020; /* Wine background */
+        color: #FFD700; /* Gold text */
+    }
+</style>
+<!-- Hero Section with Image Overlay -->
+<div class="jumbotron jumbotron-fluid mb-5 position-relative" style="background-image: url('https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=2069&auto=format&fit=crop'); background-size: cover; background-position: center; min-height: 500px; display: flex; align-items: center;">
+    <!-- Wine Color Overlay -->
+    <div class="position-absolute top-0 start-0 w-100 h-100" style="background-color: rgba(128, 0, 32, 0.85);"></div>
+    
+    <div class="container position-relative text-center text-white" style="z-index: 2;">
+        <h1 class="display-3 fw-bold mb-4 animate-hero-1" style="color: #FFD700;">Turn Every Vote Into <br>A Contribution</h1>
+        <p class="lead fs-4 mb-5 animate-hero-2">Host transparent, donation-based competitions & awards.<br>Raise funds while your audience engages.</p>
+        
+        <div class="d-flex justify-content-center gap-3 flex-wrap animate-hero-3">
+            <a href="#events-section" class="btn btn-lg btn-gold px-4 py-3 fw-bold">Browse Active Events <i class="bi bi-arrow-right ms-2"></i></a>
+            {% if request.user.is_authenticated and request.user.is_staff or request.user.profile.is_approved_organizer %}
+                <a href="{% url 'dashboard' %}" class="btn btn-lg btn-outline-light px-4 py-3">Go to Dashboard</a>
+            {% else %}
+                <a href="{% url 'register' %}" class="btn btn-lg btn-outline-light px-4 py-3">Create Your Event</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- How It Works Section (Tabbed) -->
+<div id="how-it-works" class="container mb-5 py-5">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold text-wine">How It Works</h2>
+        <p class="text-muted">Whether you are hosting an event or casting a vote, FlexyVotes makes it seamless.</p>
+    </div>
+    
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <ul class="nav nav-pills nav-justified mb-5" id="howItWorksTabs" role="tablist">
+                <!-- Voter Tab (Now First & Active) -->
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active rounded-pill fw-bold py-3" id="voter-tab" data-bs-toggle="pill" data-bs-target="#voter-pane" type="button" role="tab" aria-controls="voter-pane" aria-selected="true">
+                        <i class="bi bi-person-heart me-2"></i> For Voters
+                    </button>
+                </li>
+                <!-- Organizer Tab (Now Second & Inactive) -->
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill fw-bold py-3" id="organizer-tab" data-bs-toggle="pill" data-bs-target="#organizer-pane" type="button" role="tab" aria-controls="organizer-pane" aria-selected="false">
+                        <i class="bi bi-person-gear me-2"></i> For Organizers
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="tab-content" id="howItWorksTabContent">
+                <!-- Voter Pane (Now First & Active) -->
+                <div class="tab-pane fade show active" id="voter-pane" role="tabpanel" aria-labelledby="voter-tab">
+                    <div class="row justify-content-center">
+                        <div class="col-md-10">
+                            <div class="row g-4">
+                                <div class="col-md-4">
+                                    <div class="card border-0 shadow-sm h-100 p-4 text-center">
+                                        <div class="bg-wine text-gold d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 50%;"><i class="bi bi-search fs-3"></i></div>
+                                        <h5 class="fw-bold text-wine">1. Find an Event</h5>
+                                        <p class="text-muted small">Browse active events on the homepage and click "View Event" to see the candidates.</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card border-0 shadow-sm h-100 p-4 text-center">
+                                        <div class="bg-wine text-gold d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 50%;"><i class="bi bi-cash-stack fs-3"></i></div>
+                                        <h5 class="fw-bold text-wine">2. Pay to Vote</h5>
+                                        <p class="text-muted small">Click "Vote / Donate", enter the amount you wish to contribute (₵1 = 1 Vote), and pay securely via PayStack.</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card border-0 shadow-sm h-100 p-4 text-center">
+                                        <div class="bg-wine text-gold d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 50%;"><i class="bi bi-trophy fs-3"></i></div>
+                                        <h5 class="fw-bold text-wine">3. Support & Win</h5>
+                                        <p class="text-muted small">Your contribution is instantly counted. Buy a ticket to the event to get free bonus "Tie-Breaker" votes for your favorite candidate!</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Organizer Pane -->
+                <div class="tab-pane fade" id="organizer-pane" role="tabpanel" aria-labelledby="organizer-tab">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100 p-4">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-calendar-plus fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Create & Customize</h5>
+                                </div>
+                                <p class="text-muted">Set up your event, add candidates, and fully customize the theme with your own Wine and Gold colors and background images. Create multiple categories to organize your contestants.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100 p-4">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-cash-coin fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Choose Voting Mode</h5>
+                                </div>
+                                <p class="text-muted">Select "Pay-to-Vote" for fundraising (where ₵1 = 1 Vote), or "Code Voting" for free, fair elections. Generate secure codes manually or upload a CSV of Student IDs to prevent duplicate voting.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100 p-4">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-ticket-perforated fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Sell Tickets & Manage</h5>
+                                </div>
+                                <p class="text-muted">Sell event tickets online with premium branded E-Tickets and QR codes. Use the built-in Mobile Scanner App to check in attendees at the door and prevent ticket fraud.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100 p-4">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-graph-up-arrow fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Track & Earn</h5>
+                                </div>
+                                <p class="text-muted">Watch live analytics, export CSV guest lists, and generate PDF reports. Enable "Tie-Breaker" voting to incentivize online ticket sales, and sell award plaques directly through your store!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Events Showcase Section -->
+<div id="events-section" class="container mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-wine mb-0">Active Events</h2>
+            <p class="text-muted mb-0">Vote for your favorite candidates and support their cause</p>
+        </div>
+        <!-- Advanced Search Bar -->
+        <form method="GET" action="" class="d-flex" style="width: 300px;">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-wine"></i></span>
+                <input type="text" name="q" class="form-control border-start-0" placeholder="Search events..." value="{{ request.GET.q }}">
+            </div>
+        </form>
+    </div>
+    <hr class="mb-4">
+
+    <div class="row">
+        {% for event in events %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden">
+                <!-- NEW: Event Flyer Logic -->
+                {% if event.event_image %}
+                    <img src="{{ event.event_image.url }}" class="card-img-top event-flyer" alt="{{ event.title }}" style="height: 200px; width: 100%; object-fit: cover;">
+                {% else %}
+                    <!-- Fallback color bar if no image is uploaded -->
+                    <div style="height: 10px; background-color: {{ event.primary_color }};"></div>
+                {% endif %}
+                
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title fw-bold text-wine">{{ event.title }}</h5>
+                    </div>
+                    <p class="card-text text-muted" style="font-size: 0.9rem;">{{ event.description|truncatewords:15 }}</p>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted"><i class="bi bi-clock me-1"></i>Ends: {{ event.end_date|date:"M d, Y" }}</small>
+                        <a href="{% url 'event_detail' event.id %}" class="btn btn-sm btn-wine">View Event <i class="bi bi-arrow-right ms-1"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="alert alert-warning text-center">No events found matching your search.</div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Registration Success Modal -->
+{% if show_popup %}
+<div class="modal fade" id="registerSuccessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-wine">
+                <h5 class="modal-title text-gold">Account Created!</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <h4 class="mb-3 text-dark">Welcome to FlexyVotes!</h4>
+                <p class="text-muted">Your account has been created successfully and is <b>awaiting admin confirmation</b>.</p>
+                <p class="text-muted">Please contact the admin for further information to get organizer access.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn w-100 btn-wine" data-bs-dismiss="modal">Got it!</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var myModal = new bootstrap.Modal(document.getElementById('registerSuccessModal'));
+    myModal.show();
+</script>
+{% endif %}
+{% endblock %}

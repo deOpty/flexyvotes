@@ -1,0 +1,106 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                <div class="card-header bg-wine py-3 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0 text-gold fw-bold"><i class="bi bi-qr-code-scan me-2"></i>Event Scanner</h4>
+                    <a href="{% url 'event_detail' event.id %}" class="btn btn-sm btn-outline-light">Exit Scanner</a>
+                </div>
+                <div class="card-body p-4 text-center">
+                    <h5 class="text-muted mb-3">{{ event.title }}</h5>
+                    
+                    <!-- Camera Scanner Container -->
+                    <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 0 auto; border-radius: 15px; overflow: hidden;"></div>
+                    
+                    <!-- Scan Result Display -->
+                    <div id="scan-result" class="mt-4 p-4 rounded-3" style="display: none;"></div>
+                    
+                    <!-- Manual Entry Fallback (in case camera fails) -->
+                    <div class="mt-4">
+                        <p class="text-muted small mb-2">Camera not working? Enter code manually:</p>
+                        <form id="manual-scan-form" class="d-flex justify-content-center gap-2">
+                            <input type="text" id="manual-code" class="form-control text-uppercase" style="max-width: 200px;" placeholder="TK-XXXXXX" required>
+                            <button type="submit" class="btn btn-wine">Check In</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- html5-qrcode Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js"></script>
+<script>
+    const eventId = "{{ event.id }}";
+    const processScanUrl = `/event/₵{eventId}/process-scan/`;
+    const resultDiv = document.getElementById('scan-result');
+    
+    // Function to send data to Django backend
+    function sendScanToServer(scannedText) {
+        fetch(processScanUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ text: scannedText })
+        })
+        .then(response => response.json().then(data => ({ status: response.status, body: data })))
+        .then(({ status, body }) => {
+            resultDiv.style.display = 'block';
+            
+            if (status === 200) {
+                // SUCCESS - Ticket is valid and checked in
+                resultDiv.className = 'mt-4 p-4 rounded-3 alert alert-success';
+                resultDiv.innerHTML = `<i class="bi bi-check-circle-fill fs-1 d-block mb-2"></i> <h5>₵{body.message}</h5>`;
+            } else {
+                // ERROR - Ticket invalid, already used, or payment pending
+                resultDiv.className = 'mt-4 p-4 rounded-3 alert alert-danger';
+                resultDiv.innerHTML = `<i class="bi bi-x-circle-fill fs-1 d-block mb-2"></i> <h5 class="mb-0">₵{body.message}</h5>`;
+            }
+            
+            // Clear the result after 4 seconds
+            setTimeout(() => { resultDiv.style.display = 'none'; }, 4000);
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    // 1. Initialize Camera Scanner
+    function onScanSuccess(decodedText, decodedResult) {
+        // Stop the camera temporarily to prevent multiple scans
+        if (html5QrCode.isScanning) {
+            html5QrCode.stop().then(() => {
+                sendScanToServer(decodedText);
+                // Restart camera after 3 seconds
+                setTimeout(() => html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess, onScanFailure), 3000);
+            });
+        }
+    }
+
+    function onScanFailure(error) {
+        // Silent fail (this fires constantly while searching for a QR code)
+    }
+
+    const html5QrCode = new Html5Qrcode("qr-reader");
+    html5QrCode.start(
+        { facingMode: "environment" }, // Use the back camera
+        { fps: 10, qrbox: 250 },
+        onScanSuccess,
+        onScanFailure
+    ).catch(err => {
+        document.getElementById('qr-reader').innerHTML = `<div class="alert alert-warning">Could not access camera. Please use manual entry below. <br><small>₵{err}</small></div>`;
+    });
+
+    // 2. Manual Entry Fallback
+    document.getElementById('manual-scan-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const code = document.getElementById('manual-code').value;
+        sendScanToServer(`REF: ₵{code}`); // Format it so Django can parse it
+        this.reset();
+    });
+</script>
+{% endblock %}

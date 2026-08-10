@@ -1,0 +1,138 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<style>
+    /* Cool Fade-in Animations */
+    @keyframes fadeInUp {
+        0% { opacity: 0; transform: translateY(20px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp { animation: fadeInUp 0.6s ease-out forwards; }
+    .delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .delay-2 { animation-delay: 0.3s; opacity: 0; }
+    .delay-3 { animation-delay: 0.5s; opacity: 0; }
+    .delay-4 { animation-delay: 0.7s; opacity: 0; }
+</style>
+
+<div class="container my-5">
+    
+    <!-- Welcome Hero Section -->
+    <div class="text-center mb-5 animate-fadeInUp delay-1">
+        <h1 class="fw-bold text-wine">Welcome to FlexyVotes Tickets</h1>
+        <p class="lead text-muted">Browse upcoming events, verify a ticket's authenticity, or retrieve your USSD E-Ticket.</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex justify-content-center gap-3 mb-4 animate-fadeInUp delay-2">
+        <button class="btn btn-outline-wine fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#verifyCollapse" aria-expanded="false" aria-controls="verifyCollapse" onclick="hideOther('retrieveCollapse')">
+            <i class="bi bi-shield-check me-2"></i> Verify a Ticket
+        </button>
+        <button class="btn btn-outline-wine fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#retrieveCollapse" aria-expanded="false" aria-controls="retrieveCollapse" onclick="hideOther('verifyCollapse')">
+            <i class="bi bi-phone me-2"></i> Retrieve USSD Ticket
+        </button>
+    </div>
+
+    <!-- Collapsible Forms -->
+    <div class="row justify-content-center mb-5 animate-fadeInUp delay-3">
+        <div class="col-md-8">
+            
+            <!-- Verify Form -->
+            <div class="collapse {% if active_action == 'verify' %}show{% endif %}" id="verifyCollapse">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="text-wine mb-3"><i class="bi bi-shield-check me-2"></i>Verify Ticket Authenticity</h5>
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="verify">
+                            <div class="input-group mb-3">
+                                <input type="text" name="reference" class="form-control form-control-lg text-uppercase" placeholder="Enter Reference (e.g., TK-AB1234)" required>
+                                <button class="btn btn-lg btn-wine" type="submit">Verify</button>
+                            </div>
+                        </form>
+                        {% if error_message and active_action == 'verify' %}
+                        <div class="alert alert-danger mt-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i>{{ error_message }}</div>
+                        {% endif %}
+                        {% if ticket_found and active_action == 'verify' %}
+                        <div class="alert alert-success mt-2 mb-0">
+                            <h5 class="alert-heading"><i class="bi bi-check-circle-fill me-2"></i>Valid Ticket!</h5>
+                            <hr>
+                            <p class="mb-1"><b>Event:</b> {{ ticket_found.ticket.event.title }}</p>
+                            <p class="mb-1"><b>Name:</b> {{ ticket_found.buyer_name }}</p>
+                            <p class="mb-1"><b>Ticket Type:</b> {{ ticket_found.ticket.name }}</p>
+                            <p class="mb-0"><b>Quantity:</b> {{ ticket_found.quantity }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retrieve Form -->
+            <div class="collapse {% if active_action == 'retrieve' %}show{% endif %}" id="retrieveCollapse">
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body p-4">
+                        <h5 class="text-wine mb-3"><i class="bi bi-phone me-2"></i>Retrieve USSD Ticket</h5>
+                        <p class="text-muted small">Bought your ticket via USSD? Enter your Phone Number or Ticket Reference to view your E-Ticket.</p>
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="retrieve">
+                            <div class="input-group mb-3">
+                                <input type="text" name="phone_or_ref" class="form-control form-control-lg" placeholder="e.g., 233500000000 or TK-AB1234" required>
+                                <button class="btn btn-lg btn-wine" type="submit">View Ticket</button>
+                            </div>
+                        </form>
+                        {% if error_message and active_action == 'retrieve' %}
+                        <div class="alert alert-danger mt-2 mb-0"><i class="bi bi-x-circle-fill me-2"></i>{{ error_message }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- Events Grid -->
+    <div class="animate-fadeInUp delay-4">
+        <div class="text-center mb-5">
+            <h2 class="fw-bold text-wine">Upcoming Events</h2>
+            <p class="text-muted">Secure your tickets before they sell out!</p>
+        </div>
+
+        <div class="row">
+            {% for event in events %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden">
+                    {% if event.event_image %}
+                        <img src="{{ event.event_image.url }}" class="card-img-top event-flyer" alt="{{ event.title }}" style="height: 200px; width: 100%; object-fit: cover;">
+                    {% else %}
+                        <div style="height: 10px; background-color: {{ event.primary_color }};"></div>
+                    {% endif %}
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title fw-bold text-wine">{{ event.title }}</h5>
+                        </div>
+                        <p class="card-text text-muted" style="font-size: 0.9rem;">{{ event.description|truncatewords:15 }}</p>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted"><i class="bi bi-calendar-event me-1"></i>{{ event.start_date|date:"M d, Y" }}</small>
+                            <a href="{% url 'event_tickets' event.id %}" class="btn btn-sm btn-wine">View Tickets <i class="bi bi-arrow-right ms-1"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="alert alert-warning text-center">No events are selling tickets right now.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    // Simple JS to close the other collapse when one is clicked
+    function hideOther(idToHide) {
+        const el = document.getElementById(idToHide);
+        if (el.classList.contains('show')) {
+            el.classList.remove('show');
+        }
+    }
+</script>
+{% endblock %}

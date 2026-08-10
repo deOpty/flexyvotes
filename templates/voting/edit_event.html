@@ -1,0 +1,112 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm mt-4 rounded-4">
+            <div class="card-body p-5">
+                <h3 class="mb-4 text-wine fw-bold">Edit Event: {{ event.title }}</h3>
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Event Title</label>
+                        <input type="text" name="title" class="form-control" value="{{ event.title }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Description</label>
+                        <textarea name="description" class="form-control" rows="3">{{ event.description }}</textarea>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">Start Date & Time</label>
+                            <input type="datetime-local" name="start_date" class="form-control" value="{{ event.start_date|date:'Y-m-d\TH:i' }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">End Date & Time</label>
+                            <input type="datetime-local" name="end_date" class="form-control" value="{{ event.end_date|date:'Y-m-d\TH:i' }}" required>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">Voting Mode</label>
+                            <select name="voting_mode" id="votingModeSelect" class="form-select" onchange="toggleCodeMode()">
+                                <option value="Pay to Vote" {% if event.voting_mode == 'Pay to Vote' %}selected{% endif %}>Pay to Vote (Fundraising)</option>
+                                <option value="Code Voting" {% if event.voting_mode == 'Code Voting' %}selected{% endif %}>Code Voting (Free / Fair)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="codeModeDiv" style="display: {% if event.voting_mode == 'Code Voting' %}block{% else %}none{% endif %};">
+                            <label class="form-label fw-bold text-muted small">Code Voting Type</label>
+                            <select name="code_voting_mode" id="codeModeSelect" class="form-select">
+                                <option value="Standard" {% if event.code_voting_mode == 'Standard' %}selected{% endif %}>Standard Codes (No ID required)</option>
+                                <option value="Student ID" {% if event.code_voting_mode == 'Student ID' %}selected{% endif %}>Student ID + Code (Secure)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Platform Fee (%)</label>
+                        <input type="number" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage }}" step="0.01" required>
+                    </div>
+                    
+                    <!-- ADD THIS TOGGLE -->
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch" {% if event.enable_tie_breaker %}checked{% endif %}>
+                        <label class="form-check-label fw-bold text-muted small" for="tieBreakerSwitch">Enable Tie-Breaker Voting (Online tickets get free votes)</label>
+                    </div>
+                    
+                    <hr class="my-4">
+                    <h5 class="text-wine">Event Theme Colours</h5>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">Primary Colour</label>
+                            <input type="color" name="primary_color" class="form-control form-control-color w-100" value="{{ event.primary_color }}" style="height: 40px;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">Accent Colour</label>
+                            <input type="color" name="accent_color" class="form-control form-control-color w-100" value="{{ event.accent_color }}" style="height: 40px;">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Background Image (Leave blank to keep current)</label>
+                        {% if event.background_image %}
+                            <small class="d-block mb-2 text-muted">Current image: {{ event.background_image.name }}</small>
+                        {% endif %}
+                        <input type="file" name="background_image" class="form-control" accept="image/*">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-muted small">Event Flyer/Image (Leave blank to keep current)</label>
+                        {% if event.event_image %}
+                            <small class="d-block mb-2 text-muted">Current image: {{ event.event_image.name }}</small>
+                        {% endif %}
+                        <input type="file" name="event_image" class="form-control" accept="image/*">
+                    </div>
+                    
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold">Save Changes</button>
+                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript to show/hide Code Mode -->
+<script>
+    function toggleCodeMode() {
+        const mode = document.getElementById('votingModeSelect').value;
+        const codeDiv = document.getElementById('codeModeDiv');
+        if (mode === 'Code Voting') {
+            codeDiv.style.display = 'block';
+        } else {
+            codeDiv.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

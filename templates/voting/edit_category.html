@@ -1,0 +1,24 @@
+{% extends 'voting/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm mt-5">
+            <div class="card-body p-4">
+                <h3 class="mb-4" style="color: #800020;">Edit Category</h3>
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Category Name</label>
+                        <input type="text" name="name" class="form-control" value="{{ category.name }}" required>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn flex-grow-1" style="background-color: #800020; color: #FFD700; font-weight: bold;">Save Changes</button>
+                        <a href="{% url 'event_detail' event.id %}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
