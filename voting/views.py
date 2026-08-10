@@ -305,20 +305,24 @@ def create_event(request):
         return redirect('home')
         
     if request.method == 'POST':
+        # Combine Date and Time strings
+        start_date_str = f"{request.POST.get('start_date_date')} {request.POST.get('start_date_time')}"
+        end_date_str = f"{request.POST.get('end_date_date')} {request.POST.get('end_date_time')}"
+
         event = Event.objects.create(
             organizer=request.user,
             title=request.POST.get('title'),
             description=request.POST.get('description'),
             voting_mode=request.POST.get('voting_mode'),
             code_voting_mode=request.POST.get('code_voting_mode', 'Standard'),
-            start_date=timezone.make_aware(parse_datetime(request.POST.get('start_date'))), 
-            end_date=timezone.make_aware(parse_datetime(request.POST.get('end_date'))),
+            enable_tie_breaker=request.POST.get('enable_tie_breaker') == 'on',
+            start_date=timezone.make_aware(parse_datetime(start_date_str)), # <--- UPDATED
+            end_date=timezone.make_aware(parse_datetime(end_date_str)), # <--- UPDATED
             platform_fee_percentage=request.POST.get('platform_fee_percentage'),
             primary_color=request.POST.get('primary_color'),
             accent_color=request.POST.get('accent_color'),
             background_image=request.FILES.get('background_image'),
-            event_image=request.FILES.get('event_image'),
-            enable_tie_breaker=request.POST.get('enable_tie_breaker') == 'on', 
+            event_image=request.FILES.get('event_image')
         )
         # LOG THE ACTIVITY
         ActivityLog.objects.create(user=request.user, event=event, action=f"Created event '{event.title}'")
@@ -448,12 +452,17 @@ def edit_event(request, event_id):
         return redirect('event_detail', event_id=event_id)
         
     if request.method == 'POST':
+        # Combine Date and Time strings
+        start_date_str = f"{request.POST.get('start_date_date')} {request.POST.get('start_date_time')}"
+        end_date_str = f"{request.POST.get('end_date_date')} {request.POST.get('end_date_time')}"
+
         event.title = request.POST.get('title')
         event.description = request.POST.get('description')
         event.voting_mode = request.POST.get('voting_mode')
         event.code_voting_mode = request.POST.get('code_voting_mode', 'Standard')
-        event.start_date = timezone.make_aware(parse_datetime(request.POST.get('start_date')))
-        event.end_date = timezone.make_aware(parse_datetime(request.POST.get('end_date'))) 
+        event.enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on'
+        event.start_date = timezone.make_aware(parse_datetime(start_date_str)) # <--- UPDATED
+        event.end_date = timezone.make_aware(parse_datetime(end_date_str)) # <--- UPDATED
         event.platform_fee_percentage = request.POST.get('platform_fee_percentage')
         event.primary_color = request.POST.get('primary_color')
         event.accent_color = request.POST.get('accent_color')

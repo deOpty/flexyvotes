@@ -20,13 +20,24 @@
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Start Date & Time</label>
-                            <input type="datetime-local" name="start_date" class="form-control" value="{{ event.start_date|date:'Y-m-d\TH:i' }}" required>
+                        <!-- Start Date & Time -->
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-muted small">Start Date</label>
+                            <input type="date" name="start_date_date" class="form-control" value="{{ event.start_date|date:'Y-m-d' }}" required>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">End Date & Time</label>
-                            <input type="datetime-local" name="end_date" class="form-control" value="{{ event.end_date|date:'Y-m-d\TH:i' }}" required>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-muted small">Start Time</label>
+                            <input type="time" name="start_date_time" class="form-control" value="{{ event.start_date|date:'H:i' }}" required>
+                        </div>
+                        
+                        <!-- End Date & Time -->
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-muted small">End Date</label>
+                            <input type="date" name="end_date_date" class="form-control" value="{{ event.end_date|date:'Y-m-d' }}" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold text-muted small">End Time</label>
+                            <input type="time" name="end_date_time" class="form-control" value="{{ event.end_date|date:'H:i' }}" required>
                         </div>
                     </div>
                     
