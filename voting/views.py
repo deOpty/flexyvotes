@@ -8,13 +8,14 @@ import io
 import uuid
 import qrcode
 import base64
+from django.utils.dateparse import parse_datetime
+from django.utils import timezone
 from django.core.cache import cache
 from PIL import Image, ImageDraw, ImageFont
 from django.core.mail import EmailMessage
 from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
-from django.utils import timezone
 from django.http import HttpResponse
 from django.http import JsonResponse 
 from django.contrib import messages
@@ -310,8 +311,8 @@ def create_event(request):
             description=request.POST.get('description'),
             voting_mode=request.POST.get('voting_mode'),
             code_voting_mode=request.POST.get('code_voting_mode', 'Standard'),
-            start_date=request.POST.get('start_date'),
-            end_date=request.POST.get('end_date'),
+            start_date=timezone.make_aware(parse_datetime(request.POST.get('start_date'))), 
+            end_date=timezone.make_aware(parse_datetime(request.POST.get('end_date'))),
             platform_fee_percentage=request.POST.get('platform_fee_percentage'),
             primary_color=request.POST.get('primary_color'),
             accent_color=request.POST.get('accent_color'),
@@ -451,8 +452,8 @@ def edit_event(request, event_id):
         event.description = request.POST.get('description')
         event.voting_mode = request.POST.get('voting_mode')
         event.code_voting_mode = request.POST.get('code_voting_mode', 'Standard')
-        event.start_date = request.POST.get('start_date')
-        event.end_date = request.POST.get('end_date')
+        event.start_date = timezone.make_aware(parse_datetime(request.POST.get('start_date')))
+        event.end_date = timezone.make_aware(parse_datetime(request.POST.get('end_date'))) 
         event.platform_fee_percentage = request.POST.get('platform_fee_percentage')
         event.primary_color = request.POST.get('primary_color')
         event.accent_color = request.POST.get('accent_color')
