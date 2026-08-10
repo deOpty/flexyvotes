@@ -50,4 +50,7 @@ urlpatterns = [
     path('retrieve-ticket/', views.retrieve_ticket_view, name='retrieve_ticket'), 
 
     path('event/<int:event_id>/retrieve-code/', views.retrieve_voting_code, name='retrieve_voting_code'),
+
+    path('event/<int:event_id>/bulk-add/', views.bulk_add_candidates, name='bulk_add_candidates'),
+
 ]

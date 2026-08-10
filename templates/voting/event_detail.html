@@ -219,6 +219,29 @@
                             </div>
                         </div>
                     </form>
+                        <!-- NEW: Bulk Add Contestants Form -->
+                        <hr class="my-4">
+                        <label class="form-label small fw-bold text-muted">Bulk Add Contestants (Fast)</label>
+                        <form action="{% url 'bulk_add_candidates' event.id %}" method="POST">
+                            {% csrf_token %}
+                            <div class="row g-2 align-items-end">
+                                <div class="col-md-7">
+                                    <textarea name="bulk_names" class="form-control" rows="4" placeholder="Paste names here (one per line)&#10;John Doe&#10;Ama Serwaa&#10;Kwame Mensah" required></textarea>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label tiny text-muted">Assign Category (Optional)</label>
+                                    <select name="bulk_category" class="form-select">
+                                        <option value="">None</option>
+                                        {% for cat in event.categories.all %}
+                                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="submit" class="btn btn-wine w-100" title="Add All"><i class="bi bi-plus-lg"></i></button>
+                                </div>
+                            </div>
+                        </form>
                 </div>
             </div>
         </div>

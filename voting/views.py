@@ -1388,3 +1388,39 @@ def retrieve_voting_code(request, event_id):
             messages.error(request, "No voting code found for the provided Student ID.")
             
     return redirect('event_detail', event_id=event_id)
+
+@login_required(login_url='/login/')
+def bulk_add_candidates(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    
+    if request.user != event.organizer and not request.user.is_staff:
+        return redirect('event_detail', event_id=event_id)
+        
+    if request.method == 'POST':
+        names_text = request.POST.get('bulk_names', '')
+        category_id = request.POST.get('bulk_category')
+        
+        category = None
+        if category_id:
+            category = Category.objects.get(id=category_id)
+            
+        # Split the text by newlines and remove empty lines
+        names = [name.strip() for name in names_text.split('\n') if name.strip()]
+        
+        count = 0
+        for name in names:
+            # Create candidate (nominee_code auto-generates in the model save method)
+            Candidate.objects.create(
+                event=event,
+                name=name,
+                category=category
+            )
+            count += 1
+            
+        if count > 0:
+            ActivityLog.objects.create(user=request.user, event=event, action=f"Bulk added {count} candidates to '{event.title}'")
+            messages.success(request, f'{count} contestants added successfully!')
+        else:
+            messages.error(request, 'No valid names were provided.')
+            
+    return redirect('event_detail', event_id=event_id)
