@@ -45,6 +45,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary', # <--- ADD THIS
+    'cloudinary_storage', # <--- ADD THIS
     'django.contrib.staticfiles',
     'voting',
 ]
@@ -129,16 +131,15 @@ USE_TZ = True # <--- MAKE SURE THIS IS TRUE
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Media Files (User uploads) - Cloudinary for Production, Local for Dev
+# Media Files (User uploads)
+MEDIA_URL = '/media/'
+
+# Check if we are in production (Render sets the CLOUDINARY_URL env var)
 if 'CLOUDINARY_URL' in os.environ:
-    CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-    }
+    # Save images directly to Cloudinary Cloud
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 else:
-    MEDIA_URL = '/media/'
+    # Save images locally during development
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # PayStack Configuration
