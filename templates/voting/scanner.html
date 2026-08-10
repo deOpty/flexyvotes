@@ -36,7 +36,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js"></script>
 <script>
     const eventId = "{{ event.id }}";
-    const processScanUrl = `/event/₵{eventId}/process-scan/`;
+    const processScanUrl = `/event/${eventId}/process-scan/`;
     const resultDiv = document.getElementById('scan-result');
     
     // Function to send data to Django backend
@@ -56,11 +56,11 @@
             if (status === 200) {
                 // SUCCESS - Ticket is valid and checked in
                 resultDiv.className = 'mt-4 p-4 rounded-3 alert alert-success';
-                resultDiv.innerHTML = `<i class="bi bi-check-circle-fill fs-1 d-block mb-2"></i> <h5>₵{body.message}</h5>`;
+                resultDiv.innerHTML = `<i class="bi bi-check-circle-fill fs-1 d-block mb-2"></i> <h5>${body.message}</h5>`;
             } else {
                 // ERROR - Ticket invalid, already used, or payment pending
                 resultDiv.className = 'mt-4 p-4 rounded-3 alert alert-danger';
-                resultDiv.innerHTML = `<i class="bi bi-x-circle-fill fs-1 d-block mb-2"></i> <h5 class="mb-0">₵{body.message}</h5>`;
+                resultDiv.innerHTML = `<i class="bi bi-x-circle-fill fs-1 d-block mb-2"></i> <h5 class="mb-0">${body.message}</h5>`;
             }
             
             // Clear the result after 4 seconds
@@ -92,14 +92,14 @@
         onScanSuccess,
         onScanFailure
     ).catch(err => {
-        document.getElementById('qr-reader').innerHTML = `<div class="alert alert-warning">Could not access camera. Please use manual entry below. <br><small>₵{err}</small></div>`;
+        document.getElementById('qr-reader').innerHTML = `<div class="alert alert-warning">Could not access camera. Please use manual entry below. <br><small>${err}</small></div>`;
     });
 
     // 2. Manual Entry Fallback
     document.getElementById('manual-scan-form').addEventListener('submit', function(e) {
         e.preventDefault();
         const code = document.getElementById('manual-code').value;
-        sendScanToServer(`REF: ₵{code}`); // Format it so Django can parse it
+        sendScanToServer(`REF: ${code}`); // Format it so Django can parse it
         this.reset();
     });
 </script>

@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="fw-bold text-wine">Analytics: {{ event.title }}</h2>
-            <p class="text-muted">Total Revenue: <b>₵{{ event.get_total_revenue }}</b> | Your Payout: <b>₵{{ event.get_organizer_payout }}</b></p>
+            <p class="text-muted">Total Revenue: <b>${{ event.get_total_revenue }}</b> | Your Payout: <b>${{ event.get_organizer_payout }}</b></p>
         </div>
         <button onclick="downloadPDF()" class="btn btn-gold px-3"><i class="bi bi-download me-1"></i> Download Report (PDF)</button>
     </div>
@@ -73,7 +73,7 @@
     // 1. Render a Grouped Bar Chart for EACH category
     const chartData = {{ chart_data|safe }};
     chartData.forEach((chart, index) => {
-        const ctx = document.getElementById(`chart-₵{index + 1}`).getContext('2d');
+        const ctx = document.getElementById(`chart-${index + 1}`).getContext('2d');
         new Chart(ctx, {
             type: 'bar',
             data: {
@@ -112,7 +112,7 @@
         canvases.forEach((canvas, index) => {
             const cardBody = canvas.closest('.card-body');
             const titleElement = cardBody.querySelector('h5');
-            const titleText = titleElement ? titleElement.innerText : `Chart ₵{index + 1}`;
+            const titleText = titleElement ? titleElement.innerText : `Chart ${index + 1}`;
             
             if (yPosition > 250) { doc.addPage(); yPosition = 20; }
             

@@ -380,7 +380,7 @@
                                             <button class="btn btn-outline-secondary w-100" disabled>Organizer/Admin View</button>
                                         {% else %}
                                             <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">
-                                                {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote / Donate{% endif %}
+                                                {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote for me{% endif %}
                                             </button>
                                             <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
                                                 {% if event.voting_mode == 'Code Voting' %}
@@ -503,7 +503,7 @@
                                 <button class="btn btn-outline-secondary w-100" disabled>Organizer/Admin View</button>
                             {% else %}
                                 <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">
-                                    {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote / Donate{% endif %}
+                                    {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote for me{% endif %}
                                 </button>
                                 <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
                                     {% if event.voting_mode == 'Code Voting' %}
@@ -575,15 +575,15 @@
     // Toggle the inline form visibility (Accordion style)
     function toggleVoteForm(candidateId) {
         document.querySelectorAll('[id^="vote-form-"]').forEach(form => {
-            if (form.id !== `vote-form-₵{candidateId}`) {
+            if (form.id !== `vote-form-${candidateId}`) {
                 form.style.display = 'none';
                 const otherBtnId = form.id.replace('vote-form-', 'vote-btn-');
                 document.getElementById(otherBtnId).style.display = 'block';
             }
         });
 
-        const formDiv = document.getElementById(`vote-form-₵{candidateId}`);
-        const btnDiv = document.getElementById(`vote-btn-₵{candidateId}`);
+        const formDiv = document.getElementById(`vote-form-${candidateId}`);
+        const btnDiv = document.getElementById(`vote-btn-${candidateId}`);
         
         if (formDiv.style.display === 'none' || formDiv.style.display === '') {
             formDiv.style.display = 'block';
@@ -596,10 +596,10 @@
 
     // NEW: Toggle between Donate Form and Ticket Form
     function toggleVoteMode(candidateId) {
-        const donateForm = document.getElementById(`donate-form-₵{candidateId}`);
-        const ticketForm = document.getElementById(`ticket-form-₵{candidateId}`);
-        const toggleBtn = document.getElementById(`toggle-btn-₵{candidateId}`);
-        const voteLabel = document.getElementById(`vote-label-₵{candidateId}`);
+        const donateForm = document.getElementById(`donate-form-${candidateId}`);
+        const ticketForm = document.getElementById(`ticket-form-${candidateId}`);
+        const toggleBtn = document.getElementById(`toggle-btn-${candidateId}`);
+        const voteLabel = document.getElementById(`vote-label-${candidateId}`);
         
         if (ticketForm.style.display === 'none') {
             donateForm.style.display = 'none';
@@ -616,12 +616,12 @@
 
     // Real-time calculator for the inline form
     function calculateVotes(candidateId, candidateName) {
-        const amountInput = document.querySelector(`#donate-form-₵{candidateId} input[name="amount"]`);
-        const calcText = document.getElementById(`calc-text-₵{candidateId}`);
+        const amountInput = document.querySelector(`#donate-form-${candidateId} input[name="amount"]`);
+        const calcText = document.getElementById(`calc-text-${candidateId}`);
         const amount = parseInt(amountInput.value);
         
         if (amount > 0) {
-            calcText.innerHTML = `You are giving <b>₵{amount}</b> votes to <b>₵{candidateName}</b>`;
+            calcText.innerHTML = `You are giving <b>${amount}</b> votes to <b>${candidateName}</b>`;
             calcText.style.color = '#1E1E1E';
         } else {
             calcText.innerHTML = '';
@@ -632,32 +632,32 @@
     
     // Live Vote Counts (Only runs if the user is an Admin/Organizer)
     async function updateVotes() {
-        const response = await fetch(`/event/₵{eventId}/live-counts/`);
+        const response = await fetch(`/event/${eventId}/live-counts/`);
         const data = await response.json();
         
         data.candidates.forEach(candidate => {
             // Update Main Votes
-            const countElement = document.getElementById(`vote-count-₵{candidate.id}`);
+            const countElement = document.getElementById(`vote-count-${candidate.id}`);
             if (countElement) {
                 countElement.innerText = candidate.votes;
             }
             
             // Update Tie-Breaker Votes
-            const tieBreakerElement = document.getElementById(`tie-breaker-count-₵{candidate.id}`);
+            const tieBreakerElement = document.getElementById(`tie-breaker-count-${candidate.id}`);
             if (tieBreakerElement) {
                 tieBreakerElement.innerText = candidate.tie_breakers;
             }
             
             // Update Percentage
-            const percentageElement = document.getElementById(`percentage-₵{candidate.id}`);
+            const percentageElement = document.getElementById(`percentage-${candidate.id}`);
             if (percentageElement) {
-                percentageElement.innerText = `₵{candidate.percentage}%`;
+                percentageElement.innerText = `${candidate.percentage}%`;
             }
             
             // Update Progress Bar
-            const progressBar = document.getElementById(`progress-₵{candidate.id}`);
+            const progressBar = document.getElementById(`progress-${candidate.id}`);
             if (progressBar) {
-                progressBar.style.width = `₵{candidate.percentage}%`;
+                progressBar.style.width = `${candidate.percentage}%`;
                 progressBar.setAttribute('aria-valuenow', candidate.percentage);
             }
         });
