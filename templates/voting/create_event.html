@@ -23,13 +23,14 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold text-muted small">Start Date & Time</label>
                             <input type="datetime-local" name="start_date" class="form-control" required>
+                            <small class="text-muted">Make sure to select both Date and Time.</small>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold text-muted small">End Date & Time</label>
                             <input type="datetime-local" name="end_date" class="form-control" required>
+                            <small class="text-muted">Make sure to select both Date and Time.</small>
                         </div>
                     </div>
-                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold text-muted small">Voting Mode</label>
@@ -96,5 +97,6 @@
             codeDiv.style.display = 'none';
         }
     }
+
 </script>
 {% endblock %}
