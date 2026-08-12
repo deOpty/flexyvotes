@@ -87,21 +87,15 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Static & Media Files
-STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# CLOUDINARY HARDCODED TEST
+# Cloudinary Configuration (Hardcoded for testing)
 cloudinary.config( 
     cloud_name="gtwuklyz", 
     api_key="963426447992751", 
     api_secret="SIHZCfPSZMNNn1GWsjm53rkbRmc" 
 )
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
-# PayStack Configuration
-PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
+# FORCE Cloudinary Storage for all media files
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # PayStack Configuration
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
