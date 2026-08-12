@@ -94,17 +94,15 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
-# Force Cloudinary if the cloud name is present in env vars
-if os.getenv('CLOUDINARY_CLOUD_NAME'):
-    cloudinary.config(
-        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-        api_key=os.getenv('CLOUDINARY_API_KEY'),
-        api_secret=os.getenv('CLOUDINARY_API_SECRET')
-    )
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-else:
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Initialize Cloudinary
+cloudinary.config( 
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'), 
+    api_key=os.getenv('CLOUDINARY_API_KEY'), 
+    api_secret=os.getenv('CLOUDINARY_API_SECRET') 
+)
+
+# FORCE Cloudinary Storage for all media files
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # PayStack Configuration
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
