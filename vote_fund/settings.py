@@ -125,30 +125,30 @@ USE_TZ = True # <--- MAKE SURE THIS IS TRUE
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
-# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Media Files (User uploads)
-MEDIA_URL = '/media/'
-
-# Check if we are in production (Render sets the CLOUDINARY_URL env var)
-if 'CLOUDINARY_URL' in os.environ:
-    # Save images directly to Cloudinary Cloud
+# Cloudinary Configuration
+if os.getenv('CLOUDINARY_CLOUD_NAME'):
+    # Explicitly configure Cloudinary
+    cloudinary.config( 
+      cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'), 
+      api_key = os.getenv('CLOUDINARY_API_KEY'), 
+      api_secret = os.getenv('CLOUDINARY_API_SECRET') 
+    )
+    # Force Django to use Cloudinary for media files
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 else:
-    # Save images locally during development
+    # Local development fallback
+    MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # PayStack Configuration
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 
-
 # Africa's Talking Configuration
-AT_USERNAME = os.getenv('sandbox')
-AT_API_KEY = os.getenv('atsk_67b10971a18b4e47d7f69be2f58aa00e915db354e3e689a28d9ae38301355f0f5b3fad3b')
+AT_USERNAME = os.getenv('AT_USERNAME', 'sandbox')
+AT_API_KEY = os.getenv('AT_API_KEY')
 
 # Email Configuration (Gmail SMTP)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
