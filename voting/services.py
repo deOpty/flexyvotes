@@ -17,7 +17,7 @@ def initialize_paystack_payment(email, amount, candidate_id):
         "email": email,
         "amount": int(amount * 100),  # PayStack expects amount in kobo/cents
         "reference": reference,
-        "callback_url": "http://127.0.0.1:8000/vote/success/",
+        "callback_url": "https://flexyvotes.onrender.com/vote/success/",,
         "metadata": {
             "candidate_id": candidate_id,
             "voter_email": email
@@ -49,7 +49,7 @@ def initialize_ticket_payment(email, amount, ticket_id, quantity):
         "email": email,
         "amount": int(amount * 100),
         "reference": reference,
-        "callback_url": "http://127.0.0.1:8000/ticket/success/", # <--- UPDATE THIS URL
+        "callback_url": "https://flexyvotes.onrender.com/vote/success/",
         "metadata": {
             "type": "ticket_purchase",
             "ticket_id": ticket_id,
