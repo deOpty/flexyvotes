@@ -87,15 +87,21 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Cloudinary Media Storage Configuration
-# We explicitly pass the keys so Django knows how to build the full https://res.cloudinary.com URL
+# Cloudinary Media Storage Configuration (HARDCODED TO FORCE CLOUDINARY)
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
-# Force Django to use Cloudinary for media files
+# Initialize Cloudinary explicitly
+cloudinary.config( 
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'), 
+    api_key=os.getenv('CLOUDINARY_API_KEY'), 
+    api_secret=os.getenv('CLOUDINARY_API_SECRET') 
+)
+
+# FORCE Cloudinary Storage for all media files
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # PayStack Configuration
