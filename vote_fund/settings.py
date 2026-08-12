@@ -87,22 +87,21 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Cloudinary Media Storage Configuration (HARDCODED TO FORCE CLOUDINARY)
-CLOUDINARY_STORAGE = {
-    'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-    'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-    'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-}
+# Static & Media Files
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-# Initialize Cloudinary explicitly
+# CLOUDINARY HARDCODED TEST
 cloudinary.config( 
-    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'), 
-    api_key=os.getenv('CLOUDINARY_API_KEY'), 
-    api_secret=os.getenv('CLOUDINARY_API_SECRET') 
+    cloud_name="gtwuklyz", 
+    api_key="963426447992751", 
+    api_secret="SIHZCfPSZMNNn1GWsjm53rkbRmc" 
 )
-
-# FORCE Cloudinary Storage for all media files
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# PayStack Configuration
+PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 
 # PayStack Configuration
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
