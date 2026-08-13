@@ -15,7 +15,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 # Comma-separated list of hosts, e.g. "flexyvotes.example.com,www.flexyvotes.example.com"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv(
-    'ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,flexyvotes.onrender.com'
+    'ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,13.49.237.31'
 ).split(',') if h.strip()]
 
 INSTALLED_APPS = [
