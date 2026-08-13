@@ -108,7 +108,7 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 
 # Public base URL used to build payment callback/webhook URLs (e.g. https://flexyvotes.example.com)
-SITE_URL = os.getenv('SITE_URL', 'http://127.0.0.1:8000')
+SITE_URL = os.getenv('SITE_URL', 'http://13.49.237.31:5000')
 
 # Africa's Talking Configuration
 AT_USERNAME = os.getenv('AT_USERNAME', 'sandbox')
