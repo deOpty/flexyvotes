@@ -70,7 +70,7 @@ class CustomUserAdmin(UserAdmin):
                                     <p style="font-size: 16px;">Great news! Your organizer account on FlexyVotes has been approved by the admin.</p>
                                     <p style="font-size: 16px;">You can now log in and start creating events, managing voting, and selling tickets.</p>
                                     
-                                    <a href="http://127.0.0.1:8000/login/" style="display: inline-block; background-color: #FFD700; color: #800020; padding: 12px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; margin-top: 10px;">Log In Now</a>
+                                    <a href="{settings.SITE_URL}/login/" style="display: inline-block; background-color: #FFD700; color: #800020; padding: 12px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; margin-top: 10px;">Log In Now</a>
                                 </div>
                                 <div style="background-color: #1E1E1E; color: #888; padding: 20px; text-align: center; font-size: 12px;">
                                     &copy; FlexyVotes. All rights reserved.

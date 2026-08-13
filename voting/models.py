@@ -14,6 +14,10 @@ def validate_file_size(file):
     if file.size > limit:
         raise ValidationError('File too large. Size should not exceed 2 MB.')
 
+
+def generate_voting_code():
+    return uuid.uuid4().hex[:8].upper()
+
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     is_approved_organizer = models.BooleanField(default=False)
@@ -169,7 +173,7 @@ class Product(models.Model):
 
 class VotingCode(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='voting_codes')
-    code = models.CharField(max_length=50, unique=True, default=uuid.uuid4().hex[:8].upper())
+    code = models.CharField(max_length=50, unique=True, default=generate_voting_code)
     voter_identifier = models.CharField(max_length=100, blank=True, null=True) 
     is_used = models.BooleanField(default=False)
     used_at = models.DateTimeField(null=True, blank=True)
@@ -200,9 +204,6 @@ class Ticket(models.Model):
             discount = ((self.old_price - self.price) / self.old_price) * 100
             return int(discount)
         return 0
-
-    def __str__(self):
-        return f"{self.name} - {self.event.title}"
 
 class TicketPurchase(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='purchases')

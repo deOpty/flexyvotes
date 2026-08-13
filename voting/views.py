@@ -23,12 +23,14 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.db.models import Sum, Q, IntegerField
 from django.db.models.functions import Coalesce
 from django.views.decorators.csrf import csrf_exempt
 from .models import (Event, Candidate, VoteTransaction, Profile, ActivityLog, 
                      Category, Product, ProductCategory, VotingCode, Ticket, TicketPurchase)
-from .services import initialize_paystack_payment, initialize_ticket_payment
+from .services import initialize_paystack_payment, initialize_ticket_payment, verify_paystack_transaction
 
 # SECURITY: CSV Macro Injection Sanitizer
 def sanitize_csv_value(value):
@@ -93,10 +95,14 @@ def initiate_vote(request, candidate_id):
 
     if request.method == 'POST':
         candidate = get_object_or_404(Candidate, id=candidate_id)
-        
+
         # Get custom amount from form, default to 0 if empty
-        amount = int(request.POST.get('amount', 0))
-        
+        try:
+            amount = int(request.POST.get('amount', 0))
+        except (TypeError, ValueError):
+            messages.error(request, "Please enter a valid whole number of votes.")
+            return redirect('event_detail', event_id=candidate.event.id)
+
         if amount < 1:
             return redirect('event_detail', event_id=candidate.event.id)
             
@@ -126,11 +132,18 @@ def vote_success(request):
     if reference:
         transaction = VoteTransaction.objects.filter(paystack_reference=reference).first()
         if transaction:
-            # UPDATE: Mark as Success if it was pending (Fallback for local testing)
+            # SECURITY: Never trust the client-supplied reference alone - confirm with
+            # PayStack's servers before marking a Pending transaction as paid. The
+            # webhook is the primary path; this is a fallback for when it hasn't
+            # landed yet (e.g. slower delivery than the browser redirect).
             if transaction.status == 'Pending':
-                transaction.status = 'Success'
-                transaction.save()
-                
+                if verify_paystack_transaction(reference):
+                    transaction.status = 'Success'
+                    transaction.save()
+                else:
+                    messages.error(request, 'We could not confirm your payment yet. If you were charged, your vote will be credited shortly once confirmed.')
+                    return redirect('event_detail', event_id=transaction.candidate.event.id)
+
             event_id = transaction.candidate.event.id
             messages.success(request, 'Payment successful! Your vote has been cast.')
             return redirect('event_detail', event_id=event_id)
@@ -142,41 +155,46 @@ def vote_success(request):
 @csrf_exempt
 def paystack_webhook(request):
     if request.method == 'POST':
-        payload = json.loads(request.body)
-        
+        signature = request.headers.get('x-paystack-signature', '')
         secret = settings.PAYSTACK_SECRET_KEY
-        signature = request.headers.get('x-paystack-signature')
         computed_signature = hmac.new(
             secret.encode('utf-8'),
             request.body,
             hashlib.sha512
         ).hexdigest()
 
-        if computed_signature == signature:
-            if payload['event'] == 'charge.success':
-                data = payload['data']
-                reference = data['reference']
-                
-                # 1. Check if it's a Ticket Purchase
-                if data.get('metadata', {}).get('type') == 'ticket_purchase':
-                    try:
-                        purchase = TicketPurchase.objects.get(paystack_reference=reference)
-                        if purchase.status == 'Pending':
-                            purchase.status = 'Success'
-                            purchase.save()
-                    except TicketPurchase.DoesNotExist:
-                        pass
-                        
-                # 2. Otherwise, check if it's a Vote Transaction
-                else:
-                    try:
-                        transaction = VoteTransaction.objects.get(paystack_reference=reference)
-                        if transaction.status == 'Pending':
-                            transaction.status = 'Success'
-                            transaction.save()
-                    except VoteTransaction.DoesNotExist:
-                        pass
-                
+        if not hmac.compare_digest(computed_signature, signature):
+            return HttpResponse(status=400)
+
+        try:
+            payload = json.loads(request.body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return HttpResponse(status=400)
+
+        if payload.get('event') == 'charge.success':
+            data = payload.get('data', {})
+            reference = data.get('reference')
+
+            # 1. Check if it's a Ticket Purchase
+            if data.get('metadata', {}).get('type') == 'ticket_purchase':
+                try:
+                    purchase = TicketPurchase.objects.get(paystack_reference=reference)
+                    if purchase.status == 'Pending':
+                        purchase.status = 'Success'
+                        purchase.save()
+                except TicketPurchase.DoesNotExist:
+                    pass
+
+            # 2. Otherwise, check if it's a Vote Transaction
+            else:
+                try:
+                    transaction = VoteTransaction.objects.get(paystack_reference=reference)
+                    if transaction.status == 'Pending':
+                        transaction.status = 'Success'
+                        transaction.save()
+                except VoteTransaction.DoesNotExist:
+                    pass
+
         return HttpResponse(status=200)
     
     return HttpResponse(status=400)
@@ -197,14 +215,24 @@ def live_vote_counts(request, event_id):
     return JsonResponse({'candidates': data, 'total_votes': total_votes})
 
 def login_view(request):
+    ip_address = request.META.get('REMOTE_ADDR')
+    cache_key = f'login_attempts_{ip_address}'
+    attempts = cache.get(cache_key, 0)
+
+    if attempts >= 5:
+        messages.error(request, "Too many login attempts. Please wait a minute and try again.")
+        return render(request, 'voting/login.html')
+
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
         user = authenticate(request, username=username, password=password)
         if user is not None:
+            cache.delete(cache_key)
             login(request, user)
             return redirect('home')
         else:
+            cache.set(cache_key, attempts + 1, 60)
             messages.error(request, 'Invalid username or password.')
     return render(request, 'voting/login.html')
 
@@ -225,10 +253,19 @@ def register_view(request):
         username = request.POST.get('username')
         email = request.POST.get('email')
         password = request.POST.get('password')
-        
+
         if User.objects.filter(username=username).exists():
             messages.error(request, 'Username already taken.')
+        elif not password:
+            messages.error(request, 'Password is required.')
         else:
+            try:
+                validate_password(password)
+            except ValidationError as e:
+                for error in e.messages:
+                    messages.error(request, error)
+                return render(request, 'voting/register.html')
+
             user = User.objects.create_user(username=username, email=email, password=password)
             Profile.objects.create(user=user)
             login(request, user)
@@ -259,7 +296,7 @@ def register_view(request):
 
                             <p style="font-size: 16px;">Please log in to the admin dashboard to review and approve this user.</p>
                             
-                            <a href="http://127.0.0.1:8000/admin/auth/user/" style="display: inline-block; background-color: #800020; color: #FFD700; padding: 12px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; margin-top: 10px;">Review User</a>
+                            <a href="{settings.SITE_URL}/admin/auth/user/" style="display: inline-block; background-color: #800020; color: #FFD700; padding: 12px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; margin-top: 10px;">Review User</a>
                         </div>
                         <div style="background-color: #1E1E1E; color: #888; padding: 20px; text-align: center; font-size: 12px;">
                             &copy; FlexyVotes. All rights reserved.
@@ -274,7 +311,10 @@ def register_view(request):
                     msg.send(fail_silently=True)
                 except Exception:
                     pass # Silently fail so it doesn't break registration
-            
+
+            messages.success(request, 'Registration successful! Your organizer account is pending admin approval.')
+            return redirect('home')
+
     return render(request, 'voting/register.html')
 
 def logout_view(request):
@@ -647,8 +687,9 @@ def download_codes(request, event_id):
     return response
 
 def cast_vote_with_code(request, candidate_id):
+    candidate = get_object_or_404(Candidate, id=candidate_id)
+
     if request.method == 'POST':
-        candidate = get_object_or_404(Candidate, id=candidate_id)
         event = candidate.event
         code_input = request.POST.get('code', '').strip().upper()
         identifier_input = request.POST.get('identifier', '').strip()
@@ -865,7 +906,7 @@ def ussd_callback(request):
     elif first_input == "2":
         # LEVEL 1: List Events with Tickets
         if len(inputs) == 1:
-            events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct()
+            events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
             if not events:
                 return HttpResponse("END No events are selling tickets right now.", content_type='text/plain')
             menu = "CON Select Event:\n"
@@ -877,10 +918,10 @@ def ussd_callback(request):
         elif len(inputs) == 2:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct()
+                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
                 if 0 <= event_index < len(events):
                     selected_event = events[event_index]
-                    tickets = selected_event.tickets.filter(is_active=True)
+                    tickets = selected_event.tickets.filter(is_active=True).order_by('id')
                     if not tickets:
                         return HttpResponse("END No tickets available for this event.", content_type='text/plain')
                     menu = f"CON Select Ticket for {selected_event.title}:\n"
@@ -896,10 +937,10 @@ def ussd_callback(request):
         elif len(inputs) == 3:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct()
+                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
                 selected_event = events[event_index]
                 ticket_index = int(inputs[2]) - 1
-                tickets = selected_event.tickets.filter(is_active=True)
+                tickets = selected_event.tickets.filter(is_active=True).order_by('id')
                 
                 if 0 <= ticket_index < len(tickets):
                     selected_ticket = tickets[ticket_index]
@@ -914,10 +955,10 @@ def ussd_callback(request):
         elif len(inputs) == 4:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct()
+                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
                 selected_event = events[event_index]
                 ticket_index = int(inputs[2]) - 1
-                tickets = selected_event.tickets.filter(is_active=True)
+                tickets = selected_event.tickets.filter(is_active=True).order_by('id')
                 selected_ticket = tickets[ticket_index]
                 
                 quantity = int(inputs[3])
@@ -934,10 +975,10 @@ def ussd_callback(request):
         elif len(inputs) == 5:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct()
+                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
                 selected_event = events[event_index]
                 ticket_index = int(inputs[2]) - 1
-                tickets = selected_event.tickets.filter(is_active=True)
+                tickets = selected_event.tickets.filter(is_active=True).order_by('id')
                 selected_ticket = tickets[ticket_index]
                 quantity = int(inputs[3])
                 buyer_name = inputs[4]
@@ -953,10 +994,10 @@ def ussd_callback(request):
             if inputs[5] == "1":
                 try:
                     event_index = int(inputs[1]) - 1
-                    events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct()
+                    events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
                     selected_event = events[event_index]
                     ticket_index = int(inputs[2]) - 1
-                    tickets = selected_event.tickets.filter(is_active=True)
+                    tickets = selected_event.tickets.filter(is_active=True).order_by('id')
                     selected_ticket = tickets[ticket_index]
                     quantity = int(inputs[3])
                     buyer_name = inputs[4]
@@ -1017,12 +1058,27 @@ def buy_ticket(request, ticket_id):
         ticket = get_object_or_404(Ticket, id=ticket_id)
         buyer_name = request.POST.get('name')
         buyer_email = request.POST.get('email')
-        quantity = int(request.POST.get('quantity', 1))
-        
+
+        try:
+            quantity = int(request.POST.get('quantity', 1))
+        except (TypeError, ValueError):
+            quantity = 0
+
+        if quantity < 1:
+            messages.error(request, "Please enter a valid quantity.")
+            return redirect('event_tickets', event_id=ticket.event.id)
+
+        already_sold = TicketPurchase.objects.filter(
+            ticket=ticket, status='Success'
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+        if already_sold + quantity > ticket.quantity_available:
+            messages.error(request, "Not enough tickets available for this request.")
+            return redirect('event_tickets', event_id=ticket.event.id)
+
         total_amount = ticket.price * quantity
-        
+
         auth_url, reference = initialize_ticket_payment(buyer_email, total_amount, ticket_id, quantity)
-        
+
         if auth_url:
             TicketPurchase.objects.create(
                 ticket=ticket,
@@ -1034,6 +1090,11 @@ def buy_ticket(request, ticket_id):
                 status='Pending'
             )
             return redirect(auth_url)
+
+        messages.error(request, "Could not initialize payment. Please try again.")
+        return redirect('event_tickets', event_id=ticket.event.id)
+
+    return redirect('tickets')
 
 def tickets_view(request):
     events_with_tickets = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('-start_date')
@@ -1138,10 +1199,17 @@ def ticket_success(request):
     # Track if this is a fresh payment or just a retrieval/view
     just_paid = False
     if purchase.status == 'Pending':
-        purchase.status = 'Success'
-        purchase.save()
-        just_paid = True
-        
+        # SECURITY: Confirm with PayStack's servers before marking as paid -
+        # see the matching note in vote_success.
+        if verify_paystack_transaction(reference):
+            purchase.status = 'Success'
+            purchase.save()
+            just_paid = True
+        else:
+            messages.error(request, 'We could not confirm your payment yet. If you were charged, your ticket will be confirmed shortly.')
+            return redirect('tickets')
+
+
     # Generate QR Code with rich data for the HTML page
     qr_data = f"EVENT: {purchase.ticket.event.title}\nNAME: {purchase.buyer_name}\nTICKET: {purchase.ticket.name}\nQTY: {purchase.quantity}\nREF: {purchase.paystack_reference}"
     
@@ -1160,43 +1228,66 @@ def ticket_success(request):
         'just_paid': just_paid # Pass this flag to the template
     })
 
+ALLOWED_TICKET_EMAIL_IMAGE_TYPES = {'png', 'jpeg', 'jpg'}
+MAX_TICKET_EMAIL_IMAGE_BYTES = 5 * 1024 * 1024  # 5MB
+
+
 @csrf_exempt
 def send_ticket_email(request):
-    if request.method == 'POST':
-        import json
+    if request.method != 'POST':
+        return HttpResponse(status=400)
+
+    # Rate limit by IP to prevent this open endpoint being used to spam/abuse email sending
+    ip_address = request.META.get('REMOTE_ADDR')
+    cache_key = f'send_ticket_email_{ip_address}'
+    attempts = cache.get(cache_key, 0)
+    if attempts >= 10:
+        return HttpResponse(status=429)
+    cache.set(cache_key, attempts + 1, 60)
+
+    try:
         data = json.loads(request.body)
-        image_data = data.get('image')
-        reference = data.get('reference')
-        
-        purchase = TicketPurchase.objects.filter(paystack_reference=reference).first()
-        
-        if purchase and image_data:
-            # SECURITY: Do not send emails to fake USSD phone number addresses
-            if purchase.buyer_email.endswith('@ussd.vote'):
-                return HttpResponse(status=200) # Pretend it succeeded so the JS doesn't error
-                
-            # Decode the base64 image data
-            format, imgstr = image_data.split(';base64,')
-            ext = format.split('/')[-1]
-            image_bytes = base64.b64decode(imgstr)
-            
-            # Send Email
-            email_subject = f"Your E-Ticket for {purchase.ticket.event.title}"
-            email_body = f"Hi {purchase.buyer_name},\n\nThank you for your purchase! Please find your branded E-Ticket attached to this email. Present the QR code at the entrance for scanning.\n\nEvent: {purchase.ticket.event.title}\nTicket Type: {purchase.ticket.name}\nQuantity: {purchase.quantity}\nReference: {purchase.paystack_reference}\n\nSee you at the event!"
-            
-            email = EmailMessage(
-                subject=email_subject,
-                body=email_body,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[purchase.buyer_email]
-            )
-            
-            email.attach(f"ticket_{purchase.paystack_reference}.png", image_bytes, 'image/png')
-            email.send(fail_silently=True)
-            
-            return HttpResponse(status=200)
-            
-    return HttpResponse(status=400)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return HttpResponse(status=400)
+
+    image_data = data.get('image')
+    reference = data.get('reference')
+
+    purchase = TicketPurchase.objects.filter(paystack_reference=reference).first()
+
+    if not (purchase and image_data):
+        return HttpResponse(status=400)
+
+    # SECURITY: Do not send emails to fake USSD phone number addresses
+    if purchase.buyer_email.endswith('@ussd.vote'):
+        return HttpResponse(status=200)  # Pretend it succeeded so the JS doesn't error
+
+    try:
+        header, imgstr = image_data.split(';base64,')
+        ext = header.split('/')[-1].lower()
+        if ext not in ALLOWED_TICKET_EMAIL_IMAGE_TYPES:
+            return HttpResponse(status=400)
+
+        image_bytes = base64.b64decode(imgstr)
+        if len(image_bytes) > MAX_TICKET_EMAIL_IMAGE_BYTES:
+            return HttpResponse(status=400)
+    except (ValueError, TypeError, base64.binascii.Error):
+        return HttpResponse(status=400)
+
+    email_subject = f"Your E-Ticket for {purchase.ticket.event.title}"
+    email_body = f"Hi {purchase.buyer_name},\n\nThank you for your purchase! Please find your branded E-Ticket attached to this email. Present the QR code at the entrance for scanning.\n\nEvent: {purchase.ticket.event.title}\nTicket Type: {purchase.ticket.name}\nQuantity: {purchase.quantity}\nReference: {purchase.paystack_reference}\n\nSee you at the event!"
+
+    email = EmailMessage(
+        subject=email_subject,
+        body=email_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[purchase.buyer_email]
+    )
+
+    email.attach(f"ticket_{purchase.paystack_reference}.{ext}", image_bytes, f'image/{ext}')
+    email.send(fail_silently=True)
+
+    return HttpResponse(status=200)
 
 def verify_ticket_view(request):
     ticket_found = None
@@ -1230,12 +1321,19 @@ def event_scanner(request, event_id):
         
     return render(request, 'voting/scanner.html', {'event': event})
 
-@csrf_exempt
 @login_required(login_url='/login/')
 def process_scan(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+
+    # Security: Only the organizer or admin can check in tickets for this event
+    if request.user != event.organizer and not request.user.is_staff:
+        return JsonResponse({'status': 'error', 'message': 'Not authorized for this event.'}, status=403)
+
     if request.method == 'POST':
-        import json
-        data = json.loads(request.body)
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid request body.'}, status=400)
         scanned_text = data.get('text', '')
         
         # Extract the reference from the scanned QR text (e.g., "REF: TK-AB1234")
