@@ -20,7 +20,7 @@ Two deployment paths are covered:
 | `Dockerfile` | Multi-stage-ready image build: installs deps, runs `collectstatic`, drops to a non-root user, defines a healthcheck, runs `gunicorn` |
 | `.dockerignore` | Keeps secrets, docs, VCS metadata, and local artifacts out of the build context/image |
 | `docker-entrypoint.sh` | Runs `manage.py migrate` on container start, then execs the given command (gunicorn) |
-| `docker-compose.yml` | Local Postgres + web container for testing the containerized app before pushing to AWS |
+| `docker-compose.yml` | Local Postgres + web container for testing the containerized app before pushing to AWS. Both `postgres_data` (database) and `media_data` (`/app/media`) are named volumes, so `docker compose down`/restart/recreate doesn't lose data. |
 
 **Verify the build locally before touching AWS:**
 
@@ -45,6 +45,21 @@ already used by another service on your machine — `docker-compose.yml` maps
 the same value on the host and inside the container, so changing it in one
 place is enough. The `Procfile` (for non-Docker PaaS deploys) and the
 Dockerfile's `gunicorn` command both bind to `0.0.0.0:${PORT:-8000}`.
+
+**Media persistence.** `docker-compose.yml` mounts a named volume
+(`media_data`) at `/app/media` so a container restart/recreate doesn't wipe
+local files. In normal operation this directory should stay essentially
+empty — `DEFAULT_FILE_STORAGE` is unconditionally Cloudinary, so uploaded
+images belong in Cloudinary, not on local disk, and should render as
+`https://res.cloudinary.com/...` URLs, never `/media/...` ones. If you see a
+real `/media/...` 404 in production, that's a sign Cloudinary isn't actually
+receiving uploads (missing/blank `CLOUDINARY_*` env vars are the most common
+cause) rather than something the volume alone will fix going forward — see
+the troubleshooting note in `OPERATIONS.md`. The volume mainly protects
+against losing whatever is already on disk between restarts while you sort
+that out; it also matters if `DEBUG=True`, since that's what makes Django
+serve `MEDIA_ROOT` locally at all (`vote_fund/urls.py`) — production should
+run with `DEBUG=False`.
 
 **Admin account.** Set `DJANGO_SUPERUSER_USERNAME`/`_EMAIL`/`_PASSWORD` in
 `.env` and the entrypoint will automatically create that Django superuser on

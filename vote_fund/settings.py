@@ -88,7 +88,6 @@ USE_TZ = True
 # Static Files
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media Files (used only for local/DEBUG serving; production storage is Cloudinary)
 MEDIA_URL = 'media/'
@@ -101,8 +100,30 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
 }
 
-# Use Cloudinary storage for media files in all environments
+# NOTE: this Django version resolves default_storage/staticfiles_storage
+# from STORAGES only - the legacy DEFAULT_FILE_STORAGE/STATICFILES_STORAGE
+# settings are NOT translated into it automatically. Setting only the legacy
+# names left `default_storage` silently falling back to Django's built-in
+# FileSystemStorage, so uploaded images were being written to local disk
+# (404ing once /media/ isn't served, or wiped on every container restart)
+# instead of actually going to Cloudinary.
+#
+# Both forms are defined: STORAGES is what Django itself actually reads;
+# DEFAULT_FILE_STORAGE/STATICFILES_STORAGE are kept because
+# django-cloudinary-storage's own `collectstatic` override reads
+# `settings.STATICFILES_STORAGE` directly (see the --upload-unhashed-files
+# note above) and raises AttributeError at build time if it's absent.
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+STORAGES = {
+    'default': {
+        'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 # PayStack Configuration
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')

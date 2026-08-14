@@ -23,6 +23,8 @@ services:
       DATABASE_URL: postgres://flexyvotes:flexyvotes@db:5432/flexyvotes
       DATABASE_SSL_REQUIRE: "False"
       PORT: ${PORT:-8000}
+    volumes:
+      - media_data:/app/media
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     depends_on:
@@ -31,3 +33,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:
