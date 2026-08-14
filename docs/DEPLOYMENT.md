@@ -49,15 +49,22 @@ Dockerfile's `gunicorn` command both bind to `0.0.0.0:${PORT:-8000}`.
 **Media persistence.** `docker-compose.yml` mounts a named volume
 (`media_data`) at `/app/media` so a container restart/recreate doesn't wipe
 local files. In normal operation this directory should stay essentially
-empty — `DEFAULT_FILE_STORAGE` is unconditionally Cloudinary, so uploaded
-images belong in Cloudinary, not on local disk, and should render as
-`https://res.cloudinary.com/...` URLs, never `/media/...` ones. If you see a
-real `/media/...` 404 in production, that's a sign Cloudinary isn't actually
-receiving uploads (missing/blank `CLOUDINARY_*` env vars are the most common
-cause) rather than something the volume alone will fix going forward — see
-the troubleshooting note in `OPERATIONS.md`. The volume mainly protects
-against losing whatever is already on disk between restarts while you sort
-that out; it also matters if `DEBUG=True`, since that's what makes Django
+empty — uploaded images belong in Cloudinary and should render as
+`https://res.cloudinary.com/...` URLs, never `/media/...` ones.
+
+A real `/media/...` 404 in production was traced to a genuine bug (now
+fixed): this Django version (`Django==6.0.7`) only resolves
+`default_storage` from the `STORAGES` setting - it does **not** derive it
+from the legacy `DEFAULT_FILE_STORAGE` setting the way earlier Django
+versions did. With only the legacy setting defined, uploads were silently
+falling back to Django's built-in `FileSystemStorage` instead of Cloudinary.
+`vote_fund/settings.py` now defines `STORAGES` directly (see the comment
+there), verified by rebuilding the image and confirming both
+`default_storage` resolves to `cloudinary_storage.storage.MediaCloudinaryStorage`
+and a real image upload produces a `res.cloudinary.com` URL. See
+`OPERATIONS.md`'s incident-response entry for the verification commands if
+this ever needs re-checking after a settings change. The `media_data` volume
+still matters independently of this fix, since `DEBUG=True` makes Django
 serve `MEDIA_ROOT` locally at all (`vote_fund/urls.py`) — production should
 run with `DEBUG=False`.
 

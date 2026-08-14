@@ -120,7 +120,7 @@ All configuration is read from environment variables (loaded from `.env` via `py
 
 Notes:
 
-- Media files (`MEDIA_URL`/`MEDIA_ROOT`) are configured for local/DEBUG serving, but all uploaded files (candidate, event, product, and ticket images) are actually stored via `DEFAULT_FILE_STORAGE = cloudinary_storage.storage.MediaCloudinaryStorage` in every environment — Cloudinary credentials are required for image uploads to work at all.
+- Media files (`MEDIA_URL`/`MEDIA_ROOT`) are configured for local/DEBUG serving, but all uploaded files (candidate, event, product, and ticket images) are actually stored via Cloudinary (`STORAGES['default'] = cloudinary_storage.storage.MediaCloudinaryStorage`) in every environment — Cloudinary credentials are required for image uploads to work at all. This Django version only honors the `STORAGES` setting for storage resolution, not the legacy `DEFAULT_FILE_STORAGE` alone, so both are kept defined and in sync in `settings.py`.
 - Session/CSRF cookies are marked `Secure` automatically whenever `DEBUG=False`.
 
 ## How Voting Works

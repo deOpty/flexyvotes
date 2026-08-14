@@ -322,7 +322,57 @@ checkout-then-confirm gap, etc.), not a one-line patch.
 
 ---
 
-## 15. Verified as already correct (no change needed)
+## 15. HIGH (data integrity) — Uploaded media was silently written to local disk instead of Cloudinary
+
+**Where:** `vote_fund/settings.py`.
+
+**The bug:** `settings.py` set only the legacy `DEFAULT_FILE_STORAGE` /
+`STATICFILES_STORAGE` settings. `Django==6.0.7` (the version this project is
+pinned to) does not derive `default_storage` from those legacy settings the
+way earlier Django versions did — it resolves storage exclusively from the
+`STORAGES` dict. With `STORAGES` undefined, `default_storage` silently fell
+back to Django's built-in `FileSystemStorage`, confirmed live via
+`default_storage.__class__` printing `FileSystemStorage` instead of
+Cloudinary's storage class.
+
+**Impact:** Every uploaded image (event flyers/backgrounds, candidate
+photos, product/ticket images) was actually being written to the
+container's local, ephemeral filesystem instead of Cloudinary — the opposite
+of what `settings.py`'s own comments and the git history ("FORCE Cloudinary
+Storage for all media files") describe as intentional. Consequences: (1)
+every uploaded image was lost on the next container restart/redeploy/scale
+event, since container filesystems aren't persistent by default; (2) images
+rendered as broken `/media/...` links whenever `DEBUG=False` (no local
+static-media serving); (3) discovered in production as a real user-facing
+404 on an event flyer.
+
+**Fix:** Added a `STORAGES` dict to `settings.py` pointing `default` at
+`cloudinary_storage.storage.MediaCloudinaryStorage` and `staticfiles` at
+Whitenoise's `CompressedManifestStaticFilesStorage`. The legacy
+`DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` settings were kept (not
+removed) because `django-cloudinary-storage`'s own bundled `collectstatic`
+override reads `settings.STATICFILES_STORAGE` directly and raises
+`AttributeError` at build time if it's absent entirely — both forms must
+stay defined and in agreement.
+
+**Verification:** rebuilt the Docker image and confirmed, against the
+running container: `default_storage.__class__` is now
+`cloudinary_storage.storage.MediaCloudinaryStorage`; `staticfiles_storage.__class__`
+is still Whitenoise's `CompressedManifestStaticFilesStorage` (no regression);
+static assets and all pages still serve `200`; all 13 tests pass; and an
+actual test image upload was confirmed to reach Cloudinary and return a real
+`res.cloudinary.com` URL.
+
+**Remaining action:** rows created while this bug was active (before the
+fix was deployed) still have local paths stored in the database and will
+not retroactively appear in Cloudinary — those images need to be re-uploaded
+through the app/admin once the fix is live.
+
+**Status:** Fixed and verified end-to-end.
+
+---
+
+## 16. Verified as already correct (no change needed)
 
 - **CSV export injection**: `download_codes` and `download_guestlist` already
   sanitize every string field via `sanitize_csv_value()` before writing to
@@ -350,7 +400,8 @@ checkout-then-confirm gap, etc.), not a one-line patch.
 | 12 | Unordered USSD queries (Postgres data-integrity risk) | Low | Fixed |
 | 13 | Missing production hardening (MEDIA settings, headers, logging) | Informational | Fixed |
 | 14 | USSD "payment" never actually verified | Informational | **Open — product decision needed** |
-| 15 | CSV injection guard, DEBUG default, password hashing | — | Verified correct, no change |
+| 15 | Uploaded media silently written to local disk instead of Cloudinary (`STORAGES` vs legacy settings) | High (data integrity) | Fixed and verified end-to-end |
+| 16 | CSV injection guard, DEBUG default, password hashing | — | Verified correct, no change |
 
 ## Outstanding action items for the team
 
@@ -359,3 +410,4 @@ checkout-then-confirm gap, etc.), not a one-line patch.
 3. **Decide on and schedule git history rewrite** to purge the old `.env` blob, after credentials are rotated.
 4. **Decide the product direction for USSD payments** (finding #14) — wire in real Africa's Talking mobile-money confirmation, or explicitly scope USSD as a free/demo channel.
 5. Before scaling to multiple app instances/workers, replace `LocMemCache`-based rate limiting with a shared cache (Redis/Memcached) — see `docs/TRD.md`.
+6. **Re-upload any images that were saved while finding #15 was active** — those rows still point at local paths that don't exist in Cloudinary.

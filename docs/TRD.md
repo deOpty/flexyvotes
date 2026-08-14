@@ -261,9 +261,17 @@ separately in `docs/DATABASE.md`.
 - **Purpose**: durable object storage for all `ImageField` uploads
   (`Event.background_image`, `Event.event_image`, `Candidate.image`,
   `Product.image`, `Ticket.image`) across all environments — `settings.py`
-  sets `DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'`
-  unconditionally (not gated behind `DEBUG`), so local dev also uploads to
-  Cloudinary unless credentials are absent.
+  sets `STORAGES['default']` (and the legacy `DEFAULT_FILE_STORAGE`, kept in
+  sync for third-party code that still reads it directly) to
+  `cloudinary_storage.storage.MediaCloudinaryStorage` unconditionally (not
+  gated behind `DEBUG`), so local dev also uploads to Cloudinary unless
+  credentials are absent. Note: this Django version (`Django==6.0.7`) only
+  resolves `default_storage` from `STORAGES` — defining only the legacy
+  `DEFAULT_FILE_STORAGE` setting silently falls back to Django's built-in
+  `FileSystemStorage` instead of Cloudinary, which is a real bug that was
+  found and fixed during this review (uploads were landing on local disk and
+  404ing/getting wiped on restart). Both settings must be kept present and
+  in agreement.
 - **Auth**: API key/secret pair read into `CLOUDINARY_STORAGE` dict from
   `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
   env vars; the `django-cloudinary-storage` backend + `cloudinary` SDK
@@ -278,7 +286,7 @@ separately in `docs/DATABASE.md`.
   try/except around image saves, and `MEDIA_URL`/`MEDIA_ROOT` local
   filesystem storage is only used when `DEBUG` is on and the URLconf serves
   it directly (`vote_fund/urls.py`) — this is dead weight in production
-  since `DEFAULT_FILE_STORAGE` always points at Cloudinary regardless of
+  since `STORAGES['default']` always points at Cloudinary regardless of
   `DEBUG`.
 
 ### 6.4 Gmail SMTP
