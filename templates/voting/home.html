@@ -154,8 +154,7 @@
 
     <div class="row">
         {% for event in events %}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden">
+                    <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden position-relative">
                 <!-- NEW: Event Flyer Logic -->
                 {% if event.event_image %}
                     <img src="{{ event.event_image.url }}" class="card-img-top event-flyer" alt="{{ event.title }}" style="height: 200px; width: 100%; object-fit: cover;">
@@ -172,11 +171,10 @@
                     <hr>
                     <div class="d-flex justify-content-between align-items-center">
                         <small class="text-muted"><i class="bi bi-clock me-1"></i>Ends: {{ event.end_date|date:"M d, Y" }}</small>
-                        <a href="{% url 'event_detail' event.id %}" class="btn btn-sm btn-wine">View Event <i class="bi bi-arrow-right ms-1"></i></a>
+                        <span class="btn btn-sm btn-wine stretched-link">View Event <i class="bi bi-arrow-right ms-1"></i></span>
                     </div>
                 </div>
             </div>
-        </div>
         {% empty %}
         <div class="alert alert-warning text-center">No events found matching your search.</div>
         {% endfor %}

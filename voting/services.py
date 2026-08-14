@@ -8,7 +8,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-def _paystack_initialize(email, amount, reference, metadata):
+def _paystack_initialize(email, amount, reference, metadata, callback_path="/vote/success/"):
     url = "https://api.paystack.co/transaction/initialize"
     headers = {
         "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
@@ -18,9 +18,10 @@ def _paystack_initialize(email, amount, reference, metadata):
         "email": email,
         "amount": int(amount * 100),  # PayStack expects amount in kobo/pesewas
         "reference": reference,
-        "callback_url": f"{settings.SITE_URL}/vote/success/",
+        "callback_url": f"{settings.SITE_URL}{callback_path}", # <--- UPDATED
         "metadata": metadata,
     }
+  
 
     try:
         response = requests.post(url, json=data, headers=headers, timeout=15)
@@ -78,4 +79,4 @@ def initialize_ticket_payment(email, amount, ticket_id, quantity):
         "ticket_id": ticket_id,
         "quantity": quantity,
     }
-    return _paystack_initialize(email, amount, reference, metadata)
+    return _paystack_initialize(email, amount, reference, metadata, callback_path="/ticket/success/") # <--- UPDATED

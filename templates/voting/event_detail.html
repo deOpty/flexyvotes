@@ -175,7 +175,7 @@
             <div class="card border-0 shadow-sm rounded-4">
                 <div class="card-body p-4">
                     <!-- Add Category Form -->
-                    <form action="{% url 'add_category' event.id %}" method="POST" class="mb-4">
+                    <form action="{% url 'add_category' event.id %}" method="POST" class="mb-4" id="add-category-form">
                         {% csrf_token %}
                         <label class="form-label small fw-bold text-muted">Add New Category</label>
                         <div class="input-group">
@@ -186,7 +186,7 @@
 
                     <!-- Add Candidate Form -->
                     <label class="form-label small fw-bold text-muted">Add Contestant</label>
-                    <form action="{% url 'add_candidate' event.id %}" method="POST" enctype="multipart/form-data">
+                        <form action="{% url 'add_candidate' event.id %}" method="POST" class="mb-4" id="add-candidate-form">
                         {% csrf_token %}
                         <div class="row g-2 align-items-end">
                             <div class="col-md-3">
@@ -222,7 +222,7 @@
                         <!-- NEW: Bulk Add Contestants Form -->
                         <hr class="my-4">
                         <label class="form-label small fw-bold text-muted">Bulk Add Contestants (Fast)</label>
-                        <form action="{% url 'bulk_add_candidates' event.id %}" method="POST">
+                            <form action="{% url 'bulk_add_candidates' event.id %}" method="POST" id="bulk-add-form">
                             {% csrf_token %}
                             <div class="row g-2 align-items-end">
                                 <div class="col-md-7">
@@ -719,5 +719,77 @@
     }
 
     startCountdown();
+
+    // ==========================================
+    // AJAX FORM SUBMISSIONS (NO PAGE RELOAD)
+    // ==========================================
+
+    // 1. Add Category Form
+    const addCategoryForm = document.getElementById('add-category-form');
+    if (addCategoryForm) {
+        addCategoryForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Reload the page to show the new tab cleanly (fastest way)
+                    // For a true SPA feel, we'd inject the tab, but reload is safe and easy
+                    location.reload(); 
+                }
+            });
+        });
+    }
+
+    // 2. Add Candidate Form
+    const addCandidateForm = document.getElementById('add-candidate-form');
+    if (addCandidateForm) {
+        addCandidateForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload(); // Reload to show the new candidate card with all voting logic
+                }
+            });
+        });
+    }
+
+    // 3. Bulk Add Candidates Form
+    const bulkAddForm = document.getElementById('bulk-add-form');
+    if (bulkAddForm) {
+        bulkAddForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.count + ' contestants added successfully!');
+                    location.reload(); // Reload to show the new candidates
+                } else {
+                    alert(data.message || 'An error occurred.');
+                }
+            });
+        });
+    }
 </script>
 {% endblock %}
