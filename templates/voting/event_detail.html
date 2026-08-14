@@ -135,16 +135,31 @@
                                 </form>
                             </div>
                         </div>
-                    {% else %}
-                        <form action="{% url 'generate_codes' event.id %}" method="POST" class="d-flex align-items-end gap-2">
-                            {% csrf_token %}
-                            <div class="flex-grow-1">
-                                <label class="form-label small fw-bold text-muted">Number of Codes to Generate</label>
-                                <input type="number" name="count" class="form-control" value="10" min="1" max="500">
-                            </div>
-                            <button type="submit" class="btn btn-wine px-4"><i class="bi bi-magic me-1"></i> Generate</button>
-                        </form>
-                    {% endif %}
+                {% else %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Option 1: Generate Bulk Codes</label>
+                            <form action="{% url 'generate_codes' event.id %}" method="POST">
+                                {% csrf_token %}
+                                <div class="input-group">
+                                    <input type="number" name="count" class="form-control" value="10" min="1" max="500">
+                                    <button type="submit" class="btn btn-wine px-4"><i class="bi bi-magic me-1"></i> Generate</button>
+                                </div>
+                                <small class="text-muted d-block mt-1">Generates random codes.</small>
+                            </form>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold text-muted">Option 2: Upload Specific Codes (CSV)</label>
+                            <form action="{% url 'upload_codes_csv' event.id %}" method="POST" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <div class="border rounded-3 p-2 mb-2 text-center bg-light">
+                                    <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                                </div>
+                                <button type="submit" class="btn btn-wine w-100"><i class="bi bi-upload me-1"></i> Upload & Import</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
 
                     <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
                         <small class="text-muted">

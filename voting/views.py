@@ -1522,3 +1522,40 @@ def bulk_add_candidates(request, event_id):
             messages.error(request, 'No valid names were provided.')
             
     return redirect('event_detail', event_id=event_id)
+
+@login_required(login_url='/login/')
+def upload_codes_csv(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    if request.user != event.organizer and not request.user.is_staff:
+        return redirect('event_detail', event_id=event_id)
+        
+    if request.method == 'POST':
+        csv_file = request.FILES.get('csv_file')
+        
+        if not csv_file.name.endswith('.csv'):
+            messages.error(request, 'Please upload a valid .csv file.')
+            return redirect('event_detail', event_id=event_id)
+            
+        # Read and decode the file
+        decoded_file = csv_file.read().decode('utf-8').splitlines()
+        reader = csv.reader(decoded_file)
+        
+        imported_count = 0
+        skipped_count = 0
+        
+        for row in reader:
+            if row and row[0].strip():
+                code = row[0].strip().upper()
+                # Only create it if it doesn't already exist for this event
+                if not VotingCode.objects.filter(event=event, code=code).exists():
+                    VotingCode.objects.create(event=event, code=code)
+                    imported_count += 1
+                else:
+                    skipped_count += 1
+                    
+        msg = f'{imported_count} codes imported successfully from CSV.'
+        if skipped_count > 0:
+            msg += f' ({skipped_count} duplicates skipped)'
+        messages.success(request, msg)
+        
+    return redirect('event_detail', event_id=event_id)
