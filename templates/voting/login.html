@@ -21,20 +21,44 @@
                         </div>
                     </div>
                     <div class="mb-4">
-                        <label class="form-label small fw-bold text-muted">Password</label>
+                        <label class="form-label">Password</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock-fill text-wine"></i></span>
-                            <input type="password" name="password" class="form-control border-start-0 ps-0" required>
+                            <input type="password" name="password" id="password-input" class="form-control border-start-0 border-end-0" required>
+                            <button class="btn btn-outline-secondary border-start-0" type="button" id="toggle-password">
+                                <i class="bi bi-eye-slash" id="toggle-icon"></i>
+                            </button>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-wine w-100 py-2 fw-bold">Login</button>
                 </form>
                 
-                <p class="text-center mt-4 mb-0 small text-muted">
+                <div class="text-center mt-3 mb-0">
+                    <a href="{% url 'password_reset' %}" class="text-wine fw-bold text-decoration-none small">Forgot Password?</a>
+                </div>
+                <p class="text-center mt-2 mb-0">
                     Don't have an account? <a href="{% url 'register' %}" class="text-wine fw-bold text-decoration-none">Register here</a>
                 </p>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    const toggleBtn = document.getElementById('toggle-password');
+    const passwordInput = document.getElementById('password-input');
+    const toggleIcon = document.getElementById('toggle-icon');
+    
+    toggleBtn.addEventListener('click', function() {
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            toggleIcon.classList.remove('bi-eye-slash');
+            toggleIcon.classList.add('bi-eye');
+        } else {
+            passwordInput.type = 'password';
+            toggleIcon.classList.remove('bi-eye');
+            toggleIcon.classList.add('bi-eye-slash');
+        }
+    });
+</script>
 {% endblock %}

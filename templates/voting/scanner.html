@@ -87,12 +87,18 @@
 
     const html5QrCode = new Html5Qrcode("qr-reader");
     html5QrCode.start(
-        { facingMode: "environment" }, // Use the back camera
+        { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         onScanSuccess,
         onScanFailure
     ).catch(err => {
-        document.getElementById('qr-reader').innerHTML = `<div class="alert alert-warning">Could not access camera. Please use manual entry below. <br><small>${err}</small></div>`;
+        document.getElementById('qr-reader').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle-fill fs-3 d-block mb-2"></i>
+                <b>Camera Blocked or Unavailable.</b><br>
+                Browsers block cameras on non-HTTPS connections. Please ensure you are accessing this page via a secure HTTPS URL (e.g., https://yourdomain.com).
+            </div>
+        `;
     });
 
     // 2. Manual Entry Fallback
