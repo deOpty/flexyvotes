@@ -15,3 +15,9 @@
 2. There are no database migration files in the codebase. Is this an expected workflow or there is an error. If it is an error, provide the necessary database migration files. Also provide admin seed cred and the user be able to set them in the env file.
 
 3. Check the .env file and see if all vars are set. Docker is also running now so build the docker image and run all tests
+
+---
+
+---
+
+Add pgAdmin front so the admin can login and access the data on the server. pgAdmin image is already on the server. Add a front so admins can login and access data.

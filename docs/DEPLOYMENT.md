@@ -20,7 +20,7 @@ Two deployment paths are covered:
 | `Dockerfile` | Multi-stage-ready image build: installs deps, runs `collectstatic`, drops to a non-root user, defines a healthcheck, runs `gunicorn` |
 | `.dockerignore` | Keeps secrets, docs, VCS metadata, and local artifacts out of the build context/image |
 | `docker-entrypoint.sh` | Runs `manage.py migrate` on container start, then execs the given command (gunicorn) |
-| `docker-compose.yml` | Local Postgres + web container for testing the containerized app before pushing to AWS. Both `postgres_data` (database) and `media_data` (`/app/media`) are named volumes, so `docker compose down`/restart/recreate doesn't lose data. |
+| `docker-compose.yml` | Postgres + web + pgAdmin, for testing the containerized app and administering the database directly. `postgres_data`, `media_data` (`/app/media`), and `pgadmin_data` are all named volumes, so `docker compose down`/restart/recreate doesn't lose data. |
 
 **Verify the build locally before touching AWS:**
 
@@ -72,6 +72,29 @@ run with `DEBUG=False`.
 `.env` and the entrypoint will automatically create that Django superuser on
 container start (idempotent — skipped if it already exists). Leave them
 unset to create your admin manually instead (see §5).
+
+**Database admin UI (pgAdmin).** `docker-compose.yml` includes a `pgadmin`
+service (`dpage/pgadmin4`) pre-wired on the same Docker network as `db`, so
+admins can browse/query the database through a browser instead of a `psql`
+shell. Configure `PGADMIN_DEFAULT_EMAIL`/`PGADMIN_DEFAULT_PASSWORD` (its own
+login, unrelated to Django) and `PGADMIN_PORT` (default `5050`) in `.env`,
+then `docker compose up -d pgadmin`. Log in at
+`http://<host>:${PGADMIN_PORT}/`, add a new server, and point it at:
+- Host: `db` (the Docker Compose service name, not `localhost`)
+- Port: `5432`
+- Maintenance database / Username / Password: whatever `POSTGRES_DB` /
+  `POSTGRES_USER` / `POSTGRES_PASSWORD` are set to for the `db` service in
+  `docker-compose.yml` (`flexyvotes`/`flexyvotes`/`flexyvotes` by default —
+  change these for anything beyond local testing).
+
+> **Security warning:** pgAdmin is a full database administration console.
+> Never expose `PGADMIN_PORT` directly to the public internet — restrict it
+> at the network level (security group / firewall rule allow-listing only
+> admin IPs, or put it behind a VPN/SSH tunnel/bastion). It's also served
+> over plain HTTP by default; if you do need remote access, put it behind a
+> TLS-terminating reverse proxy rather than exposing the raw port. Set a
+> strong, unique `PGADMIN_DEFAULT_PASSWORD` — do not reuse the Django admin
+> or database password.
 
 > **Gotcha found while verifying the build:** `django-cloudinary-storage`
 > registers its own `collectstatic` management command (it takes precedence

@@ -23,6 +23,8 @@ Day-2 operations reference for running FlexyVotes in production. Pairs with
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Yes | All media storage in every environment. |
 | `DJANGO_LOG_LEVEL` | No (default `INFO`) | Root logger level. |
 | `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` | No | If username+password are both set, the container entrypoint auto-creates this admin superuser on start (idempotent — skipped if it already exists). Leave unset to create one manually instead. |
+| `PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD` | Yes, if using the `pgadmin` compose service | pgAdmin's own login (unrelated to Django/Postgres credentials). Use a strong, unique value — never expose this service's port to the public internet (see `DEPLOYMENT.md`). |
+| `PGADMIN_PORT` | No (default `5050`) | Host port pgAdmin is published on via `docker-compose.yml`. |
 
 ## Routine tasks
 
@@ -31,6 +33,14 @@ Organizers self-register but cannot create events until approved:
 1. Log in to `/admin/` as a superuser.
 2. Go to Users, select the pending account(s).
 3. Use the **"Approve selected as Organizers"** admin action. This sets `Profile.is_approved_organizer=True` and emails the user.
+
+### Access the database directly (pgAdmin)
+For anything the Django admin doesn't cover (ad-hoc queries, inspecting raw
+table data, checking indexes):
+1. `docker compose up -d pgadmin` (starts alongside `db`/`web` if not already running).
+2. Browse to `http://<host>:${PGADMIN_PORT:-5050}/` and log in with `PGADMIN_DEFAULT_EMAIL`/`PGADMIN_DEFAULT_PASSWORD`.
+3. Add a server: host `db`, port `5432`, and the `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` values from `docker-compose.yml`'s `db` service.
+4. Only do this over a network path restricted to admins (SSH tunnel, VPN, or a security-group rule) — see the security warning in `DEPLOYMENT.md`. Do not leave `PGADMIN_PORT` open to the public internet.
 
 ### Rotate a credential
 1. Generate the new value with the provider (PayStack/Africa's Talking/Cloudinary/Gmail).

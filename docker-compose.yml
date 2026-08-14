@@ -31,6 +31,25 @@ services:
       db:
         condition: service_healthy
 
+  # Web UI for administering the `db` Postgres instance directly.
+  # SECURITY: restrict access at the network level (security group /
+  # firewall allow-list of admin IPs only) - this serves a database login
+  # over plain HTTP unless you put TLS in front of it. See DEPLOYMENT.md.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   media_data:
+  pgadmin_data:

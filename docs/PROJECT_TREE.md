@@ -12,7 +12,7 @@ flexyvotes/
 ├── .dockerignore
 ├── Dockerfile                   # Image build: deps, collectstatic, non-root user, healthcheck, gunicorn
 ├── docker-entrypoint.sh         # Runs migrate + seed_admin, then execs the given command
-├── docker-compose.yml           # Local Postgres + web container for testing before AWS
+├── docker-compose.yml           # Postgres + web + pgAdmin (DB admin UI) for testing before AWS
 ├── README.md                   # Project overview, setup, env vars (repo landing page)
 ├── docs/                       # Additional project documentation
 │   ├── PRD.md

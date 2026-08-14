@@ -372,7 +372,40 @@ through the app/admin once the fix is live.
 
 ---
 
-## 16. Verified as already correct (no change needed)
+## 16. INFORMATIONAL — New attack surface: pgAdmin service added
+
+**Where:** `docker-compose.yml` — `pgadmin` service (`dpage/pgadmin4`).
+
+**What changed:** A pgAdmin service was added, at the team's request, so
+admins can browse/query the `db` Postgres container through a web UI
+instead of a `psql` shell. It runs on the same Docker network as `db` and is
+published on `PGADMIN_PORT` (default `5050`).
+
+**Risk:** pgAdmin is a full database administration console with its own
+login, served over plain HTTP by this container image. If `PGADMIN_PORT` is
+reachable from the public internet, it becomes a direct path to every row
+in the database (including PII in `TicketPurchase`/`VotingCode`/`User`) for
+anyone who can reach or brute-force that login, and credentials would
+travel in plaintext without TLS in front of it.
+
+**Mitigation (must be applied at the infrastructure level, not something
+this compose file can enforce on its own):**
+- Restrict `PGADMIN_PORT` at the network layer to admin IPs only (security
+  group rule / firewall allow-list) — never open it to `0.0.0.0/0`.
+- Prefer accessing it over a VPN/SSH tunnel/bastion rather than a directly
+  routable public port at all.
+- Use a strong, unique `PGADMIN_DEFAULT_PASSWORD` (not shared with the
+  Django admin or database password).
+- If remote access is genuinely required, put a TLS-terminating reverse
+  proxy in front of it rather than exposing the raw port.
+
+**Status:** Feature added per request; access-control enforcement is an
+infrastructure/operator responsibility — see the checklist in
+`DEPLOYMENT.md`.
+
+---
+
+## 17. Verified as already correct (no change needed)
 
 - **CSV export injection**: `download_codes` and `download_guestlist` already
   sanitize every string field via `sanitize_csv_value()` before writing to
@@ -401,7 +434,8 @@ through the app/admin once the fix is live.
 | 13 | Missing production hardening (MEDIA settings, headers, logging) | Informational | Fixed |
 | 14 | USSD "payment" never actually verified | Informational | **Open — product decision needed** |
 | 15 | Uploaded media silently written to local disk instead of Cloudinary (`STORAGES` vs legacy settings) | High (data integrity) | Fixed and verified end-to-end |
-| 16 | CSV injection guard, DEBUG default, password hashing | — | Verified correct, no change |
+| 16 | pgAdmin service added — new DB-access attack surface if network-exposed | Informational | Added; access control is an infra responsibility |
+| 17 | CSV injection guard, DEBUG default, password hashing | — | Verified correct, no change |
 
 ## Outstanding action items for the team
 
@@ -411,3 +445,4 @@ through the app/admin once the fix is live.
 4. **Decide the product direction for USSD payments** (finding #14) — wire in real Africa's Talking mobile-money confirmation, or explicitly scope USSD as a free/demo channel.
 5. Before scaling to multiple app instances/workers, replace `LocMemCache`-based rate limiting with a shared cache (Redis/Memcached) — see `docs/TRD.md`.
 6. **Re-upload any images that were saved while finding #15 was active** — those rows still point at local paths that don't exist in Cloudinary.
+7. **Lock down `PGADMIN_PORT` at the network level** (security group/firewall) before or immediately after starting the `pgadmin` service in any environment reachable from the internet — see finding #16.
