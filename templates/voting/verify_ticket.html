@@ -3,21 +3,24 @@
 {% block content %}
 <div class="row justify-content-center mt-5">
     <div class="col-md-6">
-        <div class="card shadow-sm border-0 rounded-4">
+        <div class="card shadow-soft border-0 rounded-4xl reveal">
             <div class="card-body p-5 text-center">
-                <i class="bi bi-shield-check fs-1 text-wine mb-3"></i>
-                <h3 class="fw-bold text-wine mb-4">Verify E-Ticket</h3>
-                
+                <span class="icon-circle bg-wine text-gold mx-auto mb-3" style="width: 64px; height: 64px;">
+                    <i class="bi bi-shield-check fs-3"></i>
+                </span>
+                <h3 class="fw-bold text-wine mb-2">Verify E-Ticket</h3>
+                <p class="text-muted small mb-4">Enter a ticket reference to confirm it's genuine.</p>
+
                 <form method="POST">
                     {% csrf_token %}
-                    <div class="input-group mb-3">
+                    <div class="input-group input-group-lg mb-1">
                         <input type="text" name="reference" class="form-control text-uppercase" placeholder="Enter Reference (e.g., TK-AB1234)" required>
                         <button class="btn btn-wine" type="submit">Verify</button>
                     </div>
                 </form>
 
                 {% if error_message %}
-                <div class="alert alert-danger mt-4">
+                <div class="alert alert-danger mt-4 text-start">
                     <i class="bi bi-x-circle-fill me-2"></i>{{ error_message }}
                 </div>
                 {% endif %}

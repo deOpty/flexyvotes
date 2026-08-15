@@ -3,23 +3,23 @@
 {% block content %}
 <div class="row justify-content-center mt-5" style="--primary: {{ purchase.ticket.event.primary_color }}; --accent: {{ purchase.ticket.event.accent_color }};">
     <div class="col-md-8">
-        
+
         <!-- Dynamic Success/Retrieval Alert -->
         {% if just_paid %}
-        <div class="alert alert-success text-center mb-4">
+        <div class="alert alert-success text-center mb-4 reveal">
             <h4 class="mb-0"><i class="bi bi-check-circle-fill me-2"></i>Payment Successful!</h4>
         </div>
         {% else %}
-        <div class="alert alert-info text-center mb-4">
+        <div class="alert alert-info text-center mb-4 reveal">
             <h4 class="mb-0"><i class="bi bi-shield-check me-2"></i>Ticket Retrieved Successfully!</h4>
         </div>
         {% endif %}
 
         <!-- The Ticket Container (We will capture this) -->
-        <div id="ticket-download" class="card shadow-lg border-0 rounded-4 overflow-hidden">
-            
+        <div id="ticket-download" class="card shadow-lg border-0 rounded-4xl overflow-hidden">
+
             <!-- Top Banner (Ticket Image or Event Image) -->
-            <div class="text-white p-4 position-relative" style="background-color: var(--primary);">
+            <div class="text-white p-4 p-md-5 position-relative" style="background-color: var(--primary);">
                 {% if purchase.ticket.image %}
                     <div class="position-absolute top-0 start-0 w-100 h-100" style="background-image: url('{{ purchase.ticket.image.url }}'); background-size: cover; background-position: center; opacity: 0.4;"></div>
                 {% elif purchase.ticket.event.event_image %}
@@ -27,46 +27,46 @@
                 {% endif %}
                 <div class="position-relative d-flex justify-content-between align-items-center">
                     <div>
+                        <span class="tiny text-uppercase fw-bold d-block mb-1" style="color: var(--accent); letter-spacing: 0.12em; opacity: 0.9;">E-Ticket</span>
                         <h3 class="fw-bold mb-0" style="color: var(--accent);">{{ purchase.ticket.event.title }}</h3>
-                        <small style="color: #fff; opacity: 0.9;">{{ purchase.ticket.event.start_date|date:"F j, Y, g:i A" }}</small>
+                        <small style="color: #fff; opacity: 0.9;"><i class="bi bi-calendar-event me-1"></i>{{ purchase.ticket.event.start_date|date:"F j, Y, g:i A" }}</small>
                     </div>
-                    <i class="bi bi-ticket-perforated-fill fs-1" style="color: var(--accent); opacity: 0.8;"></i>
+                    <i class="bi bi-ticket-perforated-fill fs-1" style="color: var(--accent); opacity: 0.85;"></i>
                 </div>
             </div>
-            
+
             <!-- Ticket Body -->
             <div class="card-body p-0">
                 <div class="row g-0 align-items-center">
-                    
+
                     <!-- Left: Buyer Info -->
-                    <div class="col-md-8 p-4 border-end border-2 border-dashed">
+                    <div class="col-md-8 p-4 p-md-5 border-end border-2 border-dashed">
                         <small class="text-muted text-uppercase fw-bold" style="letter-spacing: 2px; font-size: 0.7rem;">Official Guest Pass</small>
-                        <h4 class="fw-bold text-dark mb-1">{{ purchase.buyer_name|default:"Valued Guest" }}</h4>
-                        <div class="mt-4"></div>
-                        
-                        <div class="d-flex justify-content-between mt-4">
+                        <h4 class="fw-bold text-dark mb-0 mt-1">{{ purchase.buyer_name|default:"Valued Guest" }}</h4>
+
+                        <div class="d-flex justify-content-between mt-4 pt-2">
                             <div>
-                                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem;">Ticket Type</small>
+                                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem; letter-spacing: 1px;">Ticket Type</small>
                                 <span class="fw-bold text-dark fs-5">{{ purchase.ticket.name }}</span>
                             </div>
                             <div>
-                                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem;">Quantity</small>
+                                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem; letter-spacing: 1px;">Quantity</small>
                                 <span class="fw-bold text-dark fs-5">{{ purchase.quantity }}</span>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Right: QR Code -->
                     <div class="col-md-4 text-center p-4 bg-light">
-                        <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code" style="width: 140px; height: 140px;" class="img-fluid shadow-sm p-2 bg-white rounded mb-2">
-                        <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem;">Scan at Entrance</small>
+                        <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code" style="width: 140px; height: 140px;" class="img-fluid shadow-sm p-2 bg-white rounded-4 mb-2">
+                        <small class="text-muted d-block fw-bold text-uppercase" style="font-size: 0.7rem; letter-spacing: 1px;"><i class="bi bi-qr-code-scan me-1"></i>Scan at Entrance</small>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Bottom Stub -->
             <div class="p-3 text-center" style="background-color: var(--primary);">
-                <span class="small fw-bold d-block" style="color: var(--accent);">FlexyVotes Event Ticket</span>
+                <span class="small fw-bold d-block text-uppercase" style="color: var(--accent); letter-spacing: 0.08em;">FlexyVotes Event Ticket</span>
                 <small class="d-block mt-1" style="color: #fff; opacity: 0.9;">
                     To verify, go to the Tickets page and enter code: <b>{{ purchase.paystack_reference }}</b>
                 </small>
@@ -85,7 +85,7 @@
             <i class="bi bi-envelope-fill me-2"></i> A copy of this ticket has been sent to <b>{{ purchase.buyer_email }}</b>
         </div>
         {% endif %}
-        
+
     </div>
 </div>
 
@@ -107,7 +107,7 @@
     window.onload = function() {
         const ticketElement = document.getElementById('ticket-download');
         const reference = '{{ purchase.paystack_reference }}';
-        
+
         // Show buttons after 2.5 seconds regardless
         setTimeout(function() {
             document.getElementById('action-buttons').style.display = 'block';
@@ -118,7 +118,7 @@
             setTimeout(function() {
                 html2canvas(ticketElement, { useCORS: true, allowTaint: true }).then(canvas => {
                     const imageData = canvas.toDataURL('image/png');
-                    
+
                     fetch('/ticket/send-email/', {
                         method: 'POST',
                         headers: {
@@ -135,9 +135,9 @@
                             if(emailAlert) emailAlert.style.display = 'block';
                         }
                     }).catch(err => console.error("Fetch Error:", err));
-                    
+
                 }).catch(err => console.error("Email Capture Error:", err));
-            }, 1500); 
+            }, 1500);
         {% endif %}
     };
 </script>

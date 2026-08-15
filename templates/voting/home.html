@@ -14,14 +14,15 @@
     }
 </style>
 <!-- Hero Section with Image Overlay -->
-<div class="jumbotron jumbotron-fluid mb-5 position-relative" style="background-image: url('https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=2069&auto=format&fit=crop'); background-size: cover; background-position: center; min-height: 500px; display: flex; align-items: center;">
+<div class="jumbotron jumbotron-fluid mb-5 position-relative overflow-hidden" style="background-image: url('https://images.unsplash.com/photo-1511578314322-379afb476865?q=80&w=2069&auto=format&fit=crop'); background-size: cover; background-position: center; min-height: 560px; display: flex; align-items: center;">
     <!-- Wine Color Overlay -->
-    <div class="position-absolute top-0 start-0 w-100 h-100" style="background-color: rgba(128, 0, 32, 0.85);"></div>
-    
-    <div class="container position-relative text-center text-white" style="z-index: 2;">
+    <div class="position-absolute top-0 start-0 w-100 h-100" style="background: linear-gradient(160deg, rgba(61,0,16,0.92) 0%, rgba(128,0,32,0.85) 55%, rgba(128,0,32,0.75) 100%);"></div>
+
+    <div class="container position-relative text-center text-white py-5" style="z-index: 2;">
+        <span class="section-eyebrow d-inline-block mb-3 animate-hero-1" style="color: #FFD700; letter-spacing: 0.18em;">Vote &bull; Fundraise &bull; Celebrate</span>
         <h1 class="display-3 fw-bold mb-4 animate-hero-1" style="color: #FFD700;">Turn Every Vote Into <br>A Contribution</h1>
-        <p class="lead fs-4 mb-5 animate-hero-2">Host transparent, donation-based competitions & awards.<br>Raise funds while your audience engages.</p>
-        
+        <p class="lead fs-4 mb-5 animate-hero-2 mx-auto" style="max-width: 640px; color: rgba(255,255,255,0.92);">Host transparent, donation-based competitions &amp; awards.<br>Raise funds while your audience engages.</p>
+
         <div class="d-flex justify-content-center gap-3 flex-wrap animate-hero-3">
             <a href="#events-section" class="btn btn-lg btn-gold px-4 py-3 fw-bold">Browse Active Events <i class="bi bi-arrow-right ms-2"></i></a>
             {% if request.user.is_authenticated and request.user.is_staff or request.user.profile.is_approved_organizer %}
@@ -35,14 +36,15 @@
 
 <!-- How It Works Section (Tabbed) -->
 <div id="how-it-works" class="container mb-5 py-5">
-    <div class="text-center mb-5">
-        <h2 class="fw-bold text-wine">How It Works</h2>
+    <div class="text-center mb-5 reveal">
+        <span class="section-eyebrow">Simple &amp; Transparent</span>
+        <h2 class="fw-bold text-wine mt-2">How It Works</h2>
         <p class="text-muted">Whether you are hosting an event or casting a vote, FlexyVotes makes it seamless.</p>
     </div>
-    
+
     <div class="row justify-content-center">
         <div class="col-lg-10">
-            <ul class="nav nav-pills nav-justified mb-5" id="howItWorksTabs" role="tablist">
+            <ul class="nav nav-pills nav-justified mb-5 reveal" id="howItWorksTabs" role="tablist">
                 <!-- Voter Tab (Now First & Active) -->
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active rounded-pill fw-bold py-3" id="voter-tab" data-bs-toggle="pill" data-bs-target="#voter-pane" type="button" role="tab" aria-controls="voter-pane" aria-selected="true">
@@ -56,76 +58,76 @@
                     </button>
                 </li>
             </ul>
-            
+
             <div class="tab-content" id="howItWorksTabContent">
                 <!-- Voter Pane (Now First & Active) -->
                 <div class="tab-pane fade show active" id="voter-pane" role="tabpanel" aria-labelledby="voter-tab">
                     <div class="row justify-content-center">
                         <div class="col-md-10">
                             <div class="row g-4">
-                                <div class="col-md-4">
-                                    <div class="card border-0 shadow-sm h-100 p-4 text-center">
-                                        <div class="bg-wine text-gold d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 50%;"><i class="bi bi-search fs-3"></i></div>
+                                <div class="col-md-4 reveal">
+                                    <div class="card border-0 shadow-soft h-100 p-4 text-center card-hover rounded-4xl">
+                                        <div class="icon-circle mx-auto mb-3" style="width: 64px; height: 64px;"><i class="bi bi-search fs-3"></i></div>
                                         <h5 class="fw-bold text-wine">1. Find an Event</h5>
-                                        <p class="text-muted small">Browse active events on the homepage and click "View Event" to see the candidates.</p>
+                                        <p class="text-muted small mb-0">Browse active events on the homepage and click "View Event" to see the candidates.</p>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="card border-0 shadow-sm h-100 p-4 text-center">
-                                        <div class="bg-wine text-gold d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 50%;"><i class="bi bi-cash-stack fs-3"></i></div>
+                                <div class="col-md-4 reveal reveal-delay-1">
+                                    <div class="card border-0 shadow-soft h-100 p-4 text-center card-hover rounded-4xl">
+                                        <div class="icon-circle mx-auto mb-3" style="width: 64px; height: 64px;"><i class="bi bi-cash-stack fs-3"></i></div>
                                         <h5 class="fw-bold text-wine">2. Pay to Vote</h5>
-                                        <p class="text-muted small">Click "Vote for me", enter the amount you wish to contribute (₵1 = 1 Vote), and pay securely via PayStack.</p>
+                                        <p class="text-muted small mb-0">Click "Vote for me", enter the amount you wish to contribute (₵1 = 1 Vote), and pay securely via PayStack.</p>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="card border-0 shadow-sm h-100 p-4 text-center">
-                                        <div class="bg-wine text-gold d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 60px; height: 60px; border-radius: 50%;"><i class="bi bi-trophy fs-3"></i></div>
-                                        <h5 class="fw-bold text-wine">3. Support & Win</h5>
-                                        <p class="text-muted small">Your contribution is instantly counted. Buy a ticket to the event to get free votes for your favorite candidate!</p>
+                                <div class="col-md-4 reveal reveal-delay-2">
+                                    <div class="card border-0 shadow-soft h-100 p-4 text-center card-hover rounded-4xl">
+                                        <div class="icon-circle mx-auto mb-3" style="width: 64px; height: 64px;"><i class="bi bi-trophy fs-3"></i></div>
+                                        <h5 class="fw-bold text-wine">3. Support &amp; Win</h5>
+                                        <p class="text-muted small mb-0">Your contribution is instantly counted. Buy a ticket to the event to get free votes for your favorite candidate!</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Organizer Pane -->
                 <div class="tab-pane fade" id="organizer-pane" role="tabpanel" aria-labelledby="organizer-tab">
                     <div class="row g-4">
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm h-100 p-4">
+                        <div class="col-md-6 reveal">
+                            <div class="card border-0 shadow-soft h-100 p-4 card-hover rounded-4xl">
                                 <div class="d-flex align-items-center mb-3">
-                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-calendar-plus fs-4"></i></div>
-                                    <h5 class="fw-bold text-wine mb-0">Create & Customize</h5>
+                                    <div class="icon-circle me-3" style="width: 52px; height: 52px;"><i class="bi bi-calendar-plus fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Create &amp; Customize</h5>
                                 </div>
-                                <p class="text-muted">Set up your event, add candidates, and fully customize the theme with your own Wine and Gold colors and background images. Create multiple categories to organize your contestants.</p>
+                                <p class="text-muted mb-0">Set up your event, add candidates, and fully customize the theme with your own Wine and Gold colors and background images. Create multiple categories to organize your contestants.</p>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm h-100 p-4">
+                        <div class="col-md-6 reveal reveal-delay-1">
+                            <div class="card border-0 shadow-soft h-100 p-4 card-hover rounded-4xl">
                                 <div class="d-flex align-items-center mb-3">
-                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-cash-coin fs-4"></i></div>
+                                    <div class="icon-circle me-3" style="width: 52px; height: 52px;"><i class="bi bi-cash-coin fs-4"></i></div>
                                     <h5 class="fw-bold text-wine mb-0">Choose Voting Mode</h5>
                                 </div>
-                                <p class="text-muted">Select "Pay-to-Vote" for fundraising (where ₵1 = 1 Vote), or "Code Voting" for free, fair elections. Generate secure codes manually or upload a CSV of Student IDs to prevent duplicate voting.</p>
+                                <p class="text-muted mb-0">Select "Pay-to-Vote" for fundraising (where ₵1 = 1 Vote), or "Code Voting" for free, fair elections. Generate secure codes manually or upload a CSV of Student IDs to prevent duplicate voting.</p>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm h-100 p-4">
+                        <div class="col-md-6 reveal">
+                            <div class="card border-0 shadow-soft h-100 p-4 card-hover rounded-4xl">
                                 <div class="d-flex align-items-center mb-3">
-                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-ticket-perforated fs-4"></i></div>
-                                    <h5 class="fw-bold text-wine mb-0">Sell Tickets & Manage</h5>
+                                    <div class="icon-circle me-3" style="width: 52px; height: 52px;"><i class="bi bi-ticket-perforated fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Sell Tickets &amp; Manage</h5>
                                 </div>
-                                <p class="text-muted">Sell event tickets online with premium branded E-Tickets and QR codes. Use the built-in Mobile Scanner App to check in attendees at the door and prevent ticket fraud.</p>
+                                <p class="text-muted mb-0">Sell event tickets online with premium branded E-Tickets and QR codes. Use the built-in Mobile Scanner App to check in attendees at the door and prevent ticket fraud.</p>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card border-0 shadow-sm h-100 p-4">
+                        <div class="col-md-6 reveal reveal-delay-1">
+                            <div class="card border-0 shadow-soft h-100 p-4 card-hover rounded-4xl">
                                 <div class="d-flex align-items-center mb-3">
-                                    <div class="bg-wine text-gold d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;"><i class="bi bi-graph-up-arrow fs-4"></i></div>
-                                    <h5 class="fw-bold text-wine mb-0">Track & Earn</h5>
+                                    <div class="icon-circle me-3" style="width: 52px; height: 52px;"><i class="bi bi-graph-up-arrow fs-4"></i></div>
+                                    <h5 class="fw-bold text-wine mb-0">Track &amp; Earn</h5>
                                 </div>
-                                <p class="text-muted">Watch live analytics, export CSV guest lists, and generate PDF reports. Enable "Tie-Breaker" voting to incentivize online ticket sales, and sell award plaques directly through your store!</p>
+                                <p class="text-muted mb-0">Watch live analytics, export CSV guest lists, and generate PDF reports. Enable "Tie-Breaker" voting to incentivize online ticket sales, and sell award plaques directly through your store!</p>
                             </div>
                         </div>
                     </div>
@@ -137,13 +139,14 @@
 
 <!-- Events Showcase Section -->
 <div id="events-section" class="container mb-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3 reveal">
         <div>
-            <h2 class="fw-bold text-wine mb-0">Active Events</h2>
+            <span class="section-eyebrow">Live Now</span>
+            <h2 class="fw-bold text-wine mb-0 mt-1">Active Events</h2>
             <p class="text-muted mb-0">Vote for your favorite candidates and support their cause</p>
         </div>
         <!-- Advanced Search Bar -->
-        <form method="GET" action="" class="d-flex" style="width: 300px;">
+        <form method="GET" action="" class="d-flex" style="width: 300px; max-width: 100%;">
             <div class="input-group">
                 <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-wine"></i></span>
                 <input type="text" name="q" class="form-control border-start-0" placeholder="Search events..." value="{{ request.GET.q }}">
@@ -152,31 +155,39 @@
     </div>
     <hr class="mb-4">
 
-    <div class="row">
+    <div class="row g-4">
         {% for event in events %}
-                    <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden position-relative">
-                <!-- NEW: Event Flyer Logic -->
-                {% if event.event_image %}
-                    <img src="{{ event.event_image.url }}" class="card-img-top event-flyer" alt="{{ event.title }}" style="height: 200px; width: 100%; object-fit: cover;">
-                {% else %}
-                    <!-- Fallback color bar if no image is uploaded -->
-                    <div style="height: 10px; background-color: {{ event.primary_color }};"></div>
-                {% endif %}
-                
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="card-title fw-bold text-wine">{{ event.title }}</h5>
-                    </div>
-                    <p class="card-text text-muted" style="font-size: 0.9rem;">{{ event.description|truncatewords:15 }}</p>
-                    <hr>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted"><i class="bi bi-clock me-1"></i>Ends: {{ event.end_date|date:"M d, Y" }}</small>
-                        <span class="btn btn-sm btn-wine stretched-link">View Event <i class="bi bi-arrow-right ms-1"></i></span>
+            <div class="col-md-6 col-lg-4 {% cycle 'reveal' 'reveal reveal-delay-1' 'reveal reveal-delay-2' as reveal_cycle %}">
+                <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden position-relative rounded-4xl" data-card-link="{% url 'event_detail' event.id %}">
+                    <!-- NEW: Event Flyer Logic -->
+                    {% if event.event_image %}
+                        <img src="{{ event.event_image.url }}" class="card-img-top event-flyer" alt="{{ event.title }}" style="height: 200px; width: 100%; object-fit: cover;">
+                    {% else %}
+                        <!-- Fallback color bar if no image is uploaded -->
+                        <div style="height: 10px; background-color: {{ event.primary_color }};"></div>
+                    {% endif %}
+
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title fw-bold text-wine">{{ event.title }}</h5>
+                        </div>
+                        <p class="card-text text-muted small mb-3">{{ event.description|truncatewords:15 }}</p>
+                        <hr class="mt-auto">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted"><i class="bi bi-clock me-1"></i>Ends: {{ event.end_date|date:"M d, Y" }}</small>
+                            <a href="{% url 'event_detail' event.id %}" class="btn btn-sm btn-wine">View Event <i class="bi bi-arrow-right ms-1"></i></a>
+                        </div>
                     </div>
                 </div>
             </div>
         {% empty %}
-        <div class="alert alert-warning text-center">No events found matching your search.</div>
+        <div class="col-12">
+            <div class="alert alert-warning text-center py-5 rounded-4xl">
+                <i class="bi bi-emoji-frown fs-1 d-block mb-3"></i>
+                <h5 class="fw-bold mb-1">No events found</h5>
+                <p class="mb-0 text-muted">Try a different search term, or check back soon for new events.</p>
+            </div>
+        </div>
         {% endfor %}
     </div>
 </div>

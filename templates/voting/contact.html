@@ -2,16 +2,24 @@
 
 {% block content %}
 <div class="container my-5">
+    <div class="text-center mb-5 reveal">
+        <span class="section-eyebrow">We'd Love To Hear From You</span>
+        <h1 class="fw-bold text-wine mt-2 mb-2">Get in Touch</h1>
+        <p class="text-muted mx-auto" style="max-width: 560px;">Have questions about hosting an event or need technical support? Fill out the form below and our team will get back to you within 24 hours.</p>
+    </div>
+
     <div class="row g-4 align-items-stretch">
-        
+
         <!-- Left Column: Contact Info -->
-        <div class="col-lg-5">
-            <div class="bg-wine text-white p-5 rounded-4 h-100 d-flex flex-column">
-                <h2 class="fw-bold mb-4 text-gold">Get in Touch</h2>
-                <p class="mb-5" style="color: #f0f0f0;">Have questions about hosting an event or need technical support? Fill out the form, and our team will get back to you within 24 hours.</p>
-                
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-gold text-wine d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;">
+        <div class="col-lg-5 reveal">
+            <div class="bg-wine text-white p-5 rounded-4xl h-100 d-flex flex-column shadow-soft position-relative overflow-hidden">
+                <div class="position-absolute top-0 end-0" style="width:220px;height:220px;background:rgba(255,215,0,0.08);border-radius:50%;transform:translate(30%,-30%);"></div>
+
+                <h3 class="fw-bold mb-3 text-gold position-relative">Contact Information</h3>
+                <p class="mb-5 position-relative" style="color: #f0f0f0;">Reach out any time &mdash; whether you're planning your first event or need a hand with an existing one, we're here to help.</p>
+
+                <div class="d-flex align-items-center mb-4 position-relative">
+                    <div class="bg-gold text-wine d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 50px; height: 50px; border-radius: 50%;">
                         <i class="bi bi-geo-alt-fill fs-5"></i>
                     </div>
                     <div>
@@ -20,8 +28,8 @@
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center mb-4">
-                    <div class="bg-gold text-wine d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;">
+                <div class="d-flex align-items-center mb-4 position-relative">
+                    <div class="bg-gold text-wine d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 50px; height: 50px; border-radius: 50%;">
                         <i class="bi bi-envelope-fill fs-5"></i>
                     </div>
                     <div>
@@ -30,8 +38,8 @@
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center mb-5">
-                    <div class="bg-gold text-wine d-flex align-items-center justify-content-center me-3" style="width: 50px; height: 50px; border-radius: 50%;">
+                <div class="d-flex align-items-center mb-5 position-relative">
+                    <div class="bg-gold text-wine d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 50px; height: 50px; border-radius: 50%;">
                         <i class="bi bi-telephone-fill fs-5"></i>
                     </div>
                     <div>
@@ -40,19 +48,20 @@
                     </div>
                 </div>
 
-                <div class="mt-auto d-flex gap-3">
-                    <a href="#" class="text-white fs-4"><i class="bi bi-facebook"></i></a>
-                    <a href="#" class="text-white fs-4"><i class="bi bi-twitter"></i></a>
-                    <a href="#" class="text-white fs-4"><i class="bi bi-instagram"></i></a>
-                    <a href="#" class="text-white fs-4"><i class="bi bi-linkedin"></i></a>
+                <div class="mt-auto d-flex gap-3 position-relative">
+                    <a href="#" class="text-white fs-4" style="transition: transform 0.2s ease, color 0.2s ease;" onmouseover="this.style.color='#FFD700';this.style.transform='translateY(-3px)'" onmouseout="this.style.color='#fff';this.style.transform='translateY(0)'"><i class="bi bi-facebook"></i></a>
+                    <a href="#" class="text-white fs-4" style="transition: transform 0.2s ease, color 0.2s ease;" onmouseover="this.style.color='#FFD700';this.style.transform='translateY(-3px)'" onmouseout="this.style.color='#fff';this.style.transform='translateY(0)'"><i class="bi bi-twitter"></i></a>
+                    <a href="#" class="text-white fs-4" style="transition: transform 0.2s ease, color 0.2s ease;" onmouseover="this.style.color='#FFD700';this.style.transform='translateY(-3px)'" onmouseout="this.style.color='#fff';this.style.transform='translateY(0)'"><i class="bi bi-instagram"></i></a>
+                    <a href="#" class="text-white fs-4" style="transition: transform 0.2s ease, color 0.2s ease;" onmouseover="this.style.color='#FFD700';this.style.transform='translateY(-3px)'" onmouseout="this.style.color='#fff';this.style.transform='translateY(0)'"><i class="bi bi-linkedin"></i></a>
                 </div>
             </div>
         </div>
 
         <!-- Right Column: Contact Form -->
-        <div class="col-lg-7">
-            <div class="bg-white p-5 rounded-4 shadow-sm h-100">
-                <h3 class="fw-bold text-wine mb-4">Send Us a Message</h3>
+        <div class="col-lg-7 reveal reveal-delay-1">
+            <div class="bg-white p-5 rounded-4xl shadow-soft h-100">
+                <h3 class="fw-bold text-wine mb-1">Send Us a Message</h3>
+                <p class="text-muted mb-4">Fields marked required help us route your message faster.</p>
                 <form method="POST">
                     {% csrf_token %}
                     <div class="row g-3">

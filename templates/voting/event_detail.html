@@ -22,7 +22,7 @@
 </style>
 
 <!-- The main div applies the background image -->
-<div style="--primary: {{ event.primary_color }}; --accent: {{ event.accent_color }}; 
+<div style="--primary: {{ event.primary_color }}; --accent: {{ event.accent_color }};
      {% if event.background_image %}
          background-image: url('{{ event.background_image.url }}'); background-size: cover; background-attachment: fixed;
      {% else %}
@@ -31,15 +31,16 @@
      min-height: 80vh; padding: 20px 20px; border-radius: 15px; margin-bottom: 60px;">
 
     <!-- 1. Header Card (Title, Timer, Tickets) -->
-    <div class="bg-white p-3 mb-4 rounded-3 shadow-sm">
+    <div class="bg-white p-4 mb-4 rounded-4xl shadow-soft">
         <div class="row align-items-center">
             <!-- Left: Title & Timer -->
             <div class="col-lg-7">
-                <h2 class="fw-bold mb-1" style="color: var(--primary);">{{ event.title }}</h2>
+                <span class="section-eyebrow" style="color: var(--primary);">Event</span>
+                <h2 class="fw-bold mb-1 mt-1" style="color: var(--primary);">{{ event.title }}</h2>
                 <p class="mb-0 text-muted">{{ event.description }}</p>
                 <hr class="my-3">
                 <!-- Countdown Timer -->
-                <div class="text-center bg-light p-3 rounded-3" id="countdown-container">
+                <div class="text-center bg-light p-3 rounded-4" id="countdown-container">
                     <h6 class="mb-2 text-muted text-uppercase" style="letter-spacing: 1px; font-size: 0.85rem;">Voting Ends In</h6>
                     <div class="d-flex justify-content-center gap-4 fs-4 fw-bold" style="color: var(--primary);">
                         <span><span id="days">0</span> <small class="fs-6 text-muted">Days</small></span> :
@@ -49,17 +50,17 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Right: Ticket Banner -->
             <div class="col-lg-5 mt-3 mt-lg-0">
                 {% if event.tickets.all %}
-                <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center" style="background-color: var(--primary);">
+                <div class="p-4 rounded-4 text-center h-100 d-flex flex-column justify-content-center shadow-sm" style="background-color: var(--primary);">
                     <h5 class="mb-2 fw-bold" style="color: var(--accent);"><i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!</h5>
                     <p class="small mb-3" style="color: #fff; opacity: 0.9;">Secure your entry for this event now.</p>
                     <a href="{% url 'event_tickets' event.id %}" class="btn btn-gold fw-bold">Buy Tickets Here</a>
                 </div>
                 {% else %}
-                <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center bg-light border">
+                <div class="p-4 rounded-4 text-center h-100 d-flex flex-column justify-content-center bg-light border">
                     <h5 class="mb-2 fw-bold text-muted"><i class="bi bi-info-circle me-2"></i>No Tickets Required</h5>
                     <p class="small mb-0 text-muted">This is a free entry or voting-only event.</p>
                 </div>
@@ -69,7 +70,7 @@
 
         <!-- Retrieve Voting Code Section (Only for Student ID mode) -->
         {% if event.voting_mode == 'Code Voting' and event.code_voting_mode == 'Student ID' %}
-        <div class="bg-white p-3 mt-3 mb-4 rounded-3 shadow-sm border">
+        <div class="bg-white p-3 mt-3 mb-4 rounded-4 shadow-sm border">
             <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 text-muted"><i class="bi bi-key me-2"></i>Forgot your voting code?</h5>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#retrieveCodeForm" aria-expanded="false" aria-controls="retrieveCodeForm">
@@ -101,8 +102,12 @@
 
     <!-- 2. Organizer Management Section (Light Wine Tint Background) -->
     {% if request.user == event.organizer or request.user.is_staff %}
-    <div class="p-3 mb-5 rounded-4" style="background-color: rgba(128, 0, 32, 0.05); border: 1px solid rgba(128, 0, 32, 0.1);">
-        
+    <div class="p-3 mb-5 rounded-4xl" style="background-color: rgba(128, 0, 32, 0.05); border: 1px solid rgba(128, 0, 32, 0.1);">
+        <div class="d-flex align-items-center gap-2 px-2 pt-2 pb-3">
+            <i class="bi bi-shield-lock-fill" style="color: var(--primary);"></i>
+            <span class="section-eyebrow" style="color: var(--primary);">Organizer Controls</span>
+        </div>
+
         <!-- 1. Code Voting Management -->
         {% if event.voting_mode == 'Code Voting' %}
         <button class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCode" aria-expanded="false" aria-controls="collapseCode">
@@ -112,7 +117,7 @@
             <i class="bi bi-chevron-down collapse-btn"></i>
         </button>
         <div class="collapse mb-3" id="collapseCode">
-            <div class="card border-0 shadow-sm rounded-4">
+            <div class="card border-0 shadow-soft rounded-4xl">
                 <div class="card-body p-4">
                     {% if event.code_voting_mode == 'Student ID' %}
                         <div class="row g-3">
@@ -187,7 +192,7 @@
             <i class="bi bi-chevron-down collapse-btn"></i>
         </button>
         <div class="collapse mb-3" id="collapseSetup">
-            <div class="card border-0 shadow-sm rounded-4">
+            <div class="card border-0 shadow-soft rounded-4xl">
                 <div class="card-body p-4">
                     <!-- Add Category Form -->
                     <form action="{% url 'add_category' event.id %}" method="POST" class="mb-4" id="add-category-form">
@@ -279,7 +284,7 @@
         </div>
 
         <div class="collapse mb-3" id="collapseTickets">
-            <div class="card border-0 shadow-sm rounded-4">
+            <div class="card border-0 shadow-soft rounded-4xl">
                 <div class="card-body p-4">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -330,8 +335,8 @@
     {% endif %}
 
     <!-- 3. Voter Section (Semi-transparent white for contrast) -->
-    <div class="p-4 rounded-4" style="background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(5px);">
-        
+    <div class="p-4 rounded-4xl" style="background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(5px);">
+
         {% if event.categories.all %}
             <!-- Instructions (Moved Above Tabs) -->
             <div class="text-center mb-4">
@@ -344,7 +349,7 @@
                 {% for category in event.categories.all %}
                 <li class="nav-item" role="presentation">
                     <div class="d-flex align-items-center gap-1">
-                        <button class="nav-link rounded-pill px-4 py-2 shadow-sm fw-bold cat-tab" 
+                        <button class="nav-link rounded-pill px-4 py-2 shadow-sm fw-bold cat-tab"
                                 id="tab-{{ category.id }}" data-bs-toggle="pill" data-bs-target="#pane-{{ category.id }}" type="button" role="tab">
                             {{ category.name }}
                         </button>
@@ -361,15 +366,15 @@
                 {% for category in event.categories.all %}
                 <div class="tab-pane fade" id="pane-{{ category.id }}" role="tabpanel">
                     <!-- BOLD CATEGORY HEADING WITH WHITE BACKGROUND -->
-                    <div class="bg-white rounded-4 shadow-sm p-3 mb-4 text-center">
+                    <div class="bg-white rounded-4xl shadow-soft p-3 mb-4 text-center">
                         <h4 class="fw-bold mb-0" style="color: var(--primary);">{{ category.name }}</h4>
                     </div>
-                    
-                    <div class="row">
+
+                    <div class="row g-4">
                         {% for candidate in candidates %}
                             {% if candidate.category_id == category.id %}
                             <div class="col-md-4 mb-4">
-                                <div class="card text-center shadow border-0 card-hover overflow-hidden">
+                                <div class="card text-center shadow-soft border-0 card-hover overflow-hidden rounded-4xl">
                                     {% if candidate.image %}
                                         <img src="{{ candidate.image.url }}" class="card-img-top" alt="{{ candidate.name }}" style="height: 250px; width: 100%; object-fit: contain; background-color: #f8f9fa;">
                                     {% else %}
@@ -489,10 +494,10 @@
 
         {% else %}
             <!-- Fallback: No categories, just show all candidates -->
-            <div class="row">
+            <div class="row g-4">
                 {% for candidate in candidates %}
                 <div class="col-md-4 mb-4">
-                    <div class="card text-center shadow border-0 card-hover overflow-hidden">
+                    <div class="card text-center shadow-soft border-0 card-hover overflow-hidden rounded-4xl">
                         {% if candidate.image %}
                             <img src="{{ candidate.image.url }}" class="card-img-top" alt="{{ candidate.name }}" style="height: 250px; width: 100%; object-fit: contain; background-color: #f8f9fa;">
                         {% else %}
@@ -676,8 +681,11 @@
         data.candidates.forEach(candidate => {
             // Update Main Votes
             const countElement = document.getElementById(`vote-count-${candidate.id}`);
-            if (countElement) {
+            if (countElement && countElement.innerText != candidate.votes) {
                 countElement.innerText = candidate.votes;
+                countElement.classList.remove('vote-pulse');
+                void countElement.offsetWidth; // restart the animation if it's already mid-flight
+                countElement.classList.add('vote-pulse');
             }
             
             // Update Tie-Breaker Votes

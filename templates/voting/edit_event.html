@@ -2,109 +2,174 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm mt-4 rounded-4">
-            <div class="card-body p-5">
-                <h3 class="mb-4 text-wine fw-bold">Edit Event: {{ event.title }}</h3>
-                <form method="POST" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    
+    <div class="col-lg-9 col-xl-8">
+
+        <div class="mb-4 reveal">
+            <span class="section-eyebrow">Organizer Tools</span>
+            <h2 class="fw-bold text-wine mb-1 mt-1"><i class="bi bi-pencil-square me-2"></i>Edit Event</h2>
+            <p class="text-muted mb-0">{{ event.title }}</p>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <!-- Basic Info -->
+            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-info-circle fs-5"></i></span>
+                        <div>
+                            <h5 class="fw-bold mb-0">Basic Info</h5>
+                            <p class="text-muted tiny mb-0">Tell voters what this event is about.</p>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Event Title</label>
+                        <label class="form-label">Event Title</label>
                         <input type="text" name="title" class="form-control" value="{{ event.title }}" required>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Description</label>
+
+                    <div class="mb-1">
+                        <label class="form-label">Description</label>
                         <textarea name="description" class="form-control" rows="3">{{ event.description }}</textarea>
                     </div>
-                    
-                    <div class="row mb-3">
-                        <!-- Start Date & Time -->
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">Start Date</label>
+                </div>
+            </div>
+
+            <!-- Schedule -->
+            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-1">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-calendar-week fs-5"></i></span>
+                        <div>
+                            <h5 class="fw-bold mb-0">Schedule</h5>
+                            <p class="text-muted tiny mb-0">When voting opens and closes.</p>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Start Date</label>
                             <input type="date" name="start_date_date" class="form-control" value="{{ event.start_date|date:'Y-m-d' }}" required>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">Start Time</label>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Start Time</label>
                             <input type="time" name="start_date_time" class="form-control" value="{{ event.start_date|date:'H:i' }}" required>
                         </div>
-                        
-                        <!-- End Date & Time -->
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">End Date</label>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">End Date</label>
                             <input type="date" name="end_date_date" class="form-control" value="{{ event.end_date|date:'Y-m-d' }}" required>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">End Time</label>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">End Time</label>
                             <input type="time" name="end_date_time" class="form-control" value="{{ event.end_date|date:'H:i' }}" required>
                         </div>
                     </div>
-                    
-                    <div class="row mb-3">
+                </div>
+            </div>
+
+            <!-- Voting Settings -->
+            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-2">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-check2-square fs-5"></i></span>
+                        <div>
+                            <h5 class="fw-bold mb-0">Voting Settings</h5>
+                            <p class="text-muted tiny mb-0">Choose how people will cast their votes.</p>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
                         <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Voting Mode</label>
+                            <label class="form-label">Voting Mode</label>
                             <select name="voting_mode" id="votingModeSelect" class="form-select" onchange="toggleCodeMode()">
                                 <option value="Pay to Vote" {% if event.voting_mode == 'Pay to Vote' %}selected{% endif %}>Pay to Vote (Fundraising)</option>
                                 <option value="Code Voting" {% if event.voting_mode == 'Code Voting' %}selected{% endif %}>Code Voting (Free / Fair)</option>
                             </select>
                         </div>
                         <div class="col-md-6" id="codeModeDiv" style="display: {% if event.voting_mode == 'Code Voting' %}block{% else %}none{% endif %};">
-                            <label class="form-label fw-bold text-muted small">Code Voting Type</label>
+                            <label class="form-label">Code Voting Type</label>
                             <select name="code_voting_mode" id="codeModeSelect" class="form-select">
                                 <option value="Standard" {% if event.code_voting_mode == 'Standard' %}selected{% endif %}>Standard Codes (No ID required)</option>
                                 <option value="Student ID" {% if event.code_voting_mode == 'Student ID' %}selected{% endif %}>Student ID + Code (Secure)</option>
                             </select>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Platform Fee (%)</label>
-                        <input type="number" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage }}" step="0.01" required>
-                    </div>
-                    
-                    <!-- ADD THIS TOGGLE -->
-                    <div class="form-check form-switch mb-4">
-                        <input class="form-check-input" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch" {% if event.enable_tie_breaker %}checked{% endif %}>
-                        <label class="form-check-label fw-bold text-muted small" for="tieBreakerSwitch">Enable Tie-Breaker Voting (Online tickets get free votes)</label>
-                    </div>
-                    
-                    <hr class="my-4">
-                    <h5 class="text-wine">Event Theme Colours</h5>
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Primary Colour</label>
-                            <input type="color" name="primary_color" class="form-control form-control-color w-100" value="{{ event.primary_color }}" style="height: 40px;">
+
+                    <div class="mb-4">
+                        <label class="form-label">Platform Fee (%)</label>
+                        <div class="input-group" style="max-width: 220px;">
+                            <input type="number" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage }}" step="0.01" required>
+                            <span class="input-group-text">%</span>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Accent Colour</label>
-                            <input type="color" name="accent_color" class="form-control form-control-color w-100" value="{{ event.accent_color }}" style="height: 40px;">
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Background Image (Leave blank to keep current)</label>
-                        {% if event.background_image %}
-                            <small class="d-block mb-2 text-muted">Current image: {{ event.background_image.name }}</small>
-                        {% endif %}
-                        <input type="file" name="background_image" class="form-control" accept="image/*">
                     </div>
 
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Event Flyer/Image (Leave blank to keep current)</label>
-                        {% if event.event_image %}
-                            <small class="d-block mb-2 text-muted">Current image: {{ event.event_image.name }}</small>
-                        {% endif %}
-                        <input type="file" name="event_image" class="form-control" accept="image/*">
+                    <div class="form-check form-switch p-0 ps-1">
+                        <div class="d-flex align-items-center gap-3 p-3 rounded-3" style="background-color: var(--ink-50);">
+                            <input class="form-check-input flex-shrink-0 m-0" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch" style="width: 2.75rem; height: 1.5rem;" {% if event.enable_tie_breaker %}checked{% endif %}>
+                            <label class="form-check-label fw-semibold mb-0" for="tieBreakerSwitch">
+                                Enable Tie-Breaker Voting
+                                <span class="d-block text-muted tiny fw-normal">Online tickets get free votes</span>
+                            </label>
+                        </div>
                     </div>
-                    
-                    <div class="d-flex gap-2 mt-4">
-                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold">Save Changes</button>
-                        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4">Cancel</a>
-                    </div>
-                </form>
+                </div>
             </div>
-        </div>
+
+            <!-- Branding -->
+            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-3">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-palette fs-5"></i></span>
+                        <div>
+                            <h5 class="fw-bold mb-0">Theme &amp; Branding</h5>
+                            <p class="text-muted tiny mb-0">Personalize colours and media for this event's public page.</p>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Primary Colour</label>
+                            <input type="color" name="primary_color" class="form-control form-control-color w-100" value="{{ event.primary_color }}" style="height: 46px;">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Accent Colour</label>
+                            <input type="color" name="accent_color" class="form-control form-control-color w-100" value="{{ event.accent_color }}" style="height: 46px;">
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Background Image</label>
+                            {% if event.background_image %}
+                                <div class="d-flex align-items-center gap-2 mb-2 p-2 rounded-3" style="background-color: var(--ink-50);">
+                                    <img src="{{ event.background_image.url }}" alt="Current background" class="rounded-2" style="width:36px;height:36px;object-fit:cover;">
+                                    <small class="text-muted text-truncate">Current: {{ event.background_image.name }}</small>
+                                </div>
+                            {% endif %}
+                            <input type="file" name="background_image" class="form-control" accept="image/*">
+                            <small class="text-muted tiny">Leave blank to keep current image.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Event Flyer / Image</label>
+                            {% if event.event_image %}
+                                <div class="d-flex align-items-center gap-2 mb-2 p-2 rounded-3" style="background-color: var(--ink-50);">
+                                    <img src="{{ event.event_image.url }}" alt="Current flyer" class="rounded-2" style="width:36px;height:36px;object-fit:cover;">
+                                    <small class="text-muted text-truncate">Current: {{ event.event_image.name }}</small>
+                                </div>
+                            {% endif %}
+                            <input type="file" name="event_image" class="form-control" accept="image/*">
+                            <small class="text-muted tiny">Leave blank to keep current image.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-column-reverse flex-sm-row gap-2 mt-4 reveal">
+                <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold"><i class="bi bi-check-circle me-2"></i>Save Changes</button>
+            </div>
+        </form>
     </div>
 </div>
 

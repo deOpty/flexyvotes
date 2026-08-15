@@ -1,0 +1,545 @@
+/* ==========================================================================
+   FlexyVotes Design System
+   A premium, cohesive visual layer on top of Bootstrap 5.
+   Brand identity (Wine + Gold) is preserved; everything else is elevated:
+   typography, spacing, elevation, motion, and component polish.
+   ========================================================================== */
+
+:root {
+  /* --- Brand palette (kept, refined with tints/shades) --- */
+  --wine-950: #3d0010;
+  --wine-900: #56001a;
+  --wine-800: #6b0018;
+  --wine-700: #800020;   /* brand primary */
+  --wine-600: #970026;
+  --wine-500: #ad1230;
+  --wine-100: #f7e6ea;
+  --wine-50:  #fbf1f3;
+
+  --gold-700: #b38f00;
+  --gold-600: #d4af00;
+  --gold-500: #FFD700;   /* brand accent */
+  --gold-300: #ffe666;
+  --gold-100: #fff8d6;
+
+  /* --- Neutrals --- */
+  --ink-900: #14141a;
+  --ink-800: #1E1E1E;
+  --ink-700: #33333a;
+  --ink-500: #6b6b74;
+  --ink-300: #9a9aa3;
+  --ink-200: #d8d8de;
+  --ink-100: #ececf1;
+  --ink-50:  #f7f7fa;
+  --surface: #F5F5F5;
+  --white: #ffffff;
+
+  /* --- Semantic aliases --- */
+  --brand-primary: var(--wine-700);
+  --brand-primary-dark: var(--wine-800);
+  --brand-accent: var(--gold-500);
+  --text-body: var(--ink-800);
+  --text-muted: var(--ink-500);
+
+  /* --- Typography --- */
+  --font-display: 'Poppins', 'Segoe UI', sans-serif;
+  --font-body: 'Inter', 'Segoe UI', sans-serif;
+
+  /* --- Spacing scale --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+  --space-10: 4rem;
+
+  /* --- Radii --- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-pill: 999px;
+
+  /* --- Elevation --- */
+  --shadow-xs: 0 1px 2px rgba(20, 20, 26, 0.06);
+  --shadow-sm: 0 2px 8px rgba(20, 20, 26, 0.06);
+  --shadow-md: 0 8px 24px rgba(20, 20, 26, 0.08);
+  --shadow-lg: 0 16px 40px rgba(20, 20, 26, 0.12);
+  --shadow-wine: 0 10px 30px rgba(128, 0, 32, 0.25);
+  --shadow-gold: 0 8px 20px rgba(255, 215, 0, 0.25);
+
+  /* --- Motion --- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 450ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--surface);
+  color: var(--text-body);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+.content { flex: 1; }
+
+a { color: var(--brand-primary); }
+a:hover { color: var(--wine-800); }
+
+::selection { background: var(--gold-500); color: var(--ink-900); }
+
+:focus-visible {
+  outline: 2px solid var(--gold-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.container, .container-fluid { max-width: 1320px; }
+
+/* ==========================================================================
+   Color utilities (kept for backward compatibility with existing templates)
+   ========================================================================== */
+
+.text-wine { color: var(--brand-primary) !important; }
+.bg-wine { background-color: var(--brand-primary) !important; }
+.text-gold { color: var(--brand-accent) !important; }
+.bg-gold { background-color: var(--brand-accent) !important; }
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.6rem 1.35rem;
+  transition: transform var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-base) var(--ease-standard),
+              background-color var(--dur-base) var(--ease-standard),
+              color var(--dur-base) var(--ease-standard),
+              border-color var(--dur-base) var(--ease-standard);
+  position: relative;
+  overflow: hidden;
+  will-change: transform;
+}
+
+.btn:active { transform: translateY(1px) scale(0.98); }
+
+.btn-lg { border-radius: var(--radius-lg); }
+.btn-sm { border-radius: var(--radius-sm); }
+
+/* Ripple feedback (driven by site.js) */
+.btn .btn-ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  background: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  animation: btn-ripple-anim 600ms var(--ease-out);
+}
+@keyframes btn-ripple-anim {
+  to { transform: scale(2.6); opacity: 0; }
+}
+
+.btn-wine {
+  background-color: var(--brand-primary);
+  color: var(--brand-accent);
+  border: 1px solid var(--brand-primary);
+  box-shadow: var(--shadow-sm);
+}
+.btn-wine:hover {
+  background-color: var(--wine-800);
+  color: var(--white);
+  box-shadow: var(--shadow-wine);
+  transform: translateY(-2px);
+}
+
+.btn-gold {
+  background-color: var(--brand-accent);
+  color: var(--brand-primary);
+  border: 1px solid var(--gold-600);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+.btn-gold:hover {
+  background-color: var(--gold-600);
+  color: var(--wine-900);
+  box-shadow: var(--shadow-gold);
+  transform: translateY(-2px);
+}
+
+.btn-outline-wine {
+  color: var(--brand-primary);
+  border: 1.5px solid var(--brand-primary);
+  background-color: transparent;
+  font-weight: 600;
+}
+.btn-outline-wine:hover {
+  background-color: var(--brand-primary);
+  color: var(--brand-accent);
+  transform: translateY(-2px);
+}
+
+.btn-outline-light:hover { transform: translateY(-2px); }
+.btn-outline-secondary:hover,
+.btn-outline-danger:hover,
+.btn-success:hover,
+.btn-secondary:hover { transform: translateY(-2px); }
+
+/* Button loading state (toggled by site.js on form submit) */
+.btn.is-loading {
+  color: transparent !important;
+  pointer-events: none;
+}
+.btn.is-loading::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 1.1rem; height: 1.1rem;
+  margin: -0.55rem 0 0 -0.55rem;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  color: var(--brand-accent);
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+
+/* ==========================================================================
+   Navbar
+   ========================================================================== */
+
+.navbar {
+  transition: box-shadow var(--dur-base) var(--ease-standard),
+              background-color var(--dur-base) var(--ease-standard);
+}
+.navbar.is-scrolled {
+  box-shadow: var(--shadow-md);
+  backdrop-filter: saturate(180%) blur(12px);
+}
+
+.navbar-brand {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.nav-link {
+  position: relative;
+  padding-bottom: 5px;
+  font-weight: 500;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background-color: var(--brand-accent);
+  transition: width var(--dur-base) var(--ease-standard);
+}
+.nav-link.active::after, .nav-link:hover::after { width: 80%; }
+
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+
+.card {
+  border-radius: var(--radius-lg);
+}
+
+.card-hover {
+  transition: transform var(--dur-base) var(--ease-out),
+              box-shadow var(--dur-base) var(--ease-out);
+}
+.card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-lg) !important;
+}
+
+.card-img-top { transition: transform var(--dur-slow) var(--ease-out); }
+.card-hover:hover .card-img-top { transform: scale(1.04); }
+
+/* Whole-card-clickable pattern: a `[data-card-link]` card navigates on click
+   anywhere in it (handled by site.js), while its visible link/button stays a
+   normal, independently-working <a href>. (Deliberately NOT implemented via
+   Bootstrap's .stretched-link: that trick needs the visible link/button to be
+   the *only* positioned thing in the card, which conflicts with .btn already
+   setting position:relative for the ripple effect above - combining both on
+   one element shrinks the "stretched" clickable area down to just the button
+   instead of the whole card.) */
+.card-hover[data-card-link] {
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   Forms
+   ========================================================================== */
+
+.form-control, .form-select {
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--ink-200);
+  padding: 0.65rem 0.9rem;
+  transition: border-color var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 0.2rem rgba(128, 0, 32, 0.12);
+}
+.form-label {
+  font-weight: 600;
+  color: var(--ink-700);
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+}
+.input-group-text {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background-color: var(--ink-50);
+  border: 1.5px solid var(--ink-200);
+}
+
+/* ==========================================================================
+   Badges, alerts, progress
+   ========================================================================== */
+
+.badge { border-radius: var(--radius-pill); font-weight: 600; letter-spacing: 0.02em; }
+
+.alert {
+  border-radius: var(--radius-md);
+  border: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.progress {
+  border-radius: var(--radius-pill);
+  background-color: var(--ink-100);
+  overflow: hidden;
+}
+.progress-bar { transition: width 0.6s var(--ease-out); }
+
+/* ==========================================================================
+   Tables
+   ========================================================================== */
+
+.table {
+  --bs-table-hover-bg: var(--wine-50);
+}
+.table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom-width: 1px;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Modals
+   ========================================================================== */
+
+.modal-content {
+  border-radius: var(--radius-lg);
+  border: none;
+  box-shadow: var(--shadow-lg);
+}
+.modal.fade .modal-dialog {
+  transform: translateY(24px) scale(0.98);
+  transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+}
+.modal.show .modal-dialog { transform: translateY(0) scale(1); }
+
+/* Keep modal content from ever exceeding the viewport on short/mobile
+   screens - avoids the header/footer being pushed off-screen. */
+.modal-body { max-height: 70vh; overflow-y: auto; }
+
+@media (max-width: 575.98px) {
+  .modal-dialog { margin: 0.75rem; }
+}
+
+/* ==========================================================================
+   Interactive states: disabled / active / loading consistency
+   ========================================================================== */
+
+.btn:disabled, .btn.disabled,
+.form-control:disabled, .form-select:disabled,
+fieldset:disabled * {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn:disabled:hover, .btn.disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+a.disabled, .disabled > a {
+  pointer-events: none;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Active/pressed state for pill/tab/filter buttons used as toggles across
+   the site (category filters, "How It Works" tabs, category pills). */
+.nav-pills .nav-link,
+.btn-group > .btn {
+  transition: color var(--dur-fast) var(--ease-standard),
+              background-color var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard),
+              transform var(--dur-fast) var(--ease-standard);
+}
+.nav-pills .nav-link:active,
+.btn:not(:disabled):active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* Links used as buttons/icon-links get a visible, consistent focus ring
+   even when they don't carry a .btn class (social icons, footer links). */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--gold-600);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Image loading (progressive fade-in, applied globally by site.js -
+   no template changes required, and no layout shift since image
+   containers already reserve their height via inline styles/aspect boxes)
+   ========================================================================== */
+
+img.img-fade-init {
+  opacity: 0;
+}
+img.img-fade-init.img-fade-in {
+  opacity: 1;
+  transition: opacity 0.5s var(--ease-out);
+}
+
+/* ==========================================================================
+   Scroll reveal (JS adds .is-visible when element enters viewport)
+   ========================================================================== */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+}
+.reveal.is-visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1.is-visible { transition-delay: 0.08s; }
+.reveal-delay-2.is-visible { transition-delay: 0.16s; }
+.reveal-delay-3.is-visible { transition-delay: 0.24s; }
+
+/* ==========================================================================
+   Hero animations (kept, refined easing)
+   ========================================================================== */
+
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-hero-1 { animation: fadeInUp 0.8s var(--ease-out) forwards; }
+.animate-hero-2 { animation: fadeInUp 0.8s 0.15s var(--ease-out) forwards; opacity: 0; }
+.animate-hero-3 { animation: fadeInUp 0.8s 0.3s var(--ease-out) forwards; opacity: 0; }
+
+/* ==========================================================================
+   Page transition
+   ========================================================================== */
+
+.page-fade-in { animation: page-fade-in 0.45s var(--ease-out) both; }
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Skeleton loading
+   ========================================================================== */
+
+.vote-pulse {
+  display: inline-block;
+  animation: vote-pulse-anim 0.6s var(--ease-out);
+}
+@keyframes vote-pulse-anim {
+  0% { color: var(--gold-600); transform: scale(1.25); }
+  100% { color: inherit; transform: scale(1); }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--ink-100) 25%, var(--ink-50) 37%, var(--ink-100) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* ==========================================================================
+   Misc utilities
+   ========================================================================== */
+
+.tiny { font-size: 0.75rem; }
+.shadow-soft { box-shadow: var(--shadow-md) !important; }
+.rounded-4xl { border-radius: var(--radius-xl) !important; }
+.text-muted { color: var(--text-muted) !important; }
+
+.section-eyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-primary);
+}
+
+.icon-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--brand-primary);
+  color: var(--brand-accent);
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Responsive tweaks
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+  .display-3 { font-size: 2.25rem; }
+  .btn-lg { padding: 0.6rem 1.1rem; font-size: 1rem; }
+}

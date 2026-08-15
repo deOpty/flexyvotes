@@ -2,55 +2,83 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm border-0 mt-4 rounded-4">
-            <div class="card-body p-5">
-                <h3 class="mb-4 text-wine fw-bold"><i class="bi bi-plus-circle me-2"></i>Add New Product</h3>
+    <div class="col-lg-9 col-xl-8">
+        <div class="card shadow-soft border-0 mt-4 mb-5 rounded-4xl reveal">
+            <div class="card-body p-4 p-md-5">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <span class="icon-circle" style="width:52px;height:52px;">
+                        <i class="bi bi-plus-circle fs-4"></i>
+                    </span>
+                    <div>
+                        <p class="section-eyebrow mb-1">Store Administration</p>
+                        <h3 class="mb-0 text-wine fw-bold">Add New Product</h3>
+                    </div>
+                </div>
+
                 <form method="POST" enctype="multipart/form-data">
                     {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Product Name</label>
-                        <input type="text" name="name" class="form-control" placeholder="e.g., Gold Star Plaque" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Describe the product..."></textarea>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Category</label>
-                            <select name="category" class="form-select">
-                                <option value="">None</option>
-                                {% for cat in categories %}
-                                    <option value="{{ cat.id }}">{{ cat.name }}</option>
-                                {% endfor %}
-                            </select>
+
+                    <div class="row">
+                        <div class="col-md-7">
+                            <div class="mb-3">
+                                <label class="form-label">Product Name</label>
+                                <input type="text" name="name" class="form-control" placeholder="e.g., Gold Star Plaque" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" class="form-control" rows="5" placeholder="Describe the product..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Category</label>
+                                <select name="category" class="form-select">
+                                    <option value="">None</option>
+                                    {% for cat in categories %}
+                                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-6 mb-3">
+                                    <label class="form-label">Price (₵)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">₵</span>
+                                        <input type="number" name="price" class="form-control" step="0.01" placeholder="50.00" required>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 mb-3">
+                                    <label class="form-label">Old Price <span class="tiny text-muted fw-normal">(optional, for discount)</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">₵</span>
+                                        <input type="number" name="old_price" class="form-control" step="0.01" placeholder="75.00">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">Price (₵)</label>
-                            <input type="number" name="price" class="form-control" step="0.01" placeholder="50.00" required>
+
+                        <div class="col-md-5">
+                            <label class="form-label">Product Image</label>
+                            <div class="border border-2 border-dashed rounded-4 p-4 text-center bg-light bg-opacity-50 mb-2">
+                                <i class="bi bi-cloud-arrow-up fs-1 text-wine d-block mb-2"></i>
+                                <p class="tiny text-muted mb-2">JPG, PNG, or WEBP — a square image looks best</p>
+                                <input type="file" name="image" class="form-control" accept="image/*" required>
+                            </div>
+
+                            <div class="d-flex align-items-center justify-content-between p-3 rounded-4 bg-wine bg-opacity-10 border mt-4">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" name="is_active" id="flexSwitchCheckChecked" checked>
+                                    <label class="form-check-label text-muted small fw-bold" for="flexSwitchCheckChecked">Active (Show in store)</label>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">Old Price (₵) <small>(Optional)</small></label>
-                            <input type="number" name="old_price" class="form-control" step="0.01" placeholder="75.00">
-                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Product Image</label>
-                        <input type="file" name="image" class="form-control" accept="image/*" required>
-                    </div>
-                    
-                    <div class="form-check form-switch mb-4">
-                        <input class="form-check-input" type="checkbox" name="is_active" id="flexSwitchCheckChecked" checked>
-                        <label class="form-check-label text-muted small fw-bold" for="flexSwitchCheckChecked">Active (Show in store)</label>
-                    </div>
-                    
+
+                    <hr class="my-4">
+
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold">Save Product</button>
+                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold"><i class="bi bi-check-circle me-2"></i>Save Product</button>
                         <a href="{% url 'manage_store' %}" class="btn btn-outline-secondary px-4">Cancel</a>
                     </div>
                 </form>

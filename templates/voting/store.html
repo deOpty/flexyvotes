@@ -3,13 +3,14 @@
 {% block content %}
 <div class="container my-5">
     <!-- Store Header -->
-    <div class="text-center mb-5">
-        <h2 class="fw-bold text-wine">Awards & Plaques Store</h2>
-        <p class="text-muted">Premium quality awards for your events. Click "Order on WhatsApp" to contact us about customization.</p>
+    <div class="text-center mb-5 reveal">
+        <span class="section-eyebrow d-block mb-2">FlexyVotes Store</span>
+        <h2 class="fw-bold text-wine display-6">Awards &amp; Plaques Store</h2>
+        <p class="text-muted mx-auto" style="max-width: 560px;">Premium quality awards for your events. Click "Order on WhatsApp" to contact us about customization.</p>
     </div>
 
     <!-- Category Filter Buttons -->
-    <div class="text-center mb-5">
+    <div class="text-center mb-5 reveal reveal-delay-1">
         <a href="{% url 'store' %}" class="btn btn-sm {% if not selected_category %}btn-wine{% else %}btn-outline-secondary{% endif %} rounded-pill px-3 me-2 mb-2">All</a>
         {% for cat in categories %}
         <a href="?category={{ cat.name|urlencode }}" class="btn btn-sm {% if selected_category == cat.name %}btn-wine{% else %}btn-outline-secondary{% endif %} rounded-pill px-3 me-2 mb-2">{{ cat.name }}</a>
@@ -19,42 +20,42 @@
     <!-- Product Grid -->
     <div class="row">
         {% for product in products %}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 shadow-sm border-0 card-hover overflow-hidden">
-                
+        <div class="col-md-4 mb-4 reveal {% cycle 'reveal-delay-1' 'reveal-delay-2' 'reveal-delay-3' %}">
+            <div class="card h-100 shadow-soft border-0 card-hover overflow-hidden rounded-4xl">
+
                 <!-- Image & Discount Badge Wrapper -->
                 <div class="position-relative">
                     {% if product.image %}
                         <img src="{{ product.image.url }}" class="card-img-top event-flyer" alt="{{ product.name }}" style="height: 250px; width: 100%; object-fit: cover;">
                     {% else %}
                         <div class="bg-light d-flex align-items-center justify-content-center" style="height: 250px;">
-                            <span class="text-muted">No Image</span>
+                            <i class="bi bi-image text-muted fs-1"></i>
                         </div>
                     {% endif %}
-                    
+
                     <!-- Discount Badge -->
                     {% if product.discount_percentage > 0 %}
-                        <span class="badge bg-danger position-absolute top-0 end-0 m-2 px-3 py-2 rounded-pill shadow-sm">
+                        <span class="badge bg-danger position-absolute top-0 end-0 m-2 px-3 py-2 shadow-sm">
                             -{{ product.discount_percentage }}%
                         </span>
                     {% endif %}
                 </div>
 
-                <div class="card-body d-flex flex-column">
+                <div class="card-body d-flex flex-column p-4">
                     <h5 class="card-title fw-bold text-wine">{{ product.name }}</h5>
                     <p class="card-text text-muted small flex-grow-1">{{ product.description|truncatewords:20 }}</p>
-                    
+
                     <!-- Pricing Logic -->
                     <div class="mt-3 d-flex align-items-baseline gap-2">
                         {% if product.old_price %}
-                            <span class="text-muted text-decoration-line-through fs-5">₵{{ product.old_price }}</span>
+                            <span class="text-muted text-decoration-line-through fs-6">₵{{ product.old_price }}</span>
                         {% endif %}
                         <span class="h4 text-dark fw-bold mb-0">₵{{ product.price }}</span>
                     </div>
 
                     <!-- WhatsApp Order Button -->
-                    <a href="https://wa.me/233273107108?text=Hi%20FlexyVotes,%20I%20want%20to%20order%20{{ product.name|urlencode }}%20for%20₵{{ product.price }}" 
-                       target="_blank" 
+                    <a href="https://wa.me/233273107108?text=Hi%20FlexyVotes,%20I%20want%20to%20order%20{{ product.name|urlencode }}%20for%20₵{{ product.price }}"
+                       target="_blank"
                        class="btn btn-success w-100 mt-3 fw-bold">
                         <i class="bi bi-whatsapp me-2"></i> Order on WhatsApp
                     </a>
@@ -62,7 +63,12 @@
             </div>
         </div>
         {% empty %}
-        <div class="alert alert-warning text-center">No products available in this category right now.</div>
+        <div class="col-12">
+            <div class="alert alert-warning text-center py-4 reveal">
+                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                No products available in this category right now.
+            </div>
+        </div>
         {% endfor %}
     </div>
 </div>

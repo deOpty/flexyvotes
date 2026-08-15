@@ -1,29 +1,32 @@
 {% extends 'voting/base.html' %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5 col-lg-4">
-        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
-            <div class="card-body p-5">
+<div class="row justify-content-center align-items-center py-5 my-md-4">
+    <div class="col-11 col-sm-8 col-md-6 col-lg-4">
+        <div class="card shadow-soft border-0 rounded-4xl overflow-hidden reveal">
+            <div class="card-body p-4 p-md-5">
                 <div class="text-center mb-4">
-                    <i class="bi bi-shield-lock-fill fs-1 text-wine"></i>
-                    <h3 class="mt-2 mb-0 text-wine fw-bold">Organizer Login</h3>
-                    <p class="text-muted small">Sign in to manage your events</p>
+                    <span class="icon-circle mb-3" style="width:64px;height:64px;">
+                        <i class="bi bi-shield-lock-fill fs-3"></i>
+                    </span>
+                    <p class="section-eyebrow mb-1">Organizer Access</p>
+                    <h3 class="mb-1 fw-bold font-display">Welcome back</h3>
+                    <p class="text-muted small mb-0">Sign in to manage your events</p>
                 </div>
-                
+
                 <form method="POST">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label class="form-label small fw-bold text-muted">Username</label>
+                        <label class="form-label">Username</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-person-fill text-wine"></i></span>
+                            <span class="input-group-text"><i class="bi bi-person-fill text-wine"></i></span>
                             <input type="text" name="username" class="form-control border-start-0 ps-0" required>
                         </div>
                     </div>
                     <div class="mb-4">
                         <label class="form-label">Password</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock-fill text-wine"></i></span>
+                            <span class="input-group-text"><i class="bi bi-lock-fill text-wine"></i></span>
                             <input type="password" name="password" id="password-input" class="form-control border-start-0 border-end-0" required>
                             <button class="btn btn-outline-secondary border-start-0" type="button" id="toggle-password">
                                 <i class="bi bi-eye-slash" id="toggle-icon"></i>
@@ -32,11 +35,12 @@
                     </div>
                     <button type="submit" class="btn btn-wine w-100 py-2 fw-bold">Login</button>
                 </form>
-                
+
                 <div class="text-center mt-3 mb-0">
                     <a href="{% url 'password_reset' %}" class="text-wine fw-bold text-decoration-none small">Forgot Password?</a>
                 </div>
-                <p class="text-center mt-2 mb-0">
+                <hr class="my-4">
+                <p class="text-center mb-0 small text-muted">
                     Don't have an account? <a href="{% url 'register' %}" class="text-wine fw-bold text-decoration-none">Register here</a>
                 </p>
             </div>
@@ -48,7 +52,7 @@
     const toggleBtn = document.getElementById('toggle-password');
     const passwordInput = document.getElementById('password-input');
     const toggleIcon = document.getElementById('toggle-icon');
-    
+
     toggleBtn.addEventListener('click', function() {
         if (passwordInput.type === 'password') {
             passwordInput.type = 'text';

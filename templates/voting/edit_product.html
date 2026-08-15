@@ -2,58 +2,88 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
-        <div class="card shadow-sm border-0 mt-4 rounded-4">
-            <div class="card-body p-5">
-                <h3 class="mb-4 text-wine fw-bold"><i class="bi bi-pencil-square me-2"></i>Edit Product</h3>
+    <div class="col-lg-9 col-xl-8">
+        <div class="card shadow-soft border-0 mt-4 mb-5 rounded-4xl reveal">
+            <div class="card-body p-4 p-md-5">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    <span class="icon-circle" style="width:52px;height:52px;">
+                        <i class="bi bi-pencil-square fs-4"></i>
+                    </span>
+                    <div>
+                        <p class="section-eyebrow mb-1">Store Administration</p>
+                        <h3 class="mb-0 text-wine fw-bold">Edit Product</h3>
+                    </div>
+                </div>
+
                 <form method="POST" enctype="multipart/form-data">
                     {% csrf_token %}
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Product Name</label>
-                        <input type="text" name="name" class="form-control" value="{{ product.name }}" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Description</label>
-                        <textarea name="description" class="form-control" rows="3">{{ product.description }}</textarea>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Category</label>
-                            <select name="category" class="form-select">
-                                <option value="">None</option>
-                                {% for cat in categories %}
-                                    <option value="{{ cat.id }}" {% if product.category.id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
-                                {% endfor %}
-                            </select>
+
+                    <div class="row">
+                        <div class="col-md-7">
+                            <div class="mb-3">
+                                <label class="form-label">Product Name</label>
+                                <input type="text" name="name" class="form-control" value="{{ product.name }}" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <textarea name="description" class="form-control" rows="5">{{ product.description }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Category</label>
+                                <select name="category" class="form-select">
+                                    <option value="">None</option>
+                                    {% for cat in categories %}
+                                        <option value="{{ cat.id }}" {% if product.category.id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-sm-6 mb-3">
+                                    <label class="form-label">Price (₵)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">₵</span>
+                                        <input type="number" name="price" class="form-control" step="0.01" value="{{ product.price }}" required>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 mb-3">
+                                    <label class="form-label">Old Price <span class="tiny text-muted fw-normal">(optional, for discount)</span></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">₵</span>
+                                        <input type="number" name="old_price" class="form-control" step="0.01" value="{{ product.old_price|default_if_none:'' }}">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">Price (₵)</label>
-                            <input type="number" name="price" class="form-control" step="0.01" value="{{ product.price }}" required>
+
+                        <div class="col-md-5">
+                            <label class="form-label">Product Image</label>
+                            <div class="border border-2 border-dashed rounded-4 p-4 text-center bg-light bg-opacity-50 mb-2">
+                                {% if product.image %}
+                                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded-4 shadow-sm mb-3" style="width: 100%; max-width: 160px; height: 120px; object-fit: cover;">
+                                    <p class="tiny text-muted mb-2">Current: {{ product.image.name }}<br>Leave blank to keep current image</p>
+                                {% else %}
+                                    <i class="bi bi-cloud-arrow-up fs-1 text-wine d-block mb-2"></i>
+                                    <p class="tiny text-muted mb-2">JPG, PNG, or WEBP — a square image looks best</p>
+                                {% endif %}
+                                <input type="file" name="image" class="form-control" accept="image/*">
+                            </div>
+
+                            <div class="d-flex align-items-center justify-content-between p-3 rounded-4 bg-wine bg-opacity-10 border mt-4">
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" name="is_active" id="flexSwitchCheckChecked" {% if product.is_active %}checked{% endif %}>
+                                    <label class="form-check-label text-muted small fw-bold" for="flexSwitchCheckChecked">Active (Show in store)</label>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold text-muted small">Old Price (₵)</label>
-                            <input type="number" name="old_price" class="form-control" step="0.01" value="{{ product.old_price|default_if_none:'' }}">
-                        </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label fw-bold text-muted small">Product Image (Leave blank to keep current)</label>
-                        {% if product.image %}
-                            <small class="d-block mb-2 text-muted">Current image: {{ product.image.name }}</small>
-                        {% endif %}
-                        <input type="file" name="image" class="form-control" accept="image/*">
-                    </div>
-                    
-                    <div class="form-check form-switch mb-4">
-                        <input class="form-check-input" type="checkbox" name="is_active" id="flexSwitchCheckChecked" {% if product.is_active %}checked{% endif %}>
-                        <label class="form-check-label text-muted small fw-bold" for="flexSwitchCheckChecked">Active (Show in store)</label>
-                    </div>
-                    
+
+                    <hr class="my-4">
+
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold">Save Changes</button>
+                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold"><i class="bi bi-check-circle me-2"></i>Save Changes</button>
                         <a href="{% url 'manage_store' %}" class="btn btn-outline-secondary px-4">Cancel</a>
                     </div>
                 </form>

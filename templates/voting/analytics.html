@@ -1,24 +1,34 @@
 {% extends 'voting/base.html' %}
 
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 reveal">
         <div>
-            <h2 class="fw-bold text-wine">Analytics: {{ event.title }}</h2>
-            <p class="text-muted">Total Revenue: <b>${{ event.get_total_revenue }}</b> | Your Payout: <b>${{ event.get_organizer_payout }}</b></p>
+            <p class="section-eyebrow mb-1">Event Analytics</p>
+            <h2 class="fw-bold text-wine mb-1">{{ event.title }}</h2>
+            <p class="text-muted mb-0">
+                Total Revenue: <b class="text-wine">${{ event.get_total_revenue }}</b>
+                <span class="mx-2">&middot;</span>
+                Your Payout: <b class="text-wine">${{ event.get_organizer_payout }}</b>
+            </p>
         </div>
         <button onclick="downloadPDF()" class="btn btn-gold px-3"><i class="bi bi-download me-1"></i> Download Report (PDF)</button>
     </div>
-    <hr>
 
     <!-- Chart Sections (One for each category) -->
-    <div class="row mb-5">
+    <div class="row mb-4">
         {% for chart in chart_data %}
-        <div class="col-md-6 mb-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <h5 class="card-title mb-4 text-wine">Category: {{ chart.category_name }}</h5>
-                    <canvas id="chart-{{ forloop.counter }}" style="max-height: 300px;"></canvas>
+        <div class="col-md-6 mb-4 reveal reveal-delay-{{ forloop.counter0|add:1 }}">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center gap-2 mb-4">
+                        <span class="icon-circle" style="width:38px;height:38px;font-size:1rem;"><i class="bi bi-bar-chart-fill"></i></span>
+                        <h5 class="card-title mb-0 text-wine">Category: {{ chart.category_name }}</h5>
+                    </div>
+                    <div class="position-relative" style="min-height: 300px;">
+                        <div class="skeleton" id="chart-skeleton-{{ forloop.counter }}" style="position: absolute; inset: 0; border-radius: var(--radius-md);"></div>
+                        <canvas id="chart-{{ forloop.counter }}" style="max-height: 300px;"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -27,38 +37,40 @@
 
     <!-- Data Table Section -->
     <div class="row">
-        <div class="col-12 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title mb-3 text-wine">Detailed Breakdown</h5>
-                    <table class="table table-sm table-hover" id="analyticsTable">
-                        <thead>
-                            <tr>
-                                <th>Category</th>
-                                <th>Candidate</th>
-                                <th>Pay-to-Votes</th>
-                                <th>Free (Tie-Breaker) Votes</th>
-                                <th>Total Votes</th>
-                                <th>Revenue</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for candidate in all_candidates %}
-                            <tr>
-                                <td>{{ candidate.category.name|default:"Uncategorized" }}</td>
-                                <td>{{ candidate.name }}</td>
-                                <td>{{ candidate.main_votes }}</td>
-                                <td>{{ candidate.tie_breaker_votes }}</td>
-                                <td class="fw-bold">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</td>
-                                <td>₵{{ candidate.revenue }}</td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="6" class="text-center text-muted">No votes yet.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        <div class="col-12 mb-4 reveal">
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-body p-4">
+                    <h5 class="card-title mb-3 text-wine"><i class="bi bi-table me-2"></i>Detailed Breakdown</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle" id="analyticsTable">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Candidate</th>
+                                    <th>Pay-to-Votes</th>
+                                    <th>Free (Tie-Breaker) Votes</th>
+                                    <th>Total Votes</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for candidate in all_candidates %}
+                                <tr>
+                                    <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">{{ candidate.category.name|default:"Uncategorized" }}</span></td>
+                                    <td class="fw-semibold">{{ candidate.name }}</td>
+                                    <td>{{ candidate.main_votes }}</td>
+                                    <td>{{ candidate.tie_breaker_votes }}</td>
+                                    <td><span class="badge bg-wine">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</span></td>
+                                    <td class="fw-semibold text-wine">₵{{ candidate.revenue }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted p-4">No votes yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -74,6 +86,8 @@
     const chartData = {{ chart_data|safe }};
     chartData.forEach((chart, index) => {
         const ctx = document.getElementById(`chart-${index + 1}`).getContext('2d');
+        const skeleton = document.getElementById(`chart-skeleton-${index + 1}`);
+        if (skeleton) skeleton.remove();
         new Chart(ctx, {
             type: 'bar',
             data: {

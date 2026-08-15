@@ -42,6 +42,64 @@ table data, checking indexes):
 3. Add a server: host `db`, port `5432`, and the `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` values from `docker-compose.yml`'s `db` service.
 4. Only do this over a network path restricted to admins (SSH tunnel, VPN, or a security-group rule) — see the security warning in `DEPLOYMENT.md`. Do not leave `PGADMIN_PORT` open to the public internet.
 
+**"The CSRF token is missing" / "CSRF tokens do not match" on pgAdmin — ROOT CAUSE FOUND AND FIXED.**
+pgAdmin's CSRF token is embedded in the login page (via Flask-WTF's
+`csrf_token()`) and its own login route is CSRF-exempt server-side, so a
+first failed login attempt is far more likely a typo'd password than a real
+CSRF issue. A properly issued token was also verified (scripted, header-level
+test) to stay valid for a continuous 3+ minutes with no time-based expiry —
+`WTF_CSRF_TIME_LIMIT` already defaults to unlimited here.
+
+The actual cause on this deployment: **the host also runs a second, unrelated
+pgAdmin instance** (`tradingbot-pgadmin`, confirmed via `docker stats`/`docker
+ps` showing an entirely separate `tradingbot-*` stack on the same box). Every
+pgAdmin image defaults to the same session cookie name (`pga4_session`,
+`Path=/`, no `Domain` attribute). Browser cookies are scoped by **host only —
+not port** (RFC 6265), so visiting both pgAdmin UIs from the same browser
+(same IP, different ports) causes whichever one you visited most recently to
+silently overwrite the other's session cookie. The next request to the other
+instance then carries a cookie it doesn't recognize, which surfaces as
+"unauthenticated" / "CSRF token is missing or does not match" — not because
+either app is broken, but because they were fighting over the same cookie
+name on the same host.
+
+**Fix applied:** `docker-compose.yml` now sets
+`PGADMIN_CONFIG_SESSION_COOKIE_NAME: "'flexyvotes_pga_session'"` on the
+`pgadmin` service, giving this project's instance its own cookie name.
+Verified directly: `Set-Cookie` now reads `flexyvotes_pga_session=...`
+instead of `pga4_session=...`, and a full login → authenticated-API-call
+flow succeeds end-to-end with it. **Apply the same fix to `tradingbot-pgadmin`**
+(a distinct, non-colliding cookie name on that stack too) if you manage it —
+otherwise the collision just moves to whichever cookie name is still shared.
+
+If this ever resurfaces after redeploying, rule out an actual container
+restart before assuming it's the cookie collision again:
+1. `docker compose ps` — pgAdmin's uptime shorter than your login session means it restarted.
+2. `docker compose logs pgadmin | grep -i "Application Initialisation"` — more than one match means it restarted during your session.
+3. `docker volume inspect flexyvotes_pgadmin_data` — confirm the volume exists and is the one actually mounted.
+
+**"The CSRF token is invalid. You need to refresh the page." specifically
+(distinct from "missing")** — reproduced and confirmed: pgAdmin's
+`SECRET_KEY`/`CSRF_SESSION_KEY` are **not** static config — per
+`config.py`, they're auto-generated and stored in the config database's
+`keys` table on the `pgadmin_data` volume (setting
+`PGADMIN_CONFIG_SECRET_KEY` has no effect; it's explicitly bypassed in favor
+of the DB-stored value). So **every time `pgadmin_data` is deleted/reset,
+a brand-new secret is generated**, which immediately invalidates any
+CSRF token embedded in a page your browser already had loaded — login
+itself still succeeds (its CSRF check is exempted server-side), but the
+app's subsequent calls (e.g. `/preferences/get_all` right after `/browser/`
+loads) fail with "invalid" because they carry a token signed by a secret
+that no longer exists.
+- **Fix:** after resetting `pgadmin_data` (or any pgAdmin container
+  recreate that could have regenerated the secret), close the tab entirely
+  and load the login page fresh (or use a private/incognito window) before
+  logging in again — don't reuse/reload a tab that was open beforehand.
+- There is no way to pin this secret across volume resets via env var on
+  this image; the volume itself is the persistence mechanism. Avoid
+  deleting `pgadmin_data` unless you're intentionally accepting this
+  (and re-adding the `db` server connection afterward).
+
 ### Rotate a credential
 1. Generate the new value with the provider (PayStack/Africa's Talking/Cloudinary/Gmail).
 2. Update the corresponding secret in AWS Secrets Manager (see `DEPLOYMENT.md` §4).

@@ -2,16 +2,21 @@
 
 {% block content %}
 <div class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="fw-bold text-wine mb-0">Manage Store</h2>
-            <p class="text-muted mb-0">Add, edit, and manage your award plaques and products</p>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 reveal">
+        <div class="d-flex align-items-center gap-3">
+            <span class="icon-circle" style="width:56px;height:56px;">
+                <i class="bi bi-shop fs-4"></i>
+            </span>
+            <div>
+                <p class="section-eyebrow mb-1">Store Administration</p>
+                <h2 class="fw-bold text-wine mb-0">Manage Store</h2>
+                <p class="text-muted mb-0">Add, edit, and manage your award plaques and products</p>
+            </div>
         </div>
-        <a href="{% url 'add_product' %}" class="btn btn-gold px-3"><i class="bi bi-plus-lg"></i> Add Product</a>
+        <a href="{% url 'add_product' %}" class="btn btn-gold px-4"><i class="bi bi-plus-lg me-1"></i> Add Product</a>
     </div>
-    <hr class="mb-4">
 
-    <div class="card border-0 shadow-sm rounded-3">
+    <div class="card border-0 shadow-soft rounded-4xl reveal reveal-delay-1">
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0 align-middle">
@@ -30,28 +35,36 @@
                         <tr>
                             <td>
                                 {% if product.image %}
-                                    <img src="{{ product.image.url }}" alt="{{ product.name }}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 5px;">
+                                    <img src="{{ product.image.url }}" alt="{{ product.name }}" class="shadow-sm" style="width: 50px; height: 50px; object-fit: cover; border-radius: var(--radius-md);">
                                 {% else %}
-                                    <div class="bg-light d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; border-radius: 5px;"><i class="bi bi-image text-muted"></i></div>
+                                    <div class="bg-light d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; border-radius: var(--radius-md);"><i class="bi bi-image text-muted"></i></div>
                                 {% endif %}
                             </td>
                             <td class="fw-bold">{{ product.name }}</td>
-                            <td>{{ product.category|default:"Uncategorized" }}</td>
-                            <td>₵{{ product.price }}</td>
+                            <td><span class="badge text-bg-light border">{{ product.category|default:"Uncategorized" }}</span></td>
+                            <td>
+                                <span class="fw-bold text-wine">₵{{ product.price }}</span>
+                                {% if product.old_price %}
+                                    <br><small class="text-muted text-decoration-line-through">₵{{ product.old_price }}</small>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if product.is_active %}
-                                    <span class="badge bg-success">Active</span>
+                                    <span class="badge bg-success bg-opacity-75"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">Hidden</span>
+                                    <span class="badge bg-secondary"><i class="bi bi-eye-slash-fill me-1"></i>Hidden</span>
                                 {% endif %}
                             </td>
                             <td class="text-end">
-                                <a href="{% url 'edit_product' product.id %}" class="btn btn-sm btn-outline-secondary px-3">Edit</a>
+                                <a href="{% url 'edit_product' product.id %}" class="btn btn-sm btn-outline-wine px-3"><i class="bi bi-pencil-fill me-1"></i>Edit</a>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="text-center text-muted p-5">No products found. Click "Add Product" to create your first one!</td>
+                            <td colspan="6" class="text-center text-muted p-5">
+                                <i class="bi bi-box-seam fs-1 d-block mb-3 text-muted"></i>
+                                No products found. Click "Add Product" to create your first one!
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
