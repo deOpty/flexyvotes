@@ -2,19 +2,19 @@
 
 {% block content %}
 <div class="container my-5">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 reveal">
-        <div class="d-flex align-items-center gap-3">
-            <span class="icon-circle" style="width:56px;height:56px;">
-                <i class="bi bi-shop fs-4"></i>
-            </span>
-            <div>
-                <p class="section-eyebrow mb-1">Store Administration</p>
-                <h2 class="fw-bold text-wine mb-0">Manage Store</h2>
-                <p class="text-muted mb-0">Add, edit, and manage your award plaques and products</p>
-            </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-wine mb-0">Manage Store</h2>
+            <p class="text-muted mb-0">Add, edit, and manage your award plaques and products</p>
         </div>
-        <a href="{% url 'add_product' %}" class="btn btn-gold px-4"><i class="bi bi-plus-lg me-1"></i> Add Product</a>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#categoryModal">
+                <i class="bi bi-tags"></i> Categories
+            </button>
+            <a href="{% url 'add_product' %}" class="btn btn-gold px-3"><i class="bi bi-plus-lg"></i> Add Product</a>
+        </div>
     </div>
+    <hr class="mb-4">
 
     <div class="card border-0 shadow-soft rounded-4xl reveal reveal-delay-1">
         <div class="card-body p-0">
@@ -69,6 +69,39 @@
                         {% endfor %}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Category Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-wine">
+                <h5 class="modal-title text-gold">Manage Product Categories</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form action="{% url 'add_product_category' %}" method="POST" class="mb-4">
+                    {% csrf_token %}
+                    <label class="form-label small fw-bold text-muted">Add New Category</label>
+                    <div class="input-group">
+                        <input type="text" name="name" class="form-control" placeholder="e.g., Plaques, Medals, Citations" required>
+                        <button type="submit" class="btn btn-wine">Add</button>
+                    </div>
+                </form>
+                
+                <h6 class="fw-bold text-muted small mb-2">Existing Categories:</h6>
+                <ul class="list-group">
+                    {% for cat in categories %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ cat.name }}
+                        <span class="badge bg-secondary rounded-pill">{{ cat.products.count }} products</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted text-center">No categories yet.</li>
+                    {% endfor %}
+                </ul>
             </div>
         </div>
     </div>

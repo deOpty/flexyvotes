@@ -30,6 +30,7 @@ urlpatterns = [
     path('dashboard/store/', views.manage_store, name='manage_store'),
     path('dashboard/store/add/', views.add_product, name='add_product'),
     path('dashboard/store/edit/<int:product_id>/', views.edit_product, name='edit_product'),
+    path('dashboard/store/add-category/', views.add_product_category, name='add_product_category'),
     
     # Tickets
     path('tickets/', views.tickets_view, name='tickets'),

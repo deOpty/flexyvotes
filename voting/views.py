@@ -29,7 +29,7 @@ from django.db.models import Sum, Q, IntegerField
 from django.db.models.functions import Coalesce
 from django.views.decorators.csrf import csrf_exempt
 from .models import (Event, Candidate, VoteTransaction, Profile, ActivityLog, 
-                     Category, Product, ProductCategory, VotingCode, Ticket, TicketPurchase)
+                     Category, Product, ProductCategory, ProductImage, VotingCode, Ticket, TicketPurchase)
 from .services import initialize_paystack_payment, initialize_ticket_payment, verify_paystack_transaction
 
 # SECURITY: CSV Macro Injection Sanitizer
@@ -584,6 +584,7 @@ def manage_store(request):
     categories = ProductCategory.objects.all()
     return render(request, 'voting/manage_store.html', {'products': products, 'categories': categories})
 
+
 @login_required(login_url='/login/')
 def add_product(request):
     if not request.user.is_staff:
@@ -593,15 +594,21 @@ def add_product(request):
         category_id = request.POST.get('category')
         category = ProductCategory.objects.get(id=category_id) if category_id else None
         
-        Product.objects.create(
+        product = Product.objects.create(
             name=request.POST.get('name'),
             description=request.POST.get('description'),
             price=request.POST.get('price'),
             old_price=request.POST.get('old_price') or None,
-            image=request.FILES.get('image'),
+            image=request.FILES.get('image'), # Main thumbnail
             category=category,
             is_active=request.POST.get('is_active') == 'on'
         )
+        
+        # Handle multiple image uploads
+        images = request.FILES.getlist('additional_images')
+        for img in images:
+            ProductImage.objects.create(product=product, image=img)
+            
         return redirect('manage_store')
         
     categories = ProductCategory.objects.all()
@@ -628,10 +635,29 @@ def edit_product(request, product_id):
             
         product.is_active = request.POST.get('is_active') == 'on'
         product.save()
+        
+        # Handle multiple image uploads
+        images = request.FILES.getlist('additional_images')
+        for img in images:
+            ProductImage.objects.create(product=product, image=img)
+            
         return redirect('manage_store')
         
     categories = ProductCategory.objects.all()
     return render(request, 'voting/edit_product.html', {'product': product, 'categories': categories})
+
+@login_required(login_url='/login/')
+def add_product_category(request):
+    if not request.user.is_staff:
+        return redirect('home')
+        
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        if name:
+            ProductCategory.objects.create(name=name)
+            messages.success(request, f'Category "{name}" added successfully.')
+            
+    return redirect('manage_store')
 
 @login_required(login_url='/login/')
 def generate_codes(request, event_id):

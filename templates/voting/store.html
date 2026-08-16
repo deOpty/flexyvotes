@@ -25,13 +25,37 @@
 
                 <!-- Image & Discount Badge Wrapper -->
                 <div class="position-relative">
-                    {% if product.image %}
-                        <img src="{{ product.image.url }}" class="card-img-top event-flyer" alt="{{ product.name }}" style="height: 250px; width: 100%; object-fit: cover;">
-                    {% else %}
-                        <div class="bg-light d-flex align-items-center justify-content-center" style="height: 250px;">
-                            <i class="bi bi-image text-muted fs-1"></i>
+                    <div id="product-carousel-{{ product.id }}" class="carousel slide" data-bs-ride="carousel">
+                        <div class="carousel-inner">
+                            {% if product.image %}
+                            <div class="carousel-item active">
+                                <img src="{{ product.image.url }}" class="d-block w-100 event-flyer" alt="{{ product.name }}" style="height: 250px; object-fit: cover;">
+                            </div>
+                            {% endif %}
+                            {% for img in product.images.all %}
+                            <div class="carousel-item {% if not product.image and forloop.first %}active{% endif %}">
+                                <img src="{{ img.image.url }}" class="d-block w-100 event-flyer" alt="{{ product.name }}" style="height: 250px; object-fit: cover;">
+                            </div>
+                            {% endfor %}
+                            {% if not product.image and not product.images.all %}
+                            <div class="carousel-item active">
+                                <div class="bg-light d-flex align-items-center justify-content-center" style="height: 250px;">
+                                    <span class="text-muted">No Image</span>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
-                    {% endif %}
+                        {% if product.images.all %}
+                        <button class="carousel-control-prev" type="button" data-bs-target="#product-carousel-{{ product.id }}" data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Previous</span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#product-carousel-{{ product.id }}" data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Next</span>
+                        </button>
+                        {% endif %}
+                    </div>
 
                     <!-- Discount Badge -->
                     {% if product.discount_percentage > 0 %}
