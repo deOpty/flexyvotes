@@ -94,6 +94,11 @@
                                         <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">Ended</span>
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        {% if not event.is_approved %}
+                                            <span class="badge bg-warning text-dark">Pending Approval</span>
+                                        {% elif event.is_active %}<span class="badge bg-success">Live</span>{% else %}<span class="badge bg-secondary">Ended</span>{% endif %}
+                                    </td>
                                     <td class="fw-semibold">₵{{ event.get_total_revenue }}</td>
                                     <td class="fw-semibold text-wine">₵{{ event.get_organizer_payout }}</td>
                                     <td class="pe-4">

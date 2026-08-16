@@ -111,3 +111,20 @@ class ProductAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'category')
 
 admin.site.register(Product, ProductAdmin)
+
+class EventAdmin(admin.ModelAdmin):
+    list_display = ('title', 'organizer', 'is_active', 'is_approved', 'start_date')
+    list_filter = ('is_active', 'is_approved')
+    actions = ['approve_events']
+
+    def approve_events(self, request, queryset):
+        updated = 0
+        for event in queryset:
+            if not event.is_approved:
+                event.is_approved = True
+                event.save()
+                updated += 1
+        self.message_user(request, f"{updated} event(s) successfully approved and are now live.")
+    approve_events.short_description = "Approve selected Events"
+
+admin.site.register(Event, EventAdmin)

@@ -39,15 +39,13 @@ def sanitize_csv_value(value):
         return "'" + value
     return value
 
+
 def home(request):
     query = request.GET.get('q')
     if query:
-        active_events = Event.objects.filter(
-            is_active=True, 
-            title__icontains=query
-        ).order_by('-start_date')
+        active_events = Event.objects.filter(is_active=True, is_approved=True, title__icontains=query).order_by('-start_date')
     else:
-        active_events = Event.objects.filter(is_active=True).order_by('-start_date')
+        active_events = Event.objects.filter(is_active=True, is_approved=True).order_by('-start_date')
         
     # READ SESSION FLAG FOR POPUP
     show_popup = request.session.pop('show_registration_popup', False)
@@ -1142,7 +1140,7 @@ def buy_ticket(request, ticket_id):
     return redirect('tickets')
 
 def tickets_view(request):
-    events_with_tickets = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('-start_date')
+    events_with_tickets = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('-start_date')
     
     ticket_found = None
     error_message = None

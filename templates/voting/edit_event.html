@@ -106,6 +106,11 @@
                             <input type="number" name="vote_price" class="form-control" value="{{ event.vote_price|default:'1.00' }}" step="0.01" required>
                         </div>
                     </div>
+                    <!-- Tie-Breaker Toggle -->
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch" {% if event.enable_tie_breaker %}checked{% endif %}>
+                        <label class="form-check-label fw-bold text-muted small" for="tieBreakerSwitch">Enable Tie-Breaker Voting (Online tickets get free votes)</label>
+                    </div>
 
                     <div class="form-check form-switch p-0 ps-1">
                         <div class="d-flex align-items-center gap-3 p-3 rounded-3" style="background-color: var(--ink-50);">

@@ -46,6 +46,7 @@ class Event(models.Model):
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     is_active = models.BooleanField(default=True)
+    is_approved = models.BooleanField(default=False) # <--- ADD THIS
     
     # Theme Fields
     primary_color = models.CharField(max_length=7, default='#800020') 
