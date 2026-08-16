@@ -444,7 +444,7 @@
                                                     <!-- PAY TO VOTE FORM -->
                                                     <div class="mb-3 text-start">
                                                         <div class="d-flex justify-content-between align-items-center mb-1">
-                                                            <label class="form-label small fw-bold mb-0" id="vote-label-{{ candidate.id }}">Amount (1 = 1 Vote)</label>
+                                                            <label class="form-label small fw-bold mb-0" id="vote-label-{{ candidate.id }}">Amount (₵{{ event.vote_price }} = 1 Vote)</label>
                                                             {% if event.enable_tie_breaker %}
                                                             <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleVoteMode({{ candidate.id }})" id="toggle-btn-{{ candidate.id }}">
                                                                 Cast Free Vote
@@ -658,18 +658,20 @@
     }
 
     // Real-time calculator for the inline form
-    function calculateVotes(candidateId, candidateName) {
-        const amountInput = document.querySelector(`#donate-form-${candidateId} input[name="amount"]`);
-        const calcText = document.getElementById(`calc-text-${candidateId}`);
-        const amount = parseInt(amountInput.value);
-        
-        if (amount > 0) {
-            calcText.innerHTML = `You are giving <b>${amount}</b> votes to <b>${candidateName}</b>`;
-            calcText.style.color = '#1E1E1E';
-        } else {
-            calcText.innerHTML = '';
-        }
-    }
+     function calculateVotes(candidateId, candidateName) {
+         const amountInput = document.querySelector(`#donate-form-${candidateId} input[name="amount"]`);
+         const calcText = document.getElementById(`calc-text-${candidateId}`);
+         const amount = parseInt(amountInput.value);
+         const votePrice = parseFloat('{{ event.vote_price }}') || 1;
+         
+         if (amount > 0) {
+             const votes = Math.floor(amount / votePrice);
+             calcText.innerHTML = `You are giving <b>${votes}</b> votes to <b>${candidateName}</b>`;
+             calcText.style.color = '#1E1E1E';
+         } else {
+             calcText.innerHTML = '';
+         }
+     }
 
     const eventId = window.location.pathname.split('/')[2];
     
@@ -776,6 +778,9 @@
         addCandidateForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const formData = new FormData(this);
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+            submitBtn.disabled = true;
             
             fetch(this.action, {
                 method: 'POST',
@@ -785,8 +790,18 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    location.reload(); // Reload to show the new candidate card with all voting logic
+                    // Instantly reload the page to show the new candidate in the tab
+                    window.location.reload();
+                } else {
+                    alert('Error adding candidate.');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
                 }
+            })
+            .catch(err => {
+                alert('Network error.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
             });
         });
     }

@@ -96,11 +96,14 @@
                         </div>
                     </div>
 
-                    <div class="mb-4">
-                        <label class="form-label">Platform Fee (%)</label>
-                        <div class="input-group" style="max-width: 220px;">
-                            <input type="number" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage }}" step="0.01" required>
-                            <span class="input-group-text">%</span>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">Platform Fee (%)</label>
+                            <input type="number" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage|default:'20.00' }}" step="0.01" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-muted small">Price Per Vote (₵)</label>
+                            <input type="number" name="vote_price" class="form-control" value="{{ event.vote_price|default:'1.00' }}" step="0.01" required>
                         </div>
                     </div>
 

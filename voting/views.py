@@ -98,15 +98,27 @@ def initiate_vote(request, candidate_id):
 
         # Get custom amount from form, default to 0 if empty
         try:
-            amount = int(request.POST.get('amount', 0))
+            amount = float(request.POST.get('amount', 0)) # Changed to float for currency
         except (TypeError, ValueError):
-            messages.error(request, "Please enter a valid whole number of votes.")
+            messages.error(request, "Please enter a valid amount.")
             return redirect('event_detail', event_id=candidate.event.id)
 
         if amount < 1:
+            messages.error(request, "Please enter a valid amount.")
             return redirect('event_detail', event_id=candidate.event.id)
             
-        votes_requested = amount
+        # Calculate votes based on the Event's specific vote price
+        event = candidate.event
+        vote_price = float(event.vote_price)
+        if vote_price <= 0:
+            vote_price = 1.00 # Fallback to prevent division by zero
+            
+        votes_requested = int(amount / vote_price)
+        
+        if votes_requested < 1:
+            messages.error(request, f"Minimum amount is ₵{vote_price} for 1 vote.")
+            return redirect('event_detail', event_id=event.id)
+            
         voter_email = "anonymous@FlexyVotes.com" # <--- SET DEFAULT EMAIL
         
         auth_url, reference = initialize_paystack_payment(voter_email, amount, candidate_id)
@@ -359,6 +371,7 @@ def create_event(request):
             start_date=timezone.make_aware(parse_datetime(start_date_str)), # <--- UPDATED
             end_date=timezone.make_aware(parse_datetime(end_date_str)), # <--- UPDATED
             platform_fee_percentage=request.POST.get('platform_fee_percentage'),
+            vote_price=request.POST.get('vote_price', 1.00),
             primary_color=request.POST.get('primary_color'),
             accent_color=request.POST.get('accent_color'),
             background_image=request.FILES.get('background_image'),
@@ -504,6 +517,7 @@ def edit_event(request, event_id):
         event.start_date = timezone.make_aware(parse_datetime(start_date_str)) # <--- UPDATED
         event.end_date = timezone.make_aware(parse_datetime(end_date_str)) # <--- UPDATED
         event.platform_fee_percentage = request.POST.get('platform_fee_percentage')
+        event.vote_price = request.POST.get('vote_price', 1.00) 
         event.primary_color = request.POST.get('primary_color')
         event.accent_color = request.POST.get('accent_color')
         event.enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on' 
@@ -1006,6 +1020,11 @@ def ussd_callback(request):
                     letters = ''.join(random.choices(string.ascii_uppercase, k=2))
                     numbers = ''.join(random.choices(string.digits, k=4))
                     reference = f"TK-{letters}{numbers}"
+
+                    # Check for overselling
+                    already_sold = TicketPurchase.objects.filter(ticket=selected_ticket, status='Success').aggregate(total=Sum('quantity'))['total'] or 0
+                    if already_sold + quantity > selected_ticket.quantity_available:
+                        return HttpResponse("END Sorry, not enough tickets available for this request.", content_type='text/plain')
                     
                     TicketPurchase.objects.create(
                         ticket=selected_ticket,

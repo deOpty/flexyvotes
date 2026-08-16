@@ -25,46 +25,51 @@
         <div class="row g-4 justify-content-center reveal reveal-delay-2">
             {% for ticket in tickets %}
             <div class="col-md-6 col-lg-4 d-flex align-items-stretch">
-                <div class="card w-100 border-0 shadow-soft card-hover rounded-4xl overflow-hidden position-relative">
-
+                <div class="card w-100 border-0 shadow-sm rounded-4 overflow-hidden position-relative">
+                    
                     <!-- Discount Badge (Top Right) -->
                     {% if ticket.old_price %}
-                        <span class="badge bg-danger position-absolute top-0 end-0 m-2 px-3 py-2 shadow-sm" style="z-index: 10;">
+                        <span class="badge bg-danger position-absolute top-0 end-0 m-2 px-3 py-2 rounded-pill shadow-sm" style="z-index: 10;">
                             Save {{ ticket.discount_percentage }}%
                         </span>
                     {% endif %}
-
+                    
                     <!-- Ticket Image (Or Placeholder for equal height) -->
                     {% if ticket.image %}
                         <img src="{{ ticket.image.url }}" class="card-img-top" alt="{{ ticket.name }}" style="height: 180px; width: 100%; object-fit: cover;">
                     {% else %}
-                        <div class="d-flex align-items-center justify-content-center" style="height: 180px; background-color: #f8f9fa;">
-                            <i class="bi bi-ticket-perforated text-muted fs-1"></i>
-                        </div>
+                        <div style="height: 180px; background-color: #f8f9fa;"></div>
                     {% endif %}
-
+                    
                     <div class="card-body text-center p-4 d-flex flex-column">
                         <h5 class="fw-bold text-dark mb-2">{{ ticket.name }}</h5>
-
+                        
                         <!-- Pricing Logic with min-height to keep cards equal -->
                         <div class="mb-3 d-flex flex-column align-items-center justify-content-center" style="min-height: 50px;">
                             {% if ticket.old_price %}
-                                <span class="text-muted text-decoration-line-through" style="font-size: 0.9rem;">GHS {{ ticket.old_price }}</span>
-                                <h4 class="text-wine mb-0">GHS {{ ticket.price }}</h4>
+                                <span class="text-muted text-decoration-line-through" style="font-size: 0.9rem;">₵{{ ticket.old_price }}</span>
+                                <h4 class="text-wine mb-0">₵{{ ticket.price }}</h4>
                             {% else %}
-                                <h4 class="text-wine mb-0 mt-3">GHS {{ ticket.price }}</h4>
+                                <h4 class="text-wine mb-0 mt-3">₵{{ ticket.price }}</h4>
                             {% endif %}
                         </div>
-
-                        <p class="text-muted small mb-4"><i class="bi bi-people me-1"></i>{{ ticket.quantity_available }} available</p>
-
-                        <!-- Button to trigger Modal -->
-                        <button type="button" class="btn btn-outline-wine w-100 fw-bold mt-auto"
-                                data-bs-toggle="modal"
-                                data-bs-target="#ticketModal"
-                                onclick="setupTicketModal('{{ ticket.id }}', '{{ ticket.name }}', '{{ ticket.price }}', '{{ ticket.quantity_available }}')">
-                            Select Ticket
-                        </button>
+                        
+                        <!-- Dynamic Remaining Count -->
+                        {% if ticket.remaining > 0 %}
+                            <p class="text-muted small mb-4"><i class="bi bi-ticket-perforated me-1"></i> {{ ticket.remaining }} left</p>
+                            
+                            <!-- Button to trigger Modal -->
+                            <button type="button" class="btn btn-outline-wine w-100 fw-bold mt-auto" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#ticketModal" 
+                                    onclick="setupTicketModal('{{ ticket.id }}', '{{ ticket.name }}', '{{ ticket.price }}', '{{ ticket.remaining }}')"
+                                    style="color: #800020; border: 1px solid #800020;">
+                                Select Ticket
+                            </button>
+                        {% else %}
+                            <p class="text-danger fw-bold small mb-4"><i class="bi bi-x-circle me-1"></i> SOLD OUT</p>
+                            <button class="btn btn-secondary w-100 fw-bold mt-auto" disabled>Sold Out</button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -122,13 +127,13 @@
     // Setup Modal with the correct ticket data when clicked
     function setupTicketModal(ticketId, ticketName, ticketPrice, maxQty) {
         document.getElementById('modalTicketName').innerText = ticketName;
-        document.getElementById('modalTicketPrice').innerText = 'GHS ' + ticketPrice;
-
-        // Set the max quantity allowed
+        document.getElementById('modalTicketPrice').innerText = '₵' + ticketPrice;
+        
+        // Set the max quantity allowed based on remaining tickets
         const qtyInput = document.getElementById('modalTicketQty');
         qtyInput.max = maxQty;
         qtyInput.value = 1; // Reset to 1 when opened
-
+        
         // Set the form action to the correct buy URL
         const form = document.getElementById('ticketForm');
         form.action = `/buy-ticket/${ticketId}/`;

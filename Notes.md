@@ -10,7 +10,7 @@
 
 ---
 
-1. Let the port be configured in the .env file so that the user can change the port is port 8000 is already in use by another service.
+1. Let the port be configured in the .env file so that the user can change the port if port 8000 is already in use by another service.
 
 2. There are no database migration files in the codebase. Is this an expected workflow or there is an error. If it is an error, provide the necessary database migration files. Also provide admin seed cred and the user be able to set them in the env file.
 

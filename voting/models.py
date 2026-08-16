@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.db.models import Sum, Q, IntegerField
 from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
+from django.db.models import Sum
 import os
 
 def validate_file_size(file):
@@ -54,6 +55,7 @@ class Event(models.Model):
 
     # Revenue Split Field
     platform_fee_percentage = models.DecimalField(max_digits=4, decimal_places=2, default=20.00)
+    vote_price = models.DecimalField(max_digits=10, decimal_places=2, default=1.00) # <--- ADD THIS
     
     # Organizer Field
     organizer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='events')
@@ -197,13 +199,23 @@ class Ticket(models.Model):
     def __str__(self):
         return f"{self.name} - {self.event.title}"
 
-    # NEW: Add this property to calculate discount
     @property
     def discount_percentage(self):
         if self.old_price and self.old_price > self.price:
             discount = ((self.old_price - self.price) / self.old_price) * 100
             return int(discount)
         return 0
+
+    # NEW: Calculate how many have been sold
+    @property
+    def sold_count(self):
+        total = self.purchases.filter(status='Success').aggregate(total=Sum('quantity'))['total']
+        return total if total else 0
+
+    # NEW: Calculate how many are left
+    @property
+    def remaining(self):
+        return self.quantity_available - self.sold_count
 
 class TicketPurchase(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='purchases')
