@@ -13,7 +13,6 @@ from django.core.mail import EmailMultiAlternatives
 admin.site.register(VotingCode)
 
 # --- Event & Category Admin ---
-admin.site.register(Event)
 admin.site.register(Category)
 
 # --- Candidate Admin ---
