@@ -51,13 +51,7 @@
                   {% for cat in categories %}
                   <option
                     value="{{ cat.id }}"
-                    {%
-                    if
-                    product.category.id=""
-                    ="cat.id"
-                    %}selected{%
-                    endif
-                    %}>
+                    {% if product.category.id == cat.id %}selected{% endif %}>
                     {{ cat.name }}
                   </option>
                   {% endfor %}
@@ -162,12 +156,7 @@
                     type="checkbox"
                     name="is_active"
                     id="flexSwitchCheckChecked"
-                    {%
-                    if
-                    product.is_active
-                    %}checked{%
-                    endif
-                    %} />
+                    {% if product.is_active %}checked{% endif %} />
                   <label
                     class="form-check-label text-muted small fw-bold"
                     for="flexSwitchCheckChecked"

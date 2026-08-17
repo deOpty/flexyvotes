@@ -96,12 +96,7 @@
                 name="is_active"
                 id="flexSwitchCheckChecked"
                 style="width: 2.75rem; height: 1.5rem"
-                {%
-                if
-                ticket.is_active
-                %}checked{%
-                endif
-                %} />
+                {% if ticket.is_active %}checked{% endif %} />
               <label
                 class="form-check-label fw-semibold mb-0"
                 for="flexSwitchCheckChecked">

@@ -158,6 +158,20 @@ a:hover { color: var(--wine-800); }
 .btn-lg { border-radius: var(--radius-lg); }
 .btn-sm { border-radius: var(--radius-sm); }
 
+/* Compact icon-only action button, for tight spaces like table row actions
+   where several buttons need to sit in a single row without wrapping.
+   Always pair with a `title`/`aria-label` since the visible text is gone. */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0 !important;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 /* Ripple feedback (driven by site.js) */
 .btn .btn-ripple {
   position: absolute;

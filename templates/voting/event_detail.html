@@ -120,8 +120,7 @@
     </div>
 
     <!-- Retrieve Voting Code Section (Only for Student ID mode) -->
-    {% if event.voting_mode == 'Code Voting' and event.code_voting_mode ==
-    'Student ID' %}
+    {% if event.voting_mode == 'Code Voting' and event.code_voting_mode == 'Student ID' %}
     <div class="bg-white p-3 mt-3 mb-4 rounded-4 shadow-sm border">
       <div class="d-flex justify-content-between align-items-center">
         <h5 class="mb-0 text-muted">
@@ -688,8 +687,7 @@
         </div>
 
         <div class="row g-4">
-          {% for candidate in candidates %} {% if candidate.category_id ==
-          category.id %}
+          {% for candidate in candidates %} {% if candidate.category_id == category.id %}
           <div class="col-md-4 mb-4">
             <div
               class="card text-center shadow-soft border-0 card-hover overflow-hidden rounded-4xl">
@@ -722,8 +720,7 @@
                     >Nominee Code: {{ candidate.nominee_code }}</span
                   >
                 </div>
-                {% endif %} {% if request.user == event.organizer or
-                request.user.is_staff %}
+                {% endif %} {% if request.user == event.organizer or request.user.is_staff %}
                 <div class="mb-2 text-end">
                   <a
                     href="{% url 'edit_candidate' candidate.id %}"
@@ -802,8 +799,7 @@
                     font-weight: 600;
                   "
                   onclick="toggleVoteForm({{ candidate.id }})">
-                  {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else
-                  %}Vote for me{% endif %}
+                  {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote for me{% endif %}
                 </button>
                 <div
                   id="vote-form-{{ candidate.id }}"
@@ -984,8 +980,7 @@
                 >Nominee Code: {{ candidate.nominee_code }}</span
               >
             </div>
-            {% endif %} {% if request.user == event.organizer or
-            request.user.is_staff %}
+            {% endif %} {% if request.user == event.organizer or request.user.is_staff %}
             <div class="mb-2 text-end">
               <a
                 href="{% url 'edit_candidate' candidate.id %}"

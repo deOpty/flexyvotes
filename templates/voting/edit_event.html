@@ -138,24 +138,12 @@
                 onchange="toggleCodeMode()">
                 <option
                   value="Pay to Vote"
-                  {%
-                  if
-                  event.voting_mode=""
-                  ="Pay to Vote"
-                  %}selected{%
-                  endif
-                  %}>
+                  {% if event.voting_mode == "Pay to Vote" %}selected{% endif %}>
                   Pay to Vote (Fundraising)
                 </option>
                 <option
                   value="Code Voting"
-                  {%
-                  if
-                  event.voting_mode=""
-                  ="Code Voting"
-                  %}selected{%
-                  endif
-                  %}>
+                  {% if event.voting_mode == "Code Voting" %}selected{% endif %}>
                   Code Voting (Free / Fair)
                 </option>
               </select>
@@ -171,24 +159,12 @@
                 class="form-select">
                 <option
                   value="Standard"
-                  {%
-                  if
-                  event.code_voting_mode=""
-                  ="Standard"
-                  %}selected{%
-                  endif
-                  %}>
+                  {% if event.code_voting_mode == "Standard" %}selected{% endif %}>
                   Standard Codes (No ID required)
                 </option>
                 <option
                   value="Student ID"
-                  {%
-                  if
-                  event.code_voting_mode=""
-                  ="Student ID"
-                  %}selected{%
-                  endif
-                  %}>
+                  {% if event.code_voting_mode == "Student ID" %}selected{% endif %}>
                   Student ID + Code (Secure)
                 </option>
               </select>
@@ -231,12 +207,7 @@
               type="checkbox"
               name="enable_tie_breaker"
               id="tieBreakerSwitch"
-              {%
-              if
-              event.enable_tie_breaker
-              %}checked{%
-              endif
-              %} />
+              {% if event.enable_tie_breaker %}checked{% endif %} />
             <label
               class="form-check-label fw-bold text-muted small"
               for="tieBreakerSwitch"
@@ -254,12 +225,7 @@
                 name="enable_tie_breaker"
                 id="tieBreakerSwitch"
                 style="width: 2.75rem; height: 1.5rem"
-                {%
-                if
-                event.enable_tie_breaker
-                %}checked{%
-                endif
-                %} />
+                {% if event.enable_tie_breaker %}checked{% endif %} />
               <label
                 class="form-check-label fw-semibold mb-0"
                 for="tieBreakerSwitch">
