@@ -1,172 +1,300 @@
-{% extends 'voting/base.html' %}
-
-{% block content %}
+{% extends 'voting/base.html' %} {% block content %}
 <div class="row justify-content-center">
-    <div class="col-lg-9 col-xl-8">
-
-        <div class="mb-4 reveal">
-            <span class="section-eyebrow">Organizer Tools</span>
-            <h2 class="fw-bold text-wine mb-1 mt-1"><i class="bi bi-calendar-plus me-2"></i>Create New Event</h2>
-            <p class="text-muted mb-0">Set up the basics now &mdash; you can fine-tune everything later from the dashboard.</p>
-        </div>
-
-        <form method="POST" enctype="multipart/form-data">
-            {% csrf_token %}
-
-            <!-- Basic Info -->
-            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal">
-                <div class="card-body p-4 p-md-5">
-                    <div class="d-flex align-items-center gap-3 mb-4">
-                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-info-circle fs-5"></i></span>
-                        <div>
-                            <h5 class="fw-bold mb-0">Basic Info</h5>
-                            <p class="text-muted tiny mb-0">Tell voters what this event is about.</p>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Event Title</label>
-                        <input type="text" name="title" class="form-control" placeholder="e.g., Miss University 2026" required>
-                    </div>
-
-                    <div class="mb-1">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="A short summary voters will see on the event page"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Schedule -->
-            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-1">
-                <div class="card-body p-4 p-md-5">
-                    <div class="d-flex align-items-center gap-3 mb-4">
-                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-calendar-week fs-5"></i></span>
-                        <div>
-                            <h5 class="fw-bold mb-0">Schedule</h5>
-                            <p class="text-muted tiny mb-0">When voting opens and closes.</p>
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-6 col-md-3">
-                            <label class="form-label">Start Date</label>
-                            <input type="date" name="start_date_date" class="form-control" required>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <label class="form-label">Start Time</label>
-                            <input type="time" name="start_date_time" class="form-control" value="12:00" required>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <label class="form-label">End Date</label>
-                            <input type="date" name="end_date_date" class="form-control" required>
-                        </div>
-                        <div class="col-6 col-md-3">
-                            <label class="form-label">End Time</label>
-                            <input type="time" name="end_date_time" class="form-control" value="23:59" required>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Voting Settings -->
-            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-2">
-                <div class="card-body p-4 p-md-5">
-                    <div class="d-flex align-items-center gap-3 mb-4">
-                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-check2-square fs-5"></i></span>
-                        <div>
-                            <h5 class="fw-bold mb-0">Voting Settings</h5>
-                            <p class="text-muted tiny mb-0">Choose how people will cast their votes.</p>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Voting Mode</label>
-                            <select name="voting_mode" id="votingModeSelect" class="form-select" onchange="toggleCodeMode()">
-                                <option value="Pay to Vote">Pay to Vote (Fundraising)</option>
-                                <option value="Code Voting">Code Voting (Free / Fair)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6" id="codeModeDiv" style="display: none;">
-                            <label class="form-label">Code Voting Type</label>
-                            <select name="code_voting_mode" id="codeModeSelect" class="form-select">
-                                <option value="Standard">Standard Codes (No ID required)</option>
-                                <option value="Student ID">Student ID + Code (Secure)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Platform Fee (%)</label>
-                            <input type="number" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage|default:'20.00' }}" step="0.01" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-muted small">Price Per Vote (₵)</label>
-                            <input type="number" name="vote_price" class="form-control" value="{{ event.vote_price|default:'1.00' }}" step="0.01" required>
-                        </div>
-                    </div>
-                    <!-- Tie-Breaker Toggle -->
-                    <div class="form-check form-switch mb-4">
-                        <input class="form-check-input" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch">
-                        <label class="form-check-label fw-bold text-muted small" for="tieBreakerSwitch">Enable Tie-Breaker Voting (Online tickets get free votes)</label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Branding -->
-            <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-3">
-                <div class="card-body p-4 p-md-5">
-                    <div class="d-flex align-items-center gap-3 mb-4">
-                        <span class="icon-circle" style="width:44px;height:44px;"><i class="bi bi-palette fs-5"></i></span>
-                        <div>
-                            <h5 class="fw-bold mb-0">Theme &amp; Branding</h5>
-                            <p class="text-muted tiny mb-0">Personalize colours and media for this event's public page.</p>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Primary Colour</label>
-                            <input type="color" name="primary_color" class="form-control form-control-color w-100" value="#800020" style="height: 46px;">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Accent Colour</label>
-                            <input type="color" name="accent_color" class="form-control form-control-color w-100" value="#FFD700" style="height: 46px;">
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Background Image <span class="text-muted fw-normal">(Optional)</span></label>
-                            <input type="file" name="background_image" class="form-control" accept="image/*">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Event Flyer / Image <span class="text-muted fw-normal">(Shows on Home Page)</span></label>
-                            <input type="file" name="event_image" class="form-control" accept="image/*">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="d-flex flex-column-reverse flex-sm-row gap-2 mt-4 reveal">
-                <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary px-4">Cancel</a>
-                <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold"><i class="bi bi-check-circle me-2"></i>Create Event</button>
-            </div>
-        </form>
+  <div class="col-lg-9 col-xl-8">
+    <div class="mb-4 reveal">
+      <span class="section-eyebrow">Organizer Tools</span>
+      <h2 class="fw-bold text-wine mb-1 mt-1">
+        <i class="bi bi-calendar-plus me-2"></i>Create New Event
+      </h2>
+      <p class="text-muted mb-0">
+        Set up the basics now &mdash; you can fine-tune everything later from
+        the dashboard.
+      </p>
     </div>
+
+    <form
+      method="POST"
+      enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <!-- Basic Info -->
+      <div class="card shadow-soft border-0 rounded-4xl mb-4 reveal">
+        <div class="card-body p-4 p-md-5">
+          <div class="d-flex align-items-center gap-3 mb-4">
+            <span
+              class="icon-circle"
+              style="width: 44px; height: 44px"
+              ><i class="bi bi-info-circle fs-5"></i
+            ></span>
+            <div>
+              <h5 class="fw-bold mb-0">Basic Info</h5>
+              <p class="text-muted tiny mb-0">
+                Tell voters what this event is about.
+              </p>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Event Title</label>
+            <input
+              type="text"
+              name="title"
+              class="form-control"
+              placeholder="e.g., Miss University 2026"
+              required />
+          </div>
+
+          <div class="mb-1">
+            <label class="form-label">Description</label>
+            <textarea
+              name="description"
+              class="form-control"
+              rows="3"
+              placeholder="A short summary voters will see on the event page"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule -->
+      <div
+        class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-1">
+        <div class="card-body p-4 p-md-5">
+          <div class="d-flex align-items-center gap-3 mb-4">
+            <span
+              class="icon-circle"
+              style="width: 44px; height: 44px"
+              ><i class="bi bi-calendar-week fs-5"></i
+            ></span>
+            <div>
+              <h5 class="fw-bold mb-0">Schedule</h5>
+              <p class="text-muted tiny mb-0">When voting opens and closes.</p>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <label class="form-label">Start Date</label>
+              <input
+                type="date"
+                name="start_date_date"
+                class="form-control"
+                required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">Start Time</label>
+              <input
+                type="time"
+                name="start_date_time"
+                class="form-control"
+                value="12:00"
+                required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">End Date</label>
+              <input
+                type="date"
+                name="end_date_date"
+                class="form-control"
+                required />
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label">End Time</label>
+              <input
+                type="time"
+                name="end_date_time"
+                class="form-control"
+                value="23:59"
+                required />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voting Settings -->
+      <div
+        class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-2">
+        <div class="card-body p-4 p-md-5">
+          <div class="d-flex align-items-center gap-3 mb-4">
+            <span
+              class="icon-circle"
+              style="width: 44px; height: 44px"
+              ><i class="bi bi-check2-square fs-5"></i
+            ></span>
+            <div>
+              <h5 class="fw-bold mb-0">Voting Settings</h5>
+              <p class="text-muted tiny mb-0">
+                Choose how people will cast their votes.
+              </p>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label class="form-label">Voting Mode</label>
+              <select
+                name="voting_mode"
+                id="votingModeSelect"
+                class="form-select"
+                onchange="toggleCodeMode()">
+                <option value="Pay to Vote">Pay to Vote (Fundraising)</option>
+                <option value="Code Voting">Code Voting (Free / Fair)</option>
+              </select>
+            </div>
+            <div
+              class="col-md-6"
+              id="codeModeDiv"
+              style="display: none">
+              <label class="form-label">Code Voting Type</label>
+              <select
+                name="code_voting_mode"
+                id="codeModeSelect"
+                class="form-select">
+                <option value="Standard">
+                  Standard Codes (No ID required)
+                </option>
+                <option value="Student ID">Student ID + Code (Secure)</option>
+              </select>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label class="form-label fw-bold text-muted small"
+                >Platform Fee (%)</label
+              >
+              <input
+                type="number"
+                name="platform_fee_percentage"
+                class="form-control"
+                value="{{ event.platform_fee_percentage|default:'20.00' }}"
+                step="0.1"
+                min="0.1"
+                max="100"
+                required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold text-muted small"
+                >Price Per Vote (₵)</label
+              >
+              <input
+                type="number"
+                name="vote_price"
+                class="form-control"
+                value="{{ event.vote_price|default:'1.00' }}"
+                step="0.1"
+                min="0.1"
+                required />
+            </div>
+          </div>
+          <!-- Tie-Breaker Toggle -->
+          <div class="form-check form-switch mb-4">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              name="enable_tie_breaker"
+              id="tieBreakerSwitch" />
+            <label
+              class="form-check-label fw-bold text-muted small"
+              for="tieBreakerSwitch"
+              >Enable Tie-Breaker Voting (Online tickets get free votes)</label
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Branding -->
+      <div
+        class="card shadow-soft border-0 rounded-4xl mb-4 reveal reveal-delay-3">
+        <div class="card-body p-4 p-md-5">
+          <div class="d-flex align-items-center gap-3 mb-4">
+            <span
+              class="icon-circle"
+              style="width: 44px; height: 44px"
+              ><i class="bi bi-palette fs-5"></i
+            ></span>
+            <div>
+              <h5 class="fw-bold mb-0">Theme &amp; Branding</h5>
+              <p class="text-muted tiny mb-0">
+                Personalize colours and media for this event's public page.
+              </p>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label">Primary Colour</label>
+              <input
+                type="color"
+                name="primary_color"
+                class="form-control form-control-color w-100"
+                value="#800020"
+                style="height: 46px" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Accent Colour</label>
+              <input
+                type="color"
+                name="accent_color"
+                class="form-control form-control-color w-100"
+                value="#FFD700"
+                style="height: 46px" />
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label"
+                >Background Image
+                <span class="text-muted fw-normal">(Optional)</span></label
+              >
+              <input
+                type="file"
+                name="background_image"
+                class="form-control"
+                accept="image/*" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label"
+                >Event Flyer / Image
+                <span class="text-muted fw-normal"
+                  >(Shows on Home Page)</span
+                ></label
+              >
+              <input
+                type="file"
+                name="event_image"
+                class="form-control"
+                accept="image/*" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex flex-column-reverse flex-sm-row gap-2 mt-4 reveal">
+        <a
+          href="{% url 'dashboard' %}"
+          class="btn btn-outline-secondary px-4"
+          >Cancel</a
+        >
+        <button
+          type="submit"
+          class="btn btn-wine flex-grow-1 py-2 fw-bold">
+          <i class="bi bi-check-circle me-2"></i>Create Event
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- JavaScript to show/hide Code Mode -->
 <script>
-    function toggleCodeMode() {
-        const mode = document.getElementById('votingModeSelect').value;
-        const codeDiv = document.getElementById('codeModeDiv');
-        if (mode === 'Code Voting') {
-            codeDiv.style.display = 'block';
-        } else {
-            codeDiv.style.display = 'none';
-        }
+  function toggleCodeMode() {
+    const mode = document.getElementById('votingModeSelect').value;
+    const codeDiv = document.getElementById('codeModeDiv');
+    if (mode === 'Code Voting') {
+      codeDiv.style.display = 'block';
+    } else {
+      codeDiv.style.display = 'none';
     }
-
+  }
 </script>
 {% endblock %}

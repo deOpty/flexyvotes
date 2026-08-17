@@ -25,6 +25,7 @@ urlpatterns = [
     path('register/', views.register_view, name='register'),
     path('dashboard/', views.dashboard, name='dashboard'),
     path('dashboard/create/', views.create_event, name='create_event'),
+    path('event/<int:event_id>/approve/', views.approve_event, name='approve_event'),
     path('store/', views.store_view, name='store'),
     path('contact/', views.contact_view, name='contact'),
     path('dashboard/store/', views.manage_store, name='manage_store'),

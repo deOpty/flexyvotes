@@ -8,6 +8,7 @@ import io
 import uuid
 import qrcode
 import base64
+from decimal import Decimal, InvalidOperation
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.core.cache import cache
@@ -38,6 +39,49 @@ def sanitize_csv_value(value):
     if isinstance(value, str) and value and value[0] in ('=', '+', '-', '@'):
         return "'" + value
     return value
+
+
+def parse_non_negative_decimal(raw_value, field_label, required=True):
+    """
+    Parses a form value into a non-negative Decimal.
+
+    Returns (value, error_message). `value` is None if blank/invalid/negative,
+    in which case `error_message` explains why. HTML `min="0.1"` on the input
+    is a UX hint only - it doesn't stop a direct POST, so amounts/prices
+    must always be re-validated here before touching the database.
+    """
+    if raw_value is None or str(raw_value).strip() == '':
+        if required:
+            return None, f'{field_label} is required.'
+        return None, None
+
+    try:
+        value = Decimal(str(raw_value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None, f'{field_label} must be a valid number.'
+
+    if value < 0:
+        return None, f'{field_label} cannot be negative.'
+
+    return value, None
+
+
+def parse_non_negative_int(raw_value, field_label, required=True):
+    """Integer counterpart of parse_non_negative_decimal (for quantities/counts)."""
+    if raw_value is None or str(raw_value).strip() == '':
+        if required:
+            return None, f'{field_label} is required.'
+        return None, None
+
+    try:
+        value = int(raw_value)
+    except (ValueError, TypeError):
+        return None, f'{field_label} must be a whole number.'
+
+    if value < 0:
+        return None, f'{field_label} cannot be negative.'
+
+    return value, None
 
 
 def home(request):
@@ -349,6 +393,22 @@ def dashboard(request):
     return render(request, 'voting/dashboard.html', {'events': user_events, 'logs': recent_logs})
 
 @login_required(login_url='/login/')
+def approve_event(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+
+    # Security: Only admins/staff can approve events
+    if not request.user.is_staff:
+        return redirect('dashboard')
+
+    if request.method == 'POST' and not event.is_approved:
+        event.is_approved = True
+        event.save()
+        ActivityLog.objects.create(user=request.user, event=event, action=f"Approved event '{event.title}'")
+        messages.success(request, f'"{event.title}" has been approved and is now visible to voters.')
+
+    return redirect('dashboard')
+
+@login_required(login_url='/login/')
 def create_event(request):
     is_approved = hasattr(request.user, 'profile') and request.user.profile.is_approved_organizer
     if not is_approved and not request.user.is_staff:
@@ -359,6 +419,15 @@ def create_event(request):
         start_date_str = f"{request.POST.get('start_date_date')} {request.POST.get('start_date_time')}"
         end_date_str = f"{request.POST.get('end_date_date')} {request.POST.get('end_date_time')}"
 
+        platform_fee_percentage, fee_error = parse_non_negative_decimal(
+            request.POST.get('platform_fee_percentage'), 'Platform fee percentage')
+        vote_price, price_error = parse_non_negative_decimal(
+            request.POST.get('vote_price', '1.00'), 'Vote price')
+        error = fee_error or price_error
+        if error:
+            messages.error(request, error)
+            return render(request, 'voting/create_event.html')
+
         event = Event.objects.create(
             organizer=request.user,
             title=request.POST.get('title'),
@@ -368,8 +437,8 @@ def create_event(request):
             enable_tie_breaker=request.POST.get('enable_tie_breaker') == 'on',
             start_date=timezone.make_aware(parse_datetime(start_date_str)), # <--- UPDATED
             end_date=timezone.make_aware(parse_datetime(end_date_str)), # <--- UPDATED
-            platform_fee_percentage=request.POST.get('platform_fee_percentage'),
-            vote_price=request.POST.get('vote_price', 1.00),
+            platform_fee_percentage=platform_fee_percentage,
+            vote_price=vote_price,
             primary_color=request.POST.get('primary_color'),
             accent_color=request.POST.get('accent_color'),
             background_image=request.FILES.get('background_image'),
@@ -378,7 +447,7 @@ def create_event(request):
         # LOG THE ACTIVITY
         ActivityLog.objects.create(user=request.user, event=event, action=f"Created event '{event.title}'")
         return redirect('dashboard')
-        
+
     return render(request, 'voting/create_event.html')
 
 @login_required(login_url='/login/')
@@ -507,6 +576,15 @@ def edit_event(request, event_id):
         start_date_str = f"{request.POST.get('start_date_date')} {request.POST.get('start_date_time')}"
         end_date_str = f"{request.POST.get('end_date_date')} {request.POST.get('end_date_time')}"
 
+        platform_fee_percentage, fee_error = parse_non_negative_decimal(
+            request.POST.get('platform_fee_percentage'), 'Platform fee percentage')
+        vote_price, price_error = parse_non_negative_decimal(
+            request.POST.get('vote_price', '1.00'), 'Vote price')
+        error = fee_error or price_error
+        if error:
+            messages.error(request, error)
+            return render(request, 'voting/edit_event.html', {'event': event})
+
         event.title = request.POST.get('title')
         event.description = request.POST.get('description')
         event.voting_mode = request.POST.get('voting_mode')
@@ -514,12 +592,12 @@ def edit_event(request, event_id):
         event.enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on'
         event.start_date = timezone.make_aware(parse_datetime(start_date_str)) # <--- UPDATED
         event.end_date = timezone.make_aware(parse_datetime(end_date_str)) # <--- UPDATED
-        event.platform_fee_percentage = request.POST.get('platform_fee_percentage')
-        event.vote_price = request.POST.get('vote_price', 1.00) 
+        event.platform_fee_percentage = platform_fee_percentage
+        event.vote_price = vote_price
         event.primary_color = request.POST.get('primary_color')
         event.accent_color = request.POST.get('accent_color')
-        event.enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on' 
-        
+        event.enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on'
+
         if 'background_image' in request.FILES:
             event.background_image = request.FILES.get('background_image')
             
@@ -589,26 +667,34 @@ def add_product(request):
         return redirect('home')
         
     if request.method == 'POST':
+        price, price_error = parse_non_negative_decimal(request.POST.get('price'), 'Price')
+        old_price, old_price_error = parse_non_negative_decimal(
+            request.POST.get('old_price'), 'Old price', required=False)
+        error = price_error or old_price_error
+        if error:
+            messages.error(request, error)
+            return render(request, 'voting/add_product.html', {'categories': ProductCategory.objects.all()})
+
         category_id = request.POST.get('category')
         category = ProductCategory.objects.get(id=category_id) if category_id else None
-        
+
         product = Product.objects.create(
             name=request.POST.get('name'),
             description=request.POST.get('description'),
-            price=request.POST.get('price'),
-            old_price=request.POST.get('old_price') or None,
+            price=price,
+            old_price=old_price,
             image=request.FILES.get('image'), # Main thumbnail
             category=category,
             is_active=request.POST.get('is_active') == 'on'
         )
-        
+
         # Handle multiple image uploads
         images = request.FILES.getlist('additional_images')
         for img in images:
             ProductImage.objects.create(product=product, image=img)
-            
+
         return redirect('manage_store')
-        
+
     categories = ProductCategory.objects.all()
     return render(request, 'voting/add_product.html', {'categories': categories})
 
@@ -620,11 +706,19 @@ def edit_product(request, product_id):
     product = get_object_or_404(Product, id=product_id)
     
     if request.method == 'POST':
+        price, price_error = parse_non_negative_decimal(request.POST.get('price'), 'Price')
+        old_price, old_price_error = parse_non_negative_decimal(
+            request.POST.get('old_price'), 'Old price', required=False)
+        error = price_error or old_price_error
+        if error:
+            messages.error(request, error)
+            return render(request, 'voting/edit_product.html', {'product': product, 'categories': ProductCategory.objects.all()})
+
         product.name = request.POST.get('name')
         product.description = request.POST.get('description')
-        product.price = request.POST.get('price')
-        product.old_price = request.POST.get('old_price') or None
-        
+        product.price = price
+        product.old_price = old_price
+
         category_id = request.POST.get('category')
         product.category = ProductCategory.objects.get(id=category_id) if category_id else None
         
@@ -684,9 +778,13 @@ def generate_codes(request, event_id):
             
         else:
             # Fallback: Standard generation (just a number)
-            count = int(request.POST.get('count', 10))
+            count, count_error = parse_non_negative_int(request.POST.get('count', '10'), 'Count')
+            if count_error:
+                messages.error(request, count_error)
+                return redirect('event_detail', event_id=event_id)
+            count = min(count, 500)
             generated_count = 0
-            
+
             while generated_count < count:
                 code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
                 if not VotingCode.objects.filter(code=code).exists():
@@ -944,7 +1042,7 @@ def ussd_callback(request):
     elif first_input == "2":
         # LEVEL 1: List Events with Tickets
         if len(inputs) == 1:
-            events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
+            events = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('id')
             if not events:
                 return HttpResponse("END No events are selling tickets right now.", content_type='text/plain')
             menu = "CON Select Event:\n"
@@ -956,7 +1054,7 @@ def ussd_callback(request):
         elif len(inputs) == 2:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
+                events = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('id')
                 if 0 <= event_index < len(events):
                     selected_event = events[event_index]
                     tickets = selected_event.tickets.filter(is_active=True).order_by('id')
@@ -975,7 +1073,7 @@ def ussd_callback(request):
         elif len(inputs) == 3:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
+                events = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('id')
                 selected_event = events[event_index]
                 ticket_index = int(inputs[2]) - 1
                 tickets = selected_event.tickets.filter(is_active=True).order_by('id')
@@ -993,7 +1091,7 @@ def ussd_callback(request):
         elif len(inputs) == 4:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
+                events = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('id')
                 selected_event = events[event_index]
                 ticket_index = int(inputs[2]) - 1
                 tickets = selected_event.tickets.filter(is_active=True).order_by('id')
@@ -1013,7 +1111,7 @@ def ussd_callback(request):
         elif len(inputs) == 5:
             try:
                 event_index = int(inputs[1]) - 1
-                events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
+                events = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('id')
                 selected_event = events[event_index]
                 ticket_index = int(inputs[2]) - 1
                 tickets = selected_event.tickets.filter(is_active=True).order_by('id')
@@ -1032,7 +1130,7 @@ def ussd_callback(request):
             if inputs[5] == "1":
                 try:
                     event_index = int(inputs[1]) - 1
-                    events = Event.objects.filter(is_active=True, tickets__isnull=False).distinct().order_by('id')
+                    events = Event.objects.filter(is_active=True, is_approved=True, tickets__isnull=False).distinct().order_by('id')
                     selected_event = events[event_index]
                     ticket_index = int(inputs[2]) - 1
                     tickets = selected_event.tickets.filter(is_active=True).order_by('id')
@@ -1079,21 +1177,29 @@ def create_ticket(request, event_id):
         
     if request.method == 'POST':
         name = request.POST.get('name')
-        price = request.POST.get('price')
-        quantity = request.POST.get('quantity_available')
+        price, price_error = parse_non_negative_decimal(request.POST.get('price'), 'Price')
+        old_price, old_price_error = parse_non_negative_decimal(
+            request.POST.get('old_price'), 'Old price', required=False)
+        quantity, quantity_error = parse_non_negative_int(
+            request.POST.get('quantity_available'), 'Quantity available')
+        error = price_error or old_price_error or quantity_error
+        if error:
+            messages.error(request, error)
+            return render(request, 'voting/create_ticket.html', {'event': event})
+
         image = request.FILES.get('image')
-        
+
         Ticket.objects.create(
             event=event,
             name=name,
             price=price,
-            old_price=request.POST.get('old_price') or None,
+            old_price=old_price,
             quantity_available=quantity,
             image=image,
         )
         messages.success(request, f'Ticket type "{name}" added successfully.')
         return redirect('event_detail', event_id=event_id)
-        
+
     return render(request, 'voting/create_ticket.html', {'event': event})
 
 def buy_ticket(request, ticket_id):
@@ -1427,13 +1533,22 @@ def edit_ticket(request, ticket_id):
         return redirect('event_detail', event_id=event.id)
         
     if request.method == 'POST':
+        price, price_error = parse_non_negative_decimal(request.POST.get('price'), 'Price')
+        old_price, old_price_error = parse_non_negative_decimal(
+            request.POST.get('old_price'), 'Old price', required=False)
+        quantity, quantity_error = parse_non_negative_int(
+            request.POST.get('quantity_available'), 'Quantity available')
+        error = price_error or old_price_error or quantity_error
+        if error:
+            messages.error(request, error)
+            return render(request, 'voting/edit_ticket.html', {'ticket': ticket, 'event': event})
+
         ticket.name = request.POST.get('name')
-        ticket.price = request.POST.get('price')
-        ticket.old_price = request.POST.get('old_price') or None
-        ticket.quantity_available = request.POST.get('quantity_available')
+        ticket.price = price
+        ticket.old_price = old_price
+        ticket.quantity_available = quantity
         ticket.is_active = request.POST.get('is_active') == 'on'
 
-        
         if 'image' in request.FILES:
             ticket.image = request.FILES.get('image')
             

@@ -22,7 +22,7 @@ Day-2 operations reference for running FlexyVotes in production. Pairs with
 | `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Yes | Gmail account + app password (see `DEPLOYMENT.md` note on migrating to SES). |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Yes | All media storage in every environment. |
 | `DJANGO_LOG_LEVEL` | No (default `INFO`) | Root logger level. |
-| `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` | No | If username+password are both set, the container entrypoint auto-creates this admin superuser on start (idempotent — skipped if it already exists). Leave unset to create one manually instead. |
+| `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` | No | If username+password are both set, the container entrypoint auto-creates this admin superuser on start. **Idempotent — only runs on the account's first-ever creation.** Changing `DJANGO_SUPERUSER_PASSWORD` later and redeploying does **not** update an already-existing account's password (`seed_admin` sees the username exists and skips) — see the incident-response entry below for the fix. Leave unset to create one manually instead. |
 | `PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD` | Yes, if using the `pgadmin` compose service | pgAdmin's own login (unrelated to Django/Postgres credentials). Use a strong, unique value — never expose this service's port to the public internet (see `DEPLOYMENT.md`). |
 | `PGADMIN_PORT` | No (default `5050`) | Host port pgAdmin is published on via `docker-compose.yml`. |
 
@@ -149,6 +149,18 @@ rolling deploy rather than relying on the automatic path.
 ## Incident response quick reference
 
 - **Suspected credential leak**: rotate immediately (see "Rotate a credential" above), then review `SECURITY.md` #2 for the git-history remediation steps.
+- **"Invalid username or password" logging in as the seeded admin after a redeploy**: `seed_admin` (run by the entrypoint on every start) only creates the account the first time that username appears in the database — it does **not** update the password on subsequent starts even if `DJANGO_SUPERUSER_PASSWORD` in `.env` has since changed. The database still has whichever password was set the first time this account was created; `.env` no longer matches it. Same root cause/fix pattern as the pgAdmin credential issue above. Fix by resetting it to whatever `.env` currently says, without needing to know the old value:
+  ```bash
+  docker compose exec web python manage.py shell -c "
+  import os
+  from django.contrib.auth.models import User
+  u = User.objects.get(username=os.environ['DJANGO_SUPERUSER_USERNAME'])
+  u.set_password(os.environ['DJANGO_SUPERUSER_PASSWORD'])
+  u.save()
+  print('Password reset for', u.username)
+  "
+  ```
+  Or use `docker compose exec web python manage.py changepassword <username>` interactively instead. This only affects the one seeded account — it has no effect on organizer accounts created through normal registration, which always set their own password at creation time.
 - **Payment/webhook issues**: check CloudWatch Logs for `paystack_webhook` entries; verify the PayStack dashboard shows the webhook delivering successfully with `200` responses; confirm `PAYSTACK_SECRET_KEY` matches the key configured in the PayStack dashboard for signature verification.
 - **USSD not responding**: verify the Africa's Talking dashboard's configured callback URL matches `https://<domain>/ussd/callback/` and that the ALB/security groups allow inbound traffic from Africa's Talking's IP ranges.
 - **Uploaded image 404s at `/media/...`** (root-caused and fixed during this review — keeping the notes here in case it resurfaces after a settings change): this Django version (`Django==6.0.7`) does **not** derive `default_storage`/`staticfiles_storage` from the legacy `DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` settings at all — it only reads the modern `STORAGES` dict. With only the legacy settings defined, `default_storage` silently fell back to Django's built-in `FileSystemStorage`, so every upload was actually written to local disk (hence a real `/media/...` URL, and hence it vanishing on container restart) instead of going to Cloudinary. `vote_fund/settings.py` now defines `STORAGES` (which Django actually reads) alongside the legacy names (which `django-cloudinary-storage`'s own `collectstatic` override still reads directly via `settings.STATICFILES_STORAGE` — removing them entirely causes an `AttributeError` during `collectstatic`, so keep both in sync if either ever changes). To confirm it's working:

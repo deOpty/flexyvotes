@@ -96,6 +96,12 @@
                                     <td class="fw-semibold text-wine">₵{{ event.get_organizer_payout }}</td>
                                     <td class="pe-4">
                                         <div class="d-flex flex-wrap gap-1">
+                                            {% if request.user.is_staff and not event.is_approved %}
+                                            <form action="{% url 'approve_event' event.id %}" method="POST" class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-circle-fill me-1"></i>Approve</button>
+                                            </form>
+                                            {% endif %}
                                             <a href="{% url 'event_analytics' event.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-bar-chart-line me-1"></i>Analytics</a>
                                             <a href="{% url 'edit_event' event.id %}" class="btn btn-sm btn-outline-wine"><i class="bi bi-pencil-square me-1"></i>Edit</a>
                                         </div>
