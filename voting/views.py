@@ -1717,3 +1717,103 @@ def upload_codes_csv(request, event_id):
         messages.success(request, msg)
         
     return redirect('event_detail', event_id=event_id)
+
+# ==========================================
+# DIGITAL BALLOT SYSTEM (AJAX)
+# ==========================================
+
+@csrf_exempt
+def validate_ballot_code(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    
+    if request.method == 'POST':
+        import json
+        data = json.loads(request.body)
+        code_input = data.get('code', '').strip().upper()
+        identifier_input = data.get('identifier', '').strip()
+        
+        if timezone.now() > event.end_date:
+            return JsonResponse({'status': 'error', 'message': 'Voting for this event has ended.'}, status=400)
+            
+        try:
+            voting_code = VotingCode.objects.get(event=event, code=code_input)
+            
+            if voting_code.voter_identifier:
+                if voting_code.voter_identifier.upper() != identifier_input.upper():
+                    return JsonResponse({'status': 'error', 'message': 'The Student ID provided does not match this voting code.'}, status=400)
+            
+            if voting_code.is_used:
+                return JsonResponse({'status': 'error', 'message': 'This code has already been used to vote.'}, status=400)
+                
+            # Code is valid! Fetch candidates grouped by category
+            categories_data = []
+            for cat in event.categories.all():
+                candidates_data = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in cat.candidates.all()]
+                    categories_data.append({'id': cat.id, 'name': cat.name, 'candidates': candidates_data})
+                
+            # Also fetch uncategorized candidates
+            uncategorized_candidates = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in event.candidates.filter(category=None)]
+            if uncategorized_candidates:
+                categories_data.append({'id': 'none', 'name': 'General', 'candidates': uncategorized_candidates})
+
+            return JsonResponse({'status': 'success', 'categories': categories_data})
+            
+        except VotingCode.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Invalid voting code. Please check and try again.'}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)
+
+@csrf_exempt
+def cast_ballot(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    
+    if request.method == 'POST':
+        import json
+        data = json.loads(request.body)
+        code_input = data.get('code', '').strip().upper()
+        identifier_input = data.get('identifier', '').strip()
+        votes = data.get('votes', {}) # Dictionary of {category_id: candidate_id}
+        
+        if timezone.now() > event.end_date:
+            return JsonResponse({'status': 'error', 'message': 'Voting has ended.'}, status=400)
+            
+        try:
+            voting_code = VotingCode.objects.get(event=event, code=code_input)
+            
+            if voting_code.voter_identifier:
+                if voting_code.voter_identifier.upper() != identifier_input.upper():
+                    return JsonResponse({'status': 'error', 'message': 'Student ID mismatch.'}, status=400)
+            
+            if voting_code.is_used:
+                return JsonResponse({'status': 'error', 'message': 'This code has already been used.'}, status=400)
+                
+            # Record votes
+            votes_cast = 0
+            for cat_id, candidate_id in votes.items():
+                if candidate_id: # Only record if they selected someone
+                    try:
+                        candidate = Candidate.objects.get(id=candidate_id, event=event)
+                        VoteTransaction.objects.create(
+                            candidate=candidate,
+                            voter_email=f"code_{code_input}@FlexyVotes.com",
+                            amount=0,
+                            paystack_reference=f"CODE_{code_input}_{cat_id}_{uuid.uuid4().hex[:4].upper()}",
+                            status='Success',
+                            vote_type='Main',
+                            number_of_votes=1
+                        )
+                        votes_cast += 1
+                    except Candidate.DoesNotExist:
+                        pass
+                        
+            if votes_cast > 0:
+                voting_code.is_used = True
+                voting_code.used_at = timezone.now()
+                voting_code.save()
+                
+            return JsonResponse({'status': 'success', 'message': f'Success! Your ballot has been cast. ({votes_cast} votes recorded).'})
+            
+        except VotingCode.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Invalid voting code.'}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)

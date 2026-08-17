@@ -55,4 +55,8 @@ urlpatterns = [
 
     path('event/<int:event_id>/bulk-add/', views.bulk_add_candidates, name='bulk_add_candidates'),
     path('event/<int:event_id>/upload-codes-csv/', views.upload_codes_csv, name='upload_codes_csv'),
+
+    #Ballot Validation and Casting
+    path('event/<int:event_id>/validate-ballot/', views.validate_ballot_code, name='validate_ballot'),
+    path('event/<int:event_id>/cast-ballot/', views.cast_ballot, name='cast_ballot'),
 ]

@@ -775,7 +775,8 @@
                 <div class="mt-auto mb-3 text-muted small">
                   <i>Votes are hidden until the event ends.</i>
                 </div>
-                {% endif %} {% if is_expired %}
+                {% endif %} 
+                {% if is_expired %}
                 <button
                   class="btn btn-secondary w-100"
                   disabled>
@@ -788,19 +789,21 @@
                   Organizer/Admin View
                 </button>
                 {% else %}
-                <button
-                  type="button"
-                  id="vote-btn-{{ candidate.id }}"
-                  class="btn w-100 mt-2"
-                  style="
-                    background-color: var(--primary);
-                    color: var(--accent);
-                    border: none;
-                    font-weight: 600;
-                  "
-                  onclick="toggleVoteForm({{ candidate.id }})">
-                  {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote for me{% endif %}
-                </button>
+                    {% if event.voting_mode == 'Code Voting' %}
+                        <!-- Code Voting: Open Ballot Modal -->
+                        <button type="button" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" data-bs-toggle="modal" data-bs-target="#ballotModal">
+                            Cast Vote
+                        </button>
+                    {% else %}
+                        <!-- Pay to Vote: Standard Inline Form -->
+                        <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">
+                            Vote for me
+                        </button>
+                        <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
+                            <!-- ... keep the existing pay to vote form here ... -->
+                        </div>
+                    {% endif %}
+                {% endif %}
                 <div
                   id="vote-form-{{ candidate.id }}"
                   class="mt-3"
@@ -1032,7 +1035,8 @@
             <div class="mt-auto mb-3 text-muted small">
               <i>Votes are hidden until the event ends.</i>
             </div>
-            {% endif %} {% if is_expired %}
+            {% endif %} 
+            {% if is_expired %}
             <button
               class="btn btn-secondary w-100"
               disabled>
@@ -1045,20 +1049,22 @@
               Organizer/Admin View
             </button>
             {% else %}
-            <button
-              type="button"
-              id="vote-btn-{{ candidate.id }}"
-              class="btn w-100 mt-2"
-              style="
-                background-color: var(--primary);
-                color: var(--accent);
-                border: none;
-                font-weight: 600;
-              "
-              onclick="toggleVoteForm({{ candidate.id }})">
-              {% if event.voting_mode == 'Code Voting' %}Cast Vote{% else %}Vote
-              for me{% endif %}
-            </button>
+                {% if event.voting_mode == 'Code Voting' %}
+                    <!-- Code Voting: Open Ballot Modal -->
+                    <button type="button" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" data-bs-toggle="modal" data-bs-target="#ballotModal">
+                        Cast Vote
+                    </button>
+                {% else %}
+                    <!-- Pay to Vote: Standard Inline Form -->
+                    <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">
+                        Vote for me
+                    </button>
+                    <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
+                        <!-- ... keep the existing pay to vote form here ... -->
+                    </div>
+                {% endif %}
+            {% endif %}
+            
             <div
               id="vote-form-{{ candidate.id }}"
               class="mt-3"
@@ -1200,6 +1206,55 @@
     </div>
     {% endif %}
   </div>
+    <!-- Digital Ballot Modal -->
+  <div class="modal fade" id="ballotModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+          <div class="modal-content">
+              <div class="modal-header bg-wine">
+                  <h5 class="modal-title text-gold"><i class="bi bi-card-checklist me-2"></i>Cast Your Ballot</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body p-4">
+                  
+                  <!-- Step 1: Code Entry -->
+                  <div id="ballot-step-1">
+                      <h6 class="fw-bold text-wine mb-3">Enter your voting details to access the ballot.</h6>
+                      <form id="ballot-code-form">
+                          {% csrf_token %}
+                          {% if event.code_voting_mode == 'Student ID' %}
+                          <div class="mb-3">
+                              <label class="form-label small fw-bold text-muted">Student ID</label>
+                              <input type="text" id="ballot_identifier" class="form-control" placeholder="e.g., STD001" required>
+                          </div>
+                          {% endif %}
+                          <div class="mb-3">
+                              <label class="form-label small fw-bold text-muted">Voting Code</label>
+                              <input type="text" id="ballot_code" class="form-control text-uppercase" placeholder="e.g., A1B2C3D4" required>
+                          </div>
+                          <button type="submit" class="btn btn-wine w-100 fw-bold">Access Ballot</button>
+                      </form>
+                  </div>
+
+                  <!-- Step 2: Ballot (Hidden by default) -->
+                  <div id="ballot-step-2" style="display: none;">
+                      <div id="ballot-error" class="alert alert-danger" style="display: none;"></div>
+                      <form id="ballot-submit-form">
+                          <div id="ballot-content"></div>
+                          <button type="submit" class="btn btn-success w-100 mt-3 fw-bold"><i class="bi bi-check2-circle me-1"></i> Submit Ballot</button>
+                      </form>
+                  </div>
+
+                  <!-- Step 3: Success (Hidden by default) -->
+                  <div id="ballot-step-3" class="text-center" style="display: none;">
+                      <i class="bi bi-check-circle-fill text-success fs-1 mb-3"></i>
+                      <h5 class="fw-bold text-wine">Ballot Cast Successfully!</h5>
+                      <p class="text-muted" id="ballot-success-msg"></p>
+                  </div>
+
+              </div>
+          </div>
+      </div>
+  </div>
 </div>
 
 <script>
@@ -1332,6 +1387,85 @@
   }
 
   startCountdown();
+
+      // ==========================================
+    // DIGITAL BALLOT LOGIC
+    // ==========================================
+    const ballotCodeForm = document.getElementById('ballot-code-form');
+    const ballotSubmitForm = document.getElementById('ballot-submit-form');
+    const eventId = '{{ event.id }}';
+
+    if (ballotCodeForm) {
+        ballotCodeForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const code = document.getElementById('ballot_code').value;
+            const identifier = document.getElementById('ballot_identifier') ? document.getElementById('ballot_identifier').value : '';
+
+            fetch(`/event/${eventId}/validate-ballot/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                body: JSON.stringify({ code: code, identifier: identifier })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Build Ballot
+                    let html = '';
+                    data.categories.forEach(cat => {
+                        html += `<h6 class="fw-bold text-wine mt-3 mb-2">${cat.name}</h6>`;
+                        cat.candidates.forEach(c => {
+                            html += `
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="radio" name="cat-${cat.id}" value="${c.id}" id="cand-${c.id}">
+                                    <label class="form-check-label" for="cand-${c.id}">${c.name}</label>
+                                </div>
+                            `;
+                        });
+                    });
+                    document.getElementById('ballot-content').innerHTML = html;
+                    document.getElementById('ballot-step-1').style.display = 'none';
+                    document.getElementById('ballot-step-2').style.display = 'block';
+                } else {
+                    const errDiv = document.getElementById('ballot-error');
+                    errDiv.innerText = data.message;
+                    errDiv.style.display = 'block';
+                }
+            });
+        });
+
+        ballotSubmitForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const code = document.getElementById('ballot_code').value;
+            const identifier = document.getElementById('ballot_identifier') ? document.getElementById('ballot_identifier').value : '';
+            const votes = {};
+            
+            // Collect radio button selections
+            const radios = document.querySelectorAll('#ballot-content input[type="radio"]:checked');
+            radios.forEach(r => {
+                const catId = r.name.replace('cat-', '');
+                votes[catId] = r.value;
+            });
+
+            fetch(`/event/${eventId}/cast-ballot/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                body: JSON.stringify({ code: code, identifier: identifier, votes: votes })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    document.getElementById('ballot-step-2').style.display = 'none';
+                    document.getElementById('ballot-success-msg').innerText = data.message;
+                    document.getElementById('ballot-step-3').style.display = 'block';
+                    setTimeout(() => location.reload(), 3000); // Reload after 3s to update counts
+                } else {
+                    const errDiv = document.getElementById('ballot-error');
+                    errDiv.innerText = data.message;
+                    errDiv.style.display = 'block';
+                }
+            });
+        });
+    }
 
   // ==========================================
   // AJAX FORM SUBMISSIONS (NO PAGE RELOAD)
