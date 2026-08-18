@@ -187,20 +187,23 @@ class ProductImage(models.Model):
             return int(discount)
         return 0
     
-
 class VotingCode(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='voting_codes')
-    code = models.CharField(max_length=50, unique=True, default=generate_voting_code)
+    # REMOVED unique=True from here
+    code = models.CharField(max_length=50, default=uuid.uuid4().hex[:8].upper())
     voter_identifier = models.CharField(max_length=100, blank=True, null=True) 
     is_used = models.BooleanField(default=False)
     used_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # NEW: Enforce uniqueness only per event
+    class Meta:
+        unique_together = ('event', 'code')
+
     def __str__(self):
         if self.voter_identifier:
             return f"{self.code} - {self.voter_identifier} - {'Used' if self.is_used else 'Valid'}"
         return f"{self.code} - {'Used' if self.is_used else 'Valid'}"
-
 
 class Ticket(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tickets')

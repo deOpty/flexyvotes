@@ -589,10 +589,9 @@ def generate_codes(request, event_id):
             generated_count = 0
             for identifier in id_list:
                 code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                while VotingCode.objects.filter(code=code).exists():
+                # UPDATED: Check if code exists IN THIS EVENT
+                while VotingCode.objects.filter(event=event, code=code).exists():
                     code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                VotingCode.objects.create(event=event, code=code, voter_identifier=identifier)
-                generated_count += 1
             messages.success(request, f'{generated_count} codes generated successfully for the provided IDs.')
         else:
             count, count_error = parse_non_negative_int(request.POST.get('count', '10'), 'Count')
@@ -603,7 +602,8 @@ def generate_codes(request, event_id):
             generated_count = 0
             while generated_count < count:
                 code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                if not VotingCode.objects.filter(code=code).exists():
+                # UPDATED: Check if code exists IN THIS EVENT
+                if not VotingCode.objects.filter(event=event, code=code).exists():
                     VotingCode.objects.create(event=event, code=code)
                     generated_count += 1
             messages.success(request, f'{count} standard voting codes generated successfully.')
@@ -712,7 +712,8 @@ def upload_student_csv(request, event_id):
             if row and row[0].strip():
                 identifier = row[0].strip()
                 code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                while VotingCode.objects.filter(code=code).exists():
+                # UPDATED: Check if code exists IN THIS EVENT
+                while VotingCode.objects.filter(event=event, code=code).exists():
                     code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
                 VotingCode.objects.create(event=event, code=code, voter_identifier=identifier)
                 generated_count += 1
