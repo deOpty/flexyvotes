@@ -35,13 +35,15 @@
                 </div>
             </div>
             <div class="col-lg-5 mt-3 mt-lg-0">
-                {% if event.tickets.all %}
-                <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center" style="background-color: var(--primary);">
-                    <h5 class="mb-2 fw-bold" style="color: var(--accent);"><i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!</h5>
-                    <p class="small mb-3" style="color: #fff; opacity: 0.9;">Secure your entry for this event now.</p>
-                    <a href="{% url 'event_tickets' event.id %}" class="btn btn-gold fw-bold">Buy Tickets Here</a>
+                <div class="col-lg-5 mt-3 mt-lg-0">
+                    {% if event.tickets.all %}
+                    <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center" style="background-color: var(--primary);">
+                        <h5 class="mb-2 fw-bold" style="color: var(--accent);"><i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!</h5>
+                        <p class="small mb-3" style="color: #fff; opacity: 0.9;">Secure your entry for this event now.</p>
+                        <a href="{% url 'event_tickets' event.id %}" class="btn btn-gold fw-bold">Buy Tickets Here</a>
+                    </div>
+                    {% endif %}
                 </div>
-                {% else %}
                 <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center bg-light border">
                     <h5 class="mb-2 fw-bold text-muted"><i class="bi bi-info-circle me-2"></i>No Tickets Required</h5>
                     <p class="small mb-0 text-muted">This is a free entry or voting-only event.</p>
@@ -185,10 +187,13 @@
             </div></div>
         </div>
 
+        {% if event.voting_mode != 'Code Voting' %}
+        <!-- 3. Ticket Management -->
         <button class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTickets">
             <span class="fw-bold" style="font-size: 1.1rem;"><i class="bi bi-ticket-perforated me-2"></i>Ticket Management</span>
             <i class="bi bi-chevron-down collapse-btn"></i>
         </button>
+        
         <div class="d-flex justify-content-end gap-2 mb-2">
             {% if event.ticket_purchases.count > 0 %}
             <a href="{% url 'event_guestlist' event.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-people-fill"></i> Guest List</a>
@@ -196,6 +201,7 @@
             {% endif %}
             <a href="{% url 'create_ticket' event.id %}" class="btn btn-sm btn-wine"><i class="bi bi-plus-lg"></i> Add Ticket</a>
         </div>
+
         <div class="collapse mb-3" id="collapseTickets">
             <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
                 <div class="table-responsive">
@@ -223,6 +229,7 @@
                 </div>
             </div></div>
         </div>
+        {% endif %}
     </div>
     {% endif %}
 

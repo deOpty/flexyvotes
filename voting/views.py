@@ -322,20 +322,37 @@ def create_event(request):
     if request.method == 'POST':
         start_date_str = f"{request.POST.get('start_date_date')} {request.POST.get('start_date_time')}"
         end_date_str = f"{request.POST.get('end_date_date')} {request.POST.get('end_date_time')}"
-        platform_fee_percentage, fee_error = parse_non_negative_decimal(request.POST.get('platform_fee_percentage'), 'Platform fee percentage')
-        vote_price, price_error = parse_non_negative_decimal(request.POST.get('vote_price', '1.00'), 'Vote price')
-        error = fee_error or price_error
-        if error:
-            messages.error(request, error)
-            return render(request, 'voting/create_event.html')
+        voting_mode = request.POST.get('voting_mode')
+        
+        # If Code Voting is selected, fee and price are not needed
+        if voting_mode == 'Code Voting':
+            platform_fee_percentage = Decimal('0')
+            vote_price = Decimal('0')
+            enable_tie_breaker = False
+        else:
+            platform_fee_percentage, fee_error = parse_non_negative_decimal(request.POST.get('platform_fee_percentage'), 'Platform fee percentage')
+            vote_price, price_error = parse_non_negative_decimal(request.POST.get('vote_price', '1.00'), 'Vote price')
+            enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on'
+            error = fee_error or price_error
+            if error:
+                messages.error(request, error)
+                return render(request, 'voting/create_event.html')
+
         event = Event.objects.create(
-            organizer=request.user, title=request.POST.get('title'), description=request.POST.get('description'),
-            voting_mode=request.POST.get('voting_mode'), code_voting_mode=request.POST.get('code_voting_mode', 'Standard'),
-            enable_tie_breaker=request.POST.get('enable_tie_breaker') == 'on',
-            start_date=timezone.make_aware(parse_datetime(start_date_str)), end_date=timezone.make_aware(parse_datetime(end_date_str)),
-            platform_fee_percentage=platform_fee_percentage, vote_price=vote_price,
-            primary_color=request.POST.get('primary_color'), accent_color=request.POST.get('accent_color'),
-            background_image=request.FILES.get('background_image'), event_image=request.FILES.get('event_image')
+            organizer=request.user,
+            title=request.POST.get('title'),
+            description=request.POST.get('description'),
+            voting_mode=voting_mode,
+            code_voting_mode=request.POST.get('code_voting_mode', 'Standard'),
+            enable_tie_breaker=enable_tie_breaker,
+            start_date=timezone.make_aware(parse_datetime(start_date_str)),
+            end_date=timezone.make_aware(parse_datetime(end_date_str)),
+            platform_fee_percentage=platform_fee_percentage,
+            vote_price=vote_price,
+            primary_color=request.POST.get('primary_color'),
+            accent_color=request.POST.get('accent_color'),
+            background_image=request.FILES.get('background_image'),
+            event_image=request.FILES.get('event_image')
         )
         ActivityLog.objects.create(user=request.user, event=event, action=f"Created event '{event.title}'")
         return redirect('dashboard')
@@ -423,23 +440,33 @@ def edit_event(request, event_id):
     if request.method == 'POST':
         start_date_str = f"{request.POST.get('start_date_date')} {request.POST.get('start_date_time')}"
         end_date_str = f"{request.POST.get('end_date_date')} {request.POST.get('end_date_time')}"
-        platform_fee_percentage, fee_error = parse_non_negative_decimal(request.POST.get('platform_fee_percentage'), 'Platform fee percentage')
-        vote_price, price_error = parse_non_negative_decimal(request.POST.get('vote_price', '1.00'), 'Vote price')
-        error = fee_error or price_error
-        if error:
-            messages.error(request, error)
-            return render(request, 'voting/edit_event.html', {'event': event})
+        voting_mode = request.POST.get('voting_mode')
+        
+        if voting_mode == 'Code Voting':
+            platform_fee_percentage = Decimal('0')
+            vote_price = Decimal('0')
+            enable_tie_breaker = False
+        else:
+            platform_fee_percentage, fee_error = parse_non_negative_decimal(request.POST.get('platform_fee_percentage'), 'Platform fee percentage')
+            vote_price, price_error = parse_non_negative_decimal(request.POST.get('vote_price', '1.00'), 'Vote price')
+            enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on'
+            error = fee_error or price_error
+            if error:
+                messages.error(request, error)
+                return render(request, 'voting/edit_event.html', {'event': event})
+
         event.title = request.POST.get('title')
         event.description = request.POST.get('description')
-        event.voting_mode = request.POST.get('voting_mode')
+        event.voting_mode = voting_mode
         event.code_voting_mode = request.POST.get('code_voting_mode', 'Standard')
-        event.enable_tie_breaker = request.POST.get('enable_tie_breaker') == 'on'
+        event.enable_tie_breaker = enable_tie_breaker
         event.start_date = timezone.make_aware(parse_datetime(start_date_str))
         event.end_date = timezone.make_aware(parse_datetime(end_date_str))
         event.platform_fee_percentage = platform_fee_percentage
         event.vote_price = vote_price
         event.primary_color = request.POST.get('primary_color')
         event.accent_color = request.POST.get('accent_color')
+        
         if 'background_image' in request.FILES:
             event.background_image = request.FILES.get('background_image')
         if 'event_image' in request.FILES:

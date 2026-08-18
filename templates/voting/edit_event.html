@@ -171,48 +171,23 @@
             </div>
           </div>
 
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <label class="form-label fw-bold text-muted small"
-                >Platform Fee (%)</label
-              >
-              <input
-                type="number"
-                name="platform_fee_percentage"
-                class="form-control"
-                value="{{ event.platform_fee_percentage|default:'20.00' }}"
-                step="0.1"
-                min="0.1"
-                max="100"
-                required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-bold text-muted small"
-                >Price Per Vote (₵)</label
-              >
-              <input
-                type="number"
-                name="vote_price"
-                class="form-control"
-                value="{{ event.vote_price|default:'1.00' }}"
-                step="0.1"
-                min="0.1"
-                required />
-            </div>
-          </div>
-          <!-- Tie-Breaker Toggle -->
-          <div class="form-check form-switch mb-4">
-            <input
-              class="form-check-input"
-              type="checkbox"
-              name="enable_tie_breaker"
-              id="tieBreakerSwitch"
-              {% if event.enable_tie_breaker %}checked{% endif %} />
-            <label
-              class="form-check-label fw-bold text-muted small"
-              for="tieBreakerSwitch"
-              >Enable Tie-Breaker Voting (Online tickets get free votes)</label
-            >
+          <!-- Wrap these in a div to hide them -->
+          <div id="payToVoteFields">
+              <div class="row mb-3">
+                  <div class="col-md-6">
+                      <label class="form-label fw-bold text-muted small">Platform Fee (%)</label>
+                      <input type="number" name="platform_fee_percentage" class="form-control" value="20.00" step="0.01" required>
+                  </div>
+                  <div class="col-md-6">
+                      <label class="form-label fw-bold text-muted small">Price Per Vote (₵)</label>
+                      <input type="number" name="vote_price" class="form-control" value="1.00" step="0.01" required>
+                  </div>
+              </div>
+              
+              <div class="form-check form-switch mb-4">
+                  <input class="form-check-input" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch">
+                  <label class="form-check-label fw-bold text-muted small" for="tieBreakerSwitch">Enable Tie-Breaker Voting (Online tickets get free votes)</label>
+              </div>
           </div>
 
           <div class="form-check form-switch p-0 ps-1">
@@ -360,5 +335,21 @@
       codeDiv.style.display = 'none';
     }
   }
+  // Hide Pay to Vote fields if Code Voting is selected
+  function toggleVotingModeFields() {
+      const mode = document.getElementById('votingModeSelect').value;
+      const payToVoteFields = document.getElementById('payToVoteFields');
+      if (mode === 'Code Voting') {
+          payToVoteFields.style.display = 'none';
+      } else {
+          payToVoteFields.style.display = 'block';
+      }
+  }
+        
+  // Listen for dropdown changes
+  document.getElementById('votingModeSelect').addEventListener('change', toggleVotingModeFields);
+        
+  // Run once on page load
+  toggleVotingModeFields();
 </script>
 {% endblock %}
