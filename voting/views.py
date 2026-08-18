@@ -1749,7 +1749,7 @@ def validate_ballot_code(request, event_id):
             categories_data = []
             for cat in event.categories.all():
                 candidates_data = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in cat.candidates.all()]
-                    categories_data.append({'id': cat.id, 'name': cat.name, 'candidates': candidates_data})
+                categories_data.append({'id': cat.id, 'name': cat.name, 'candidates': candidates_data})
                 
             # Also fetch uncategorized candidates
             uncategorized_candidates = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in event.candidates.filter(category=None)]
