@@ -1,1404 +1,533 @@
-{% extends 'voting/base.html' %} {% block footer %}
+{% extends 'voting/base.html' %}
+
+{% block footer %}
 <!-- Footer hidden on this page to keep voters focused -->
-{% endblock %} {% block content %}
-<!-- CSS for dynamic category tab styling -->
+{% endblock %}
+
+{% block content %}
 <style>
-  .cat-tab {
-    background-color: #ffffff;
-    color: var(--primary);
-    border: 1px solid var(--primary);
-  }
-  .cat-tab.active {
-    background-color: var(--primary);
-    color: var(--accent);
-    border: 1px solid var(--primary);
-  }
-  .collapse-btn {
-    transition: transform 0.2s ease;
-    color: #ffd700;
-  }
-  .collapsed .collapse-btn {
-    transform: rotate(-90deg);
-  }
+    .cat-tab { background-color: #FFFFFF; color: var(--primary); border: 1px solid var(--primary); }
+    .cat-tab.active { background-color: var(--primary); color: var(--accent); border: 1px solid var(--primary); }
+    .collapse-btn { transition: transform 0.2s ease; color: #FFD700; }
+    .collapsed .collapse-btn { transform: rotate(-90deg); }
 </style>
 
-<!-- The main div applies the background image -->
-<div
-  style="--primary: {{ event.primary_color }}; --accent: {{ event.accent_color }};
-     {% if event.background_image %}
-         background-image: url('{{ event.background_image.url }}'); background-size: cover; background-attachment: fixed;
-     {% else %}
-         background-color: #F5F5F5;
-     {% endif %}
-     min-height: 80vh; padding: 20px 20px; border-radius: 15px; margin-bottom: 60px;">
-  <!-- 1. Header Card (Title, Timer, Tickets) -->
-  <div class="bg-white p-4 mb-4 rounded-4xl shadow-soft">
-    <div class="row align-items-center">
-      <!-- Left: Title & Timer -->
-      <div class="col-lg-7">
-        <span
-          class="section-eyebrow"
-          style="color: var(--primary)"
-          >Event</span
-        >
-        <h2
-          class="fw-bold mb-1 mt-1"
-          style="color: var(--primary)">
-          {{ event.title }}
-        </h2>
-        <p class="mb-0 text-muted">{{ event.description }}</p>
-        <hr class="my-3" />
-        <!-- Countdown Timer -->
-        <div
-          class="text-center bg-light p-3 rounded-4"
-          id="countdown-container">
-          <h6
-            class="mb-2 text-muted text-uppercase"
-            style="letter-spacing: 1px; font-size: 0.85rem">
-            Voting Ends In
-          </h6>
-          <div
-            class="d-flex justify-content-center gap-4 fs-4 fw-bold"
-            style="color: var(--primary)">
-            <span
-              ><span id="days">0</span>
-              <small class="fs-6 text-muted">Days</small></span
-            >
-            :
-            <span
-              ><span id="hours">0</span>
-              <small class="fs-6 text-muted">Hrs</small></span
-            >
-            :
-            <span
-              ><span id="minutes">0</span>
-              <small class="fs-6 text-muted">Mins</small></span
-            >
-            :
-            <span
-              ><span id="seconds">0</span>
-              <small class="fs-6 text-muted">Secs</small></span
-            >
-          </div>
-        </div>
-      </div>
+<div style="--primary: {{ event.primary_color }}; --accent: {{ event.accent_color }}; 
+     {% if event.background_image %} background-image: url('{{ event.background_image.url }}'); background-size: cover; background-attachment: fixed;
+     {% else %} background-color: #F5F5F5; {% endif %}
+     min-height: 80vh; padding: 20px; border-radius: 15px; margin-bottom: 60px;">
 
-      <!-- Right: Ticket Banner -->
-      <div class="col-lg-5 mt-3 mt-lg-0">
-        {% if event.tickets.all %}
-        <div
-          class="p-4 rounded-4 text-center h-100 d-flex flex-column justify-content-center shadow-sm"
-          style="background-color: var(--primary)">
-          <h5
-            class="mb-2 fw-bold"
-            style="color: var(--accent)">
-            <i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!
-          </h5>
-          <p
-            class="small mb-3"
-            style="color: #fff; opacity: 0.9">
-            Secure your entry for this event now.
-          </p>
-          <a
-            href="{% url 'event_tickets' event.id %}"
-            class="btn btn-gold fw-bold"
-            >Buy Tickets Here</a
-          >
+    <!-- Header -->
+    <div class="bg-white p-4 mb-4 rounded-4 shadow-sm">
+        <div class="row align-items-center">
+            <div class="col-lg-7">
+                <h2 class="fw-bold mb-1" style="color: var(--primary);">{{ event.title }}</h2>
+                <p class="mb-0 text-muted">{{ event.description }}</p>
+                <hr class="my-3">
+                <div class="text-center bg-light p-3 rounded-3" id="countdown-container">
+                    <h6 class="mb-2 text-muted text-uppercase" style="letter-spacing: 1px; font-size: 0.85rem;">Voting Ends In</h6>
+                    <div class="d-flex justify-content-center gap-4 fs-4 fw-bold" style="color: var(--primary);">
+                        <span><span id="days">0</span> <small class="fs-6 text-muted">Days</small></span> :
+                        <span><span id="hours">0</span> <small class="fs-6 text-muted">Hrs</small></span> :
+                        <span><span id="minutes">0</span> <small class="fs-6 text-muted">Mins</small></span> :
+                        <span><span id="seconds">0</span> <small class="fs-6 text-muted">Secs</small></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5 mt-3 mt-lg-0">
+                {% if event.tickets.all %}
+                <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center" style="background-color: var(--primary);">
+                    <h5 class="mb-2 fw-bold" style="color: var(--accent);"><i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!</h5>
+                    <p class="small mb-3" style="color: #fff; opacity: 0.9;">Secure your entry for this event now.</p>
+                    <a href="{% url 'event_tickets' event.id %}" class="btn btn-gold fw-bold">Buy Tickets Here</a>
+                </div>
+                {% else %}
+                <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center bg-light border">
+                    <h5 class="mb-2 fw-bold text-muted"><i class="bi bi-info-circle me-2"></i>No Tickets Required</h5>
+                    <p class="small mb-0 text-muted">This is a free entry or voting-only event.</p>
+                </div>
+                {% endif %}
+            </div>
         </div>
-        {% else %}
-        <div
-          class="p-4 rounded-4 text-center h-100 d-flex flex-column justify-content-center bg-light border">
-          <h5 class="mb-2 fw-bold text-muted">
-            <i class="bi bi-info-circle me-2"></i>No Tickets Required
-          </h5>
-          <p class="small mb-0 text-muted">
-            This is a free entry or voting-only event.
-          </p>
+
+        {% if event.voting_mode == 'Code Voting' and event.code_voting_mode == 'Student ID' %}
+        <div class="bg-white p-3 mt-3 mb-4 rounded-3 shadow-sm border">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-muted"><i class="bi bi-key me-2"></i>Forgot your voting code?</h5>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#retrieveCodeForm">Retrieve Code</button>
+            </div>
+            <div class="collapse" id="retrieveCodeForm">
+                <hr class="my-3">
+                <form action="{% url 'retrieve_voting_code' event.id %}" method="POST">
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5"><input type="text" name="student_id" class="form-control" placeholder="Student ID" required></div>
+                        <div class="col-md-5"><input type="email" name="email" class="form-control" placeholder="Email Address" required></div>
+                        <div class="col-md-2"><button type="submit" class="btn btn-wine w-100">Send Code</button></div>
+                    </div>
+                </form>
+            </div>
         </div>
         {% endif %}
-      </div>
     </div>
 
-    <!-- Retrieve Voting Code Section (Only for Student ID mode) -->
-    {% if event.voting_mode == 'Code Voting' and event.code_voting_mode == 'Student ID' %}
-    <div class="bg-white p-3 mt-3 mb-4 rounded-4 shadow-sm border">
-      <div class="d-flex justify-content-between align-items-center">
-        <h5 class="mb-0 text-muted">
-          <i class="bi bi-key me-2"></i>Forgot your voting code?
-        </h5>
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-secondary"
-          data-bs-toggle="collapse"
-          data-bs-target="#retrieveCodeForm"
-          aria-expanded="false"
-          aria-controls="retrieveCodeForm">
-          Retrieve Code
+    <!-- Organizer Section -->
+    {% if request.user == event.organizer or request.user.is_staff %}
+    <div class="p-3 mb-5 rounded-4" style="background-color: rgba(128, 0, 32, 0.05); border: 1px solid rgba(128, 0, 32, 0.1);">
+        
+        {% if event.voting_mode == 'Code Voting' %}
+        <button class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCode">
+            <span class="fw-bold" style="font-size: 1.1rem;"><i class="bi bi-key-fill me-2"></i>Code Voting Management</span>
+            <i class="bi bi-chevron-down collapse-btn"></i>
         </button>
-      </div>
-      <div
-        class="collapse"
-        id="retrieveCodeForm">
-        <hr class="my-3" />
-        <form
-          action="{% url 'retrieve_voting_code' event.id %}"
-          method="POST">
-          {% csrf_token %}
-          <div class="row g-2 align-items-end">
-            <div class="col-md-5">
-              <label class="form-label small text-muted">Student ID</label>
-              <input
-                type="text"
-                name="student_id"
-                class="form-control"
-                placeholder="e.g., STD001"
-                required />
-            </div>
-            <div class="col-md-5">
-              <label class="form-label small text-muted">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                class="form-control"
-                placeholder="your@email.com"
-                required />
-            </div>
-            <div class="col-md-2">
-              <button
-                type="submit"
-                class="btn btn-wine w-100">
-                Send Code
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  <!-- 2. Organizer Management Section (Light Wine Tint Background) -->
-  {% if request.user == event.organizer or request.user.is_staff %}
-  <div
-    class="p-3 mb-5 rounded-4xl"
-    style="
-      background-color: rgba(128, 0, 32, 0.05);
-      border: 1px solid rgba(128, 0, 32, 0.1);
-    ">
-    <div class="d-flex align-items-center gap-2 px-2 pt-2 pb-3">
-      <i
-        class="bi bi-shield-lock-fill"
-        style="color: var(--primary)"></i>
-      <span
-        class="section-eyebrow"
-        style="color: var(--primary)"
-        >Organizer Controls</span
-      >
-    </div>
-
-    <!-- 1. Code Voting Management -->
-    {% if event.voting_mode == 'Code Voting' %}
-    <button
-      class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#collapseCode"
-      aria-expanded="false"
-      aria-controls="collapseCode">
-      <span
-        class="fw-bold"
-        style="font-size: 1.1rem">
-        <i class="bi bi-key-fill me-2"></i>Code Voting Management
-      </span>
-      <i class="bi bi-chevron-down collapse-btn"></i>
-    </button>
-    <div
-      class="collapse mb-3"
-      id="collapseCode">
-      <div class="card border-0 shadow-soft rounded-4xl">
-        <div class="card-body p-4">
-          {% if event.code_voting_mode == 'Student ID' %}
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted"
-                >Option 1: Paste Student IDs</label
-              >
-              <form
-                action="{% url 'generate_codes' event.id %}"
-                method="POST">
-                {% csrf_token %}
-                <textarea
-                  name="identifiers"
-                  class="form-control mb-2"
-                  rows="4"
-                  placeholder="STD001&#10;STD002&#10;STD003"></textarea>
-                <button
-                  type="submit"
-                  class="btn btn-sm btn-gold w-100">
-                  <i class="bi bi-magic me-1"></i> Generate Codes
-                </button>
-              </form>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted"
-                >Option 2: Upload CSV File</label
-              >
-              <form
-                action="{% url 'upload_csv' event.id %}"
-                method="POST"
-                enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="border rounded-3 p-2 mb-2 text-center bg-light">
-                  <input
-                    type="file"
-                    name="csv_file"
-                    class="form-control"
-                    accept=".csv"
-                    required />
+        <div class="collapse mb-3" id="collapseCode">
+            <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
+                {% if event.code_voting_mode == 'Student ID' %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted">Option 1: Paste Student IDs</label>
+                        <form action="{% url 'generate_codes' event.id %}" method="POST">
+                            {% csrf_token %}
+                            <textarea name="identifiers" class="form-control mb-2" rows="4" placeholder="STD001&#10;STD002"></textarea>
+                            <button type="submit" class="btn btn-sm btn-gold w-100"><i class="bi bi-magic me-1"></i> Generate Codes</button>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted">Option 2: Upload CSV File</label>
+                        <form action="{% url 'upload_csv' event.id %}" method="POST" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="file" name="csv_file" class="form-control mb-2" accept=".csv" required>
+                            <button type="submit" class="btn btn-sm btn-wine w-100"><i class="bi bi-upload me-1"></i> Upload & Generate</button>
+                        </form>
+                    </div>
                 </div>
-                <button
-                  type="submit"
-                  class="btn btn-sm btn-wine w-100">
-                  <i class="bi bi-upload me-1"></i> Upload & Generate
-                </button>
-              </form>
-            </div>
-          </div>
-          {% else %}
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted"
-                >Option 1: Generate Bulk Codes</label
-              >
-              <form
-                action="{% url 'generate_codes' event.id %}"
-                method="POST">
-                {% csrf_token %}
-                <div class="input-group">
-                  <input
-                    type="number"
-                    name="count"
-                    class="form-control"
-                    value="10"
-                    min="1"
-                    max="500" />
-                  <button
-                    type="submit"
-                    class="btn btn-wine px-4">
-                    <i class="bi bi-magic me-1"></i> Generate
-                  </button>
+                {% else %}
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted">Option 1: Generate Bulk Codes</label>
+                        <form action="{% url 'generate_codes' event.id %}" method="POST">
+                            {% csrf_token %}
+                            <div class="input-group">
+                                <input type="number" name="count" class="form-control" value="10" min="1" max="500">
+                                <button type="submit" class="btn btn-wine px-4"><i class="bi bi-magic me-1"></i> Generate</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted">Option 2: Upload Specific Codes (CSV)</label>
+                        <form action="{% url 'upload_codes_csv' event.id %}" method="POST" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="file" name="csv_file" class="form-control mb-2" accept=".csv" required>
+                            <button type="submit" class="btn btn-wine w-100"><i class="bi bi-upload me-1"></i> Upload & Import</button>
+                        </form>
+                    </div>
                 </div>
-                <small class="text-muted d-block mt-1"
-                  >Generates random codes.</small
-                >
-              </form>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small fw-bold text-muted"
-                >Option 2: Upload Specific Codes (CSV)</label
-              >
-              <form
-                action="{% url 'upload_codes_csv' event.id %}"
-                method="POST"
-                enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="border rounded-3 p-2 mb-2 text-center bg-light">
-                  <input
-                    type="file"
-                    name="csv_file"
-                    class="form-control"
-                    accept=".csv"
-                    required />
-                </div>
-                <button
-                  type="submit"
-                  class="btn btn-wine w-100">
-                  <i class="bi bi-upload me-1"></i> Upload & Import
-                </button>
-              </form>
-            </div>
-          </div>
-          {% endif %}
-
-          <div
-            class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-            <small class="text-muted">
-              <i class="bi bi-check-circle-fill text-success me-1"></i> {{
-              event.voting_codes.filter.is_used.count }} Used |
-              <i class="bi bi-hourglass-split text-warning me-1"></i> {{
-              event.voting_codes.count }} Total |
-              <a
-                href="{% url 'download_codes' event.id %}"
-                class="fw-bold text-wine ms-2"
-                ><i class="bi bi-download"></i> Export CSV</a
-              >
-            </small>
-            {% if event.voting_codes.count > 0 %}
-            <form
-              action="{% url 'clear_codes' event.id %}"
-              method="POST"
-              onsubmit="
-                return confirm('Are you sure you want to delete ALL codes?');
-              ">
-              {% csrf_token %}
-              <button
-                type="submit"
-                class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-trash me-1"></i> Clear All
-              </button>
-            </form>
-            {% endif %}
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <!-- 2. Event Setup -->
-    <button
-      class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#collapseSetup"
-      aria-expanded="false"
-      aria-controls="collapseSetup">
-      <span
-        class="fw-bold"
-        style="font-size: 1.1rem">
-        <i class="bi bi-people-fill me-2"></i>Event Setup (Categories &
-        Contestants)
-      </span>
-      <i class="bi bi-chevron-down collapse-btn"></i>
-    </button>
-    <div
-      class="collapse mb-3"
-      id="collapseSetup">
-      <div class="card border-0 shadow-soft rounded-4xl">
-        <div class="card-body p-4">
-          <!-- Add Category Form -->
-          <form
-            action="{% url 'add_category' event.id %}"
-            method="POST"
-            class="mb-4"
-            id="add-category-form">
-            {% csrf_token %}
-            <label class="form-label small fw-bold text-muted"
-              >Add New Category</label
-            >
-            <div class="input-group">
-              <input
-                type="text"
-                name="name"
-                class="form-control"
-                placeholder="e.g., Best Female Artist"
-                required />
-              <button
-                type="submit"
-                class="btn btn-outline-secondary px-4">
-                Add Category
-              </button>
-            </div>
-          </form>
-
-          <!-- Add Candidate Form -->
-          <label class="form-label small fw-bold text-muted"
-            >Add Contestant</label
-          >
-          <form
-            action="{% url 'add_candidate' event.id %}"
-            method="POST"
-            class="mb-4"
-            id="add-candidate-form">
-            {% csrf_token %}
-            <div class="row g-2 align-items-end">
-              <div class="col-md-3">
-                <label class="form-label tiny text-muted">Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  class="form-control"
-                  required />
-              </div>
-              <div class="col-md-2">
-                <label class="form-label tiny text-muted">Nominee Code</label>
-                <input
-                  type="text"
-                  name="nominee_code"
-                  class="form-control"
-                  placeholder="Auto" />
-              </div>
-              <div class="col-md-2">
-                <label class="form-label tiny text-muted">Bio</label>
-                <input
-                  type="text"
-                  name="bio"
-                  class="form-control" />
-              </div>
-              <div class="col-md-2">
-                <label class="form-label tiny text-muted">Category</label>
-                <select
-                  name="category"
-                  class="form-select">
-                  <option value="">None</option>
-                  {% for cat in event.categories.all %}
-                  <option value="{{ cat.id }}">{{ cat.name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-2">
-                <label class="form-label tiny text-muted">Image</label>
-                <input
-                  type="file"
-                  name="image"
-                  class="form-control form-control-sm" />
-              </div>
-              <div class="col-md-1">
-                <button
-                  type="submit"
-                  class="btn btn-wine w-100">
-                  <i class="bi bi-plus-lg"></i>
-                </button>
-              </div>
-            </div>
-          </form>
-          <!-- NEW: Bulk Add Contestants Form -->
-          <hr class="my-4" />
-          <label class="form-label small fw-bold text-muted"
-            >Bulk Add Contestants (Fast)</label
-          >
-          <form
-            action="{% url 'bulk_add_candidates' event.id %}"
-            method="POST"
-            id="bulk-add-form">
-            {% csrf_token %}
-            <div class="row g-2 align-items-end">
-              <div class="col-md-7">
-                <textarea
-                  name="bulk_names"
-                  class="form-control"
-                  rows="4"
-                  placeholder="Paste names here (one per line)&#10;John Doe&#10;Ama Serwaa&#10;Kwame Mensah"
-                  required></textarea>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label tiny text-muted"
-                  >Assign Category (Optional)</label
-                >
-                <select
-                  name="bulk_category"
-                  class="form-select">
-                  <option value="">None</option>
-                  {% for cat in event.categories.all %}
-                  <option value="{{ cat.id }}">{{ cat.name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-1">
-                <button
-                  type="submit"
-                  class="btn btn-wine w-100"
-                  title="Add All">
-                  <i class="bi bi-plus-lg"></i>
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Ticket Management -->
-    <button
-      class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed"
-      type="button"
-      data-bs-toggle="collapse"
-      data-bs-target="#collapseTickets"
-      aria-expanded="false"
-      aria-controls="collapseTickets">
-      <span
-        class="fw-bold"
-        style="font-size: 1.1rem">
-        <i class="bi bi-ticket-perforated me-2"></i>Ticket Management
-      </span>
-      <i class="bi bi-chevron-down collapse-btn"></i>
-    </button>
-
-    <!-- Quick Actions for Tickets -->
-    <div class="d-flex justify-content-end gap-2 mb-2">
-      {% if event.ticket_purchases.count > 0 %}
-      <a
-        href="{% url 'event_guestlist' event.id %}"
-        class="btn btn-sm btn-outline-secondary"
-        ><i class="bi bi-people-fill"></i> Guest List</a
-      >
-      <a
-        href="{% url 'event_scanner' event.id %}"
-        class="btn btn-sm btn-success"
-        ><i class="bi bi-qr-code-scan"></i> Scanner</a
-      >
-      {% endif %}
-      <a
-        href="{% url 'create_ticket' event.id %}"
-        class="btn btn-sm btn-wine"
-        ><i class="bi bi-plus-lg"></i> Add Ticket</a
-      >
-    </div>
-
-    <div
-      class="collapse mb-3"
-      id="collapseTickets">
-      <div class="card border-0 shadow-soft rounded-4xl">
-        <div class="card-body p-4">
-          <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-              <thead>
-                <tr
-                  class="text-muted"
-                  style="
-                    font-size: 0.75rem;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                  ">
-                  <th>Ticket Type</th>
-                  <th>Price</th>
-                  <th>Available</th>
-                  <th>Sold</th>
-                  <th class="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for ticket in event.tickets.all %}
-                <tr>
-                  <td class="fw-bold text-dark">
-                    {{ ticket.name }} {% if not ticket.is_active %}
-                    <span class="badge bg-danger ms-1">Hidden</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-success fw-bold">GHS {{ ticket.price }}</td>
-                  <td>{{ ticket.quantity_available }}</td>
-                  <td>{{ ticket.purchases.count }}</td>
-                  <td class="text-end">
-                    <a
-                      href="{% url 'edit_ticket' ticket.id %}"
-                      class="btn btn-sm btn-outline-secondary me-1"
-                      ><i class="bi bi-pencil"></i
-                    ></a>
-                    <form
-                      action="{% url 'delete_ticket' ticket.id %}"
-                      method="POST"
-                      class="d-inline"
-                      onsubmit="return confirm('Delete this ticket?');">
-                      {% csrf_token %}
-                      <button
-                        type="submit"
-                        class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-trash"></i>
-                      </button>
+                {% endif %}
+                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                    <small class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i> {{ event.voting_codes.filter.is_used.count }} Used | <i class="bi bi-hourglass-split text-warning me-1"></i> {{ event.voting_codes.count }} Total | <a href="{% url 'download_codes' event.id %}" class="fw-bold text-wine ms-2"><i class="bi bi-download"></i> Export CSV</a></small>
+                    {% if event.voting_codes.count > 0 %}
+                    <form action="{% url 'clear_codes' event.id %}" method="POST" onsubmit="return confirm('Delete ALL codes?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i> Clear All</button>
                     </form>
-                  </td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td
-                    colspan="5"
-                    class="text-center text-muted py-4">
-                    <i
-                      class="bi bi-ticket-perforated fs-2 d-block mb-2 text-muted"></i>
-                    No tickets created yet. Click "Add Ticket" to get started.
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- 3. Voter Section (Semi-transparent white for contrast) -->
-  <div
-    class="p-4 rounded-4xl"
-    style="
-      background-color: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(5px);
-    ">
-    {% if event.categories.all %}
-    <!-- Instructions (Moved Above Tabs) -->
-    <div class="text-center mb-4">
-      <i
-        class="bi bi-arrow-down-circle fs-2 d-block mb-2"
-        style="color: var(--primary)"></i>
-      <h6
-        class="fw-bold mb-0"
-        style="color: var(--primary)">
-        Please select a category below to view the candidates.
-      </h6>
-    </div>
-
-    <!-- Tabs -->
-    <ul
-      class="nav nav-pills mb-5 justify-content-center gap-2"
-      id="categoryTabs"
-      role="tablist">
-      {% for category in event.categories.all %}
-      <li
-        class="nav-item"
-        role="presentation">
-        <div class="d-flex align-items-center gap-1">
-          <button
-            class="nav-link rounded-pill px-4 py-2 shadow-sm fw-bold cat-tab"
-            id="tab-{{ category.id }}"
-            data-bs-toggle="pill"
-            data-bs-target="#pane-{{ category.id }}"
-            type="button"
-            role="tab">
-            {{ category.name }}
-          </button>
-          {% if request.user == event.organizer or request.user.is_staff %}
-          <a
-            href="{% url 'edit_category' category.id %}"
-            class="btn btn-sm btn-outline-secondary rounded-pill py-1 px-2"
-            ><i class="bi bi-pencil"></i
-          ></a>
-          {% endif %}
-        </div>
-      </li>
-      {% endfor %}
-    </ul>
-
-    <!-- Tab Content -->
-    <div
-      class="tab-content"
-      id="categoryTabsContent">
-      {% for category in event.categories.all %}
-      <div
-        class="tab-pane fade"
-        id="pane-{{ category.id }}"
-        role="tabpanel">
-        <!-- BOLD CATEGORY HEADING WITH WHITE BACKGROUND -->
-        <div class="bg-white rounded-4xl shadow-soft p-3 mb-4 text-center">
-          <h4
-            class="fw-bold mb-0"
-            style="color: var(--primary)">
-            {{ category.name }}
-          </h4>
-        </div>
-
-        <div class="row g-4">
-          {% for candidate in candidates %} {% if candidate.category_id == category.id %}
-          <div class="col-md-4 mb-4">
-            <div
-              class="card text-center shadow-soft border-0 card-hover overflow-hidden rounded-4xl">
-              {% if candidate.image %}
-              <img
-                src="{{ candidate.image.url }}"
-                class="card-img-top"
-                alt="{{ candidate.name }}"
-                style="
-                  height: 250px;
-                  width: 100%;
-                  object-fit: contain;
-                  background-color: #f8f9fa;
-                " />
-              {% else %}
-              <div
-                class="bg-light d-flex align-items-center justify-content-center"
-                style="height: 250px">
-                <span class="text-muted">No Image</span>
-              </div>
-              {% endif %}
-              <div class="card-body d-flex flex-column">
-                <h5 class="card-title fw-bold mb-1">{{ candidate.name }}</h5>
-                <p class="card-text text-muted small">{{ candidate.bio }}</p>
-
-                <!-- DISPLAY NOMINEE CODE -->
-                {% if candidate.nominee_code %}
-                <div class="mb-2">
-                  <span class="badge bg-dark"
-                    >Nominee Code: {{ candidate.nominee_code }}</span
-                  >
-                </div>
-                {% endif %} {% if request.user == event.organizer or request.user.is_staff %}
-                <div class="mb-2 text-end">
-                  <a
-                    href="{% url 'edit_candidate' candidate.id %}"
-                    class="btn btn-sm btn-outline-secondary"
-                    ><i class="bi bi-pencil"></i> Edit</a
-                  >
-                </div>
-                {% endif %} {% if is_organizer_or_admin %}
-                <div class="mt-auto">
-                  <div
-                    class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="fw-bold"
-                      >Votes:
-                      <span id="vote-count-{{ candidate.id }}"
-                        >{{ candidate.vote_count }}</span
-                      ></span
-                    >
-                    <span
-                      class="badge"
-                      id="percentage-{{ candidate.id }}"
-                      style="
-                        background-color: var(--primary);
-                        color: var(--accent);
-                      "
-                      >{{ candidate.percentage }}%</span
-                    >
-                  </div>
-                  <!-- NEW: Tie-Breaker Votes Display -->
-                  <div
-                    class="d-flex justify-content-between align-items-center mb-1">
-                    <small class="text-muted"
-                      >Tie-Breaker Votes:
-                      <span id="tie-breaker-count-{{ candidate.id }}"
-                        >{{ candidate.tie_breaker_count }}</span
-                      ></small
-                    >
-                  </div>
-                  <div
-                    class="progress mb-3"
-                    style="height: 8px">
-                    <div
-                      class="progress-bar"
-                      id="progress-{{ candidate.id }}"
-                      role="progressbar"
-                      style="width: {{ candidate.percentage }}%; background-color: var(--primary);"
-                      aria-valuenow="{{ candidate.percentage }}"
-                      aria-valuemin="0.1"
-                      aria-valuemax="100"></div>
-                  </div>
-                </div>
-                {% else %}
-                <div class="mt-auto mb-3 text-muted small">
-                  <i>Votes are hidden until the event ends.</i>
-                </div>
-                {% endif %} 
-                {% if is_expired %}
-                <button
-                  class="btn btn-secondary w-100"
-                  disabled>
-                  Voting Closed
-                </button>
-                {% elif is_organizer_or_admin %}
-                <button
-                  class="btn btn-outline-secondary w-100"
-                  disabled>
-                  Organizer/Admin View
-                </button>
-                {% else %}
-                    {% if event.voting_mode == 'Code Voting' %}
-                        <!-- Code Voting: Open Ballot Modal -->
-                        <button type="button" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" data-bs-toggle="modal" data-bs-target="#ballotModal">
-                            Cast Vote
-                        </button>
-                    {% else %}
-                        <!-- Pay to Vote: Standard Inline Form -->
-                        <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">
-                            Vote for me
-                        </button>
-                        <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
-                            <!-- ... keep the existing pay to vote form here ... -->
-                        </div>
                     {% endif %}
-                {% endif %}
-                <div
-                  id="vote-form-{{ candidate.id }}"
-                  class="mt-3"
-                  style="display: none">
-                  {% if event.voting_mode == 'Code Voting' %}
-                  <!-- CODE VOTING FORM -->
-                  <form
-                    action="{% url 'cast_vote_with_code' candidate.id %}"
-                    method="POST">
+                </div>
+            </div></div>
+        </div>
+        {% endif %}
+
+        <button class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSetup">
+            <span class="fw-bold" style="font-size: 1.1rem;"><i class="bi bi-people-fill me-2"></i>Event Setup</span>
+            <i class="bi bi-chevron-down collapse-btn"></i>
+        </button>
+        <div class="collapse mb-3" id="collapseSetup">
+            <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
+                <form action="{% url 'add_category' event.id %}" method="POST" class="mb-4" id="add-category-form">
                     {% csrf_token %}
-                    <div class="mb-3 text-start">
-                      {% if event.code_voting_mode == 'Student ID' %}
-                      <label class="form-label small fw-bold">Student ID</label>
-                      <input
-                        type="text"
-                        name="identifier"
-                        class="form-control mb-2"
-                        placeholder="e.g., STD001"
-                        required />
-                      {% endif %}
-                      <label class="form-label small fw-bold"
-                        >Enter Voting Code</label
-                      >
-                      <input
-                        type="text"
-                        name="code"
-                        class="form-control text-uppercase"
-                        placeholder="e.g., A1B2C3D4 or TK-XXXXXX"
-                        required />
+                    <label class="form-label small fw-bold text-muted">Add New Category</label>
+                    <div class="input-group">
+                        <input type="text" name="name" class="form-control" placeholder="e.g., Best Female Artist" required>
+                        <button type="submit" class="btn btn-outline-secondary px-4">Add Category</button>
                     </div>
-                    <button
-                      type="submit"
-                      class="btn w-100"
-                      style="
-                        background-color: var(--primary);
-                        color: var(--accent);
-                        border: none;
-                      ">
-                      Submit Vote
-                    </button>
-                  </form>
-                  {% else %}
-                  <!-- PAY TO VOTE FORM -->
-                  <div class="mb-3 text-start">
-                    <div
-                      class="d-flex justify-content-between align-items-center mb-1">
-                      <label
-                        class="form-label small fw-bold mb-0"
-                        id="vote-label-{{ candidate.id }}"
-                        >Amount (₵{{ event.vote_price }} = 1 Vote)</label
-                      >
-                      {% if event.enable_tie_breaker %}
-                      <button
-                        type="button"
-                        class="btn btn-sm btn-outline-secondary py-0 px-2"
-                        onclick="toggleVoteMode({{ candidate.id }})"
-                        id="toggle-btn-{{ candidate.id }}">
-                        Cast Free Vote
-                      </button>
-                      {% endif %}
-                    </div>
-
-                    <!-- Donate Form (Default) -->
-                    <div id="donate-form-{{ candidate.id }}">
-                      <form
-                        action="{% url 'initiate_vote' candidate.id %}"
-                        method="POST">
-                        {% csrf_token %}
-                        <div class="input-group mb-2">
-                          <span class="input-group-text">₵</span>
-                          <input
-                            type="number"
-                            name="amount"
-                            class="form-control"
-                            min="1"
-                            placeholder="e.g., 50"
-                            required
-                            oninput="calculateVotes({{ candidate.id }}, '{{ candidate.name }}')" />
+                </form>
+                <label class="form-label small fw-bold text-muted">Add Contestant</label>
+                <form action="{% url 'add_candidate' event.id %}" method="POST" enctype="multipart/form-data" id="add-candidate-form">
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3"><input type="text" name="name" class="form-control" placeholder="Name" required></div>
+                        <div class="col-md-2"><input type="text" name="nominee_code" class="form-control" placeholder="Auto"></div>
+                        <div class="col-md-2"><input type="text" name="bio" class="form-control" placeholder="Bio"></div>
+                        <div class="col-md-2">
+                            <select name="category" class="form-select">
+                                <option value="">None</option>
+                                {% for cat in event.categories.all %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+                            </select>
                         </div>
-                        <div
-                          id="calc-text-{{ candidate.id }}"
-                          class="text-muted text-center mt-1"
-                          style="font-size: 0.9rem; min-height: 20px"></div>
-                        <button
-                          type="submit"
-                          class="btn w-100 mt-2"
-                          style="
-                            background-color: var(--primary);
-                            color: var(--accent);
-                            border: none;
-                          ">
-                          Confirm Vote
-                        </button>
-                      </form>
+                        <div class="col-md-2"><input type="file" name="image" class="form-control form-control-sm"></div>
+                        <div class="col-md-1"><button type="submit" class="btn btn-wine w-100"><i class="bi bi-plus-lg"></i></button></div>
                     </div>
-
-                    <!-- Ticket Form (Hidden by default) -->
-                    {% if event.enable_tie_breaker %}
-                    <div
-                      id="ticket-form-{{ candidate.id }}"
-                      style="display: none">
-                      <form
-                        action="{% url 'cast_vote_with_code' candidate.id %}"
-                        method="POST">
-                        {% csrf_token %}
-                        <div class="input-group mb-2">
-                          <input
-                            type="text"
-                            name="code"
-                            class="form-control text-uppercase"
-                            placeholder="e.g., TK-123456"
-                            required />
+                </form>
+                <hr class="my-4">
+                <label class="form-label small fw-bold text-muted">Bulk Add Contestants</label>
+                <form action="{% url 'bulk_add_candidates' event.id %}" method="POST" id="bulk-add-form">
+                    {% csrf_token %}
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-7"><textarea name="bulk_names" class="form-control" rows="4" placeholder="Paste names here (one per line)" required></textarea></div>
+                        <div class="col-md-4">
+                            <select name="bulk_category" class="form-select">
+                                <option value="">None</option>
+                                {% for cat in event.categories.all %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+                            </select>
                         </div>
-                        <small class="text-muted d-block text-center mb-2"
-                          >Enter your online ticket reference to cast free
-                          votes.</small
-                        >
-                        <button
-                          type="submit"
-                          class="btn w-100 mt-2"
-                          style="
-                            background-color: var(--primary);
-                            color: var(--accent);
-                            border: none;
-                          ">
-                          Submit Free Vote
-                        </button>
-                      </form>
+                        <div class="col-md-1"><button type="submit" class="btn btn-wine w-100"><i class="bi bi-plus-lg"></i></button></div>
                     </div>
-                    {% endif %}
-                  </div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
-          {% endif %} {% endfor %}
+                </form>
+            </div></div>
         </div>
-      </div>
-      {% endfor %}
-    </div>
 
-    {% else %}
-    <!-- Fallback: No categories, just show all candidates -->
-    <div class="row g-4">
-      {% for candidate in candidates %}
-      <div class="col-md-4 mb-4">
-        <div
-          class="card text-center shadow-soft border-0 card-hover overflow-hidden rounded-4xl">
-          {% if candidate.image %}
-          <img
-            src="{{ candidate.image.url }}"
-            class="card-img-top"
-            alt="{{ candidate.name }}"
-            style="
-              height: 250px;
-              width: 100%;
-              object-fit: contain;
-              background-color: #f8f9fa;
-            " />
-          {% else %}
-          <div
-            class="bg-light d-flex align-items-center justify-content-center"
-            style="height: 250px">
-            <span class="text-muted">No Image</span>
-          </div>
-          {% endif %}
-          <div class="card-body d-flex flex-column">
-            <h5 class="card-title fw-bold mb-1">{{ candidate.name }}</h5>
-            <p class="card-text text-muted small">{{ candidate.bio }}</p>
-
-            <!-- DISPLAY NOMINEE CODE -->
-            {% if candidate.nominee_code %}
-            <div class="mb-2">
-              <span class="badge bg-dark"
-                >Nominee Code: {{ candidate.nominee_code }}</span
-              >
-            </div>
-            {% endif %} {% if request.user == event.organizer or request.user.is_staff %}
-            <div class="mb-2 text-end">
-              <a
-                href="{% url 'edit_candidate' candidate.id %}"
-                class="btn btn-sm btn-outline-secondary"
-                ><i class="bi bi-pencil"></i> Edit</a
-              >
-            </div>
-            {% endif %} {% if is_organizer_or_admin %}
-            <div class="mt-auto">
-              <div
-                class="d-flex justify-content-between align-items-center mb-1">
-                <span class="fw-bold"
-                  >Votes:
-                  <span id="vote-count-{{ candidate.id }}"
-                    >{{ candidate.vote_count }}</span
-                  ></span
-                >
-                <span
-                  class="badge"
-                  id="percentage-{{ candidate.id }}"
-                  style="background-color: var(--primary); color: var(--accent)"
-                  >{{ candidate.percentage }}%</span
-                >
-              </div>
-              <!-- NEW: Tie-Breaker Votes Display -->
-              <div
-                class="d-flex justify-content-between align-items-center mb-1">
-                <small class="text-muted"
-                  >Tie-Breaker Votes:
-                  <span id="tie-breaker-count-{{ candidate.id }}"
-                    >{{ candidate.tie_breaker_count }}</span
-                  ></small
-                >
-              </div>
-              <div
-                class="progress mb-3"
-                style="height: 8px">
-                <div
-                  class="progress-bar"
-                  id="progress-{{ candidate.id }}"
-                  role="progressbar"
-                  style="width: {{ candidate.percentage }}%; background-color: var(--primary);"
-                  aria-valuenow="{{ candidate.percentage }}"
-                  aria-valuemin="0.1"
-                  aria-valuemax="100"></div>
-              </div>
-            </div>
-            {% else %}
-            <div class="mt-auto mb-3 text-muted small">
-              <i>Votes are hidden until the event ends.</i>
-            </div>
-            {% endif %} 
-            {% if is_expired %}
-            <button
-              class="btn btn-secondary w-100"
-              disabled>
-              Voting Closed
-            </button>
-            {% elif is_organizer_or_admin %}
-            <button
-              class="btn btn-outline-secondary w-100"
-              disabled>
-              Organizer/Admin View
-            </button>
-            {% else %}
-                {% if event.voting_mode == 'Code Voting' %}
-                    <!-- Code Voting: Open Ballot Modal -->
-                    <button type="button" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" data-bs-toggle="modal" data-bs-target="#ballotModal">
-                        Cast Vote
-                    </button>
-                {% else %}
-                    <!-- Pay to Vote: Standard Inline Form -->
-                    <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">
-                        Vote for me
-                    </button>
-                    <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
-                        <!-- ... keep the existing pay to vote form here ... -->
-                    </div>
-                {% endif %}
+        <button class="btn btn-wine w-100 p-3 mb-2 d-flex justify-content-between align-items-center collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTickets">
+            <span class="fw-bold" style="font-size: 1.1rem;"><i class="bi bi-ticket-perforated me-2"></i>Ticket Management</span>
+            <i class="bi bi-chevron-down collapse-btn"></i>
+        </button>
+        <div class="d-flex justify-content-end gap-2 mb-2">
+            {% if event.ticket_purchases.count > 0 %}
+            <a href="{% url 'event_guestlist' event.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-people-fill"></i> Guest List</a>
+            <a href="{% url 'event_scanner' event.id %}" class="btn btn-sm btn-success"><i class="bi bi-qr-code-scan"></i> Scanner</a>
             {% endif %}
-            
-            <div
-              id="vote-form-{{ candidate.id }}"
-              class="mt-3"
-              style="display: none">
-              {% if event.voting_mode == 'Code Voting' %}
-              <!-- CODE VOTING FORM -->
-              <form
-                action="{% url 'cast_vote_with_code' candidate.id %}"
-                method="POST">
-                {% csrf_token %}
-                <div class="mb-3 text-start">
-                  {% if event.code_voting_mode == 'Student ID' %}
-                  <label class="form-label small fw-bold">Student ID</label>
-                  <input
-                    type="text"
-                    name="identifier"
-                    class="form-control mb-2"
-                    placeholder="e.g., STD001"
-                    required />
-                  {% endif %}
-                  <label class="form-label small fw-bold"
-                    >Enter Voting Code</label
-                  >
-                  <input
-                    type="text"
-                    name="code"
-                    class="form-control text-uppercase"
-                    placeholder="e.g., A1B2C3D4 or TK-XXXXXX"
-                    required />
-                </div>
-                <button
-                  type="submit"
-                  class="btn w-100"
-                  style="
-                    background-color: var(--primary);
-                    color: var(--accent);
-                    border: none;
-                  ">
-                  Submit Vote
-                </button>
-              </form>
-              {% else %}
-              <!-- PAY TO VOTE FORM -->
-              <div class="mb-3 text-start">
-                <div
-                  class="d-flex justify-content-between align-items-center mb-1">
-                  <label
-                    class="form-label small fw-bold mb-0"
-                    id="vote-label-{{ candidate.id }}"
-                    >Amount (1 = 1 Vote)</label
-                  >
-                  {% if event.enable_tie_breaker %}
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary py-0 px-2"
-                    onclick="toggleVoteMode({{ candidate.id }})"
-                    id="toggle-btn-{{ candidate.id }}">
-                    Cast Free Vote
-                  </button>
-                  {% endif %}
-                </div>
-
-                <!-- Donate Form (Default) -->
-                <div id="donate-form-{{ candidate.id }}">
-                  <form
-                    action="{% url 'initiate_vote' candidate.id %}"
-                    method="POST">
-                    {% csrf_token %}
-                    <div class="input-group mb-2">
-                      <span class="input-group-text">₵</span>
-                      <input
-                        type="number"
-                        name="amount"
-                        class="form-control"
-                        min="1"
-                        placeholder="e.g., 50"
-                        required
-                        oninput="calculateVotes({{ candidate.id }}, '{{ candidate.name }}')" />
-                    </div>
-                    <div
-                      id="calc-text-{{ candidate.id }}"
-                      class="text-muted text-center mt-1"
-                      style="font-size: 0.9rem; min-height: 20px"></div>
-                    <button
-                      type="submit"
-                      class="btn w-100 mt-2"
-                      style="
-                        background-color: var(--primary);
-                        color: var(--accent);
-                        border: none;
-                      ">
-                      Confirm Vote
-                    </button>
-                  </form>
-                </div>
-
-                <!-- Ticket Form (Hidden by default) -->
-                {% if event.enable_tie_breaker %}
-                <div
-                  id="ticket-form-{{ candidate.id }}"
-                  style="display: none">
-                  <form
-                    action="{% url 'cast_vote_with_code' candidate.id %}"
-                    method="POST">
-                    {% csrf_token %}
-                    <div class="input-group mb-2">
-                      <input
-                        type="text"
-                        name="code"
-                        class="form-control text-uppercase"
-                        placeholder="e.g., TK-123456"
-                        required />
-                    </div>
-                    <small class="text-muted d-block text-center mb-2"
-                      >Enter your online ticket reference to cast free
-                      votes.</small
-                    >
-                    <button
-                      type="submit"
-                      class="btn w-100 mt-2"
-                      style="
-                        background-color: var(--primary);
-                        color: var(--accent);
-                        border: none;
-                      ">
-                      Submit Free Vote
-                    </button>
-                  </form>
-                </div>
-                {% endif %}
-              </div>
-              {% endif %}
-            </div>
-          </div>
+            <a href="{% url 'create_ticket' event.id %}" class="btn btn-sm btn-wine"><i class="bi bi-plus-lg"></i> Add Ticket</a>
         </div>
-      </div>
-      {% endfor %}
+        <div class="collapse mb-3" id="collapseTickets">
+            <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr class="text-muted" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;">
+                            <th>Ticket Type</th><th>Price</th><th>Available</th><th>Sold</th><th class="text-end">Actions</th>
+                        </tr></thead>
+                        <tbody>
+                            {% for ticket in event.tickets.all %}
+                            <tr>
+                                <td class="fw-bold">{{ ticket.name }} {% if not ticket.is_active %}<span class="badge bg-danger ms-1">Hidden</span>{% endif %}</td>
+                                <td>₵{{ ticket.price }}</td><td>{{ ticket.quantity_available }}</td><td>{{ ticket.purchases.count }}</td>
+                                <td class="text-end">
+                                    <a href="{% url 'edit_ticket' ticket.id %}" class="btn btn-sm btn-outline-secondary me-1"><i class="bi bi-pencil"></i></a>
+                                    <form action="{% url 'delete_ticket' ticket.id %}" method="POST" class="d-inline" onsubmit="return confirm('Delete ticket?');">
+                                        {% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center text-muted py-4">No tickets created yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div></div>
+        </div>
     </div>
     {% endif %}
-  </div>
-    <!-- Digital Ballot Modal -->
-  <div class="modal fade" id="ballotModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-          <div class="modal-content">
-              <div class="modal-header bg-wine">
-                  <h5 class="modal-title text-gold"><i class="bi bi-card-checklist me-2"></i>Cast Your Ballot</h5>
-                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <div class="modal-body p-4">
-                  
-                  <!-- Step 1: Code Entry -->
-                  <div id="ballot-step-1">
-                      <h6 class="fw-bold text-wine mb-3">Enter your voting details to access the ballot.</h6>
-                      <form id="ballot-code-form">
-                          {% csrf_token %}
-                          {% if event.code_voting_mode == 'Student ID' %}
-                          <div class="mb-3">
-                              <label class="form-label small fw-bold text-muted">Student ID</label>
-                              <input type="text" id="ballot_identifier" class="form-control" placeholder="e.g., STD001" required>
-                          </div>
-                          {% endif %}
-                          <div class="mb-3">
-                              <label class="form-label small fw-bold text-muted">Voting Code</label>
-                              <input type="text" id="ballot_code" class="form-control text-uppercase" placeholder="e.g., A1B2C3D4" required>
-                          </div>
-                          <button type="submit" class="btn btn-wine w-100 fw-bold">Access Ballot</button>
-                      </form>
-                  </div>
 
-                  <!-- Step 2: Ballot (Hidden by default) -->
-                  <div id="ballot-step-2" style="display: none;">
-                      <div id="ballot-error" class="alert alert-danger" style="display: none;"></div>
-                      <form id="ballot-submit-form">
-                          <div id="ballot-content"></div>
-                          <button type="submit" class="btn btn-success w-100 mt-3 fw-bold"><i class="bi bi-check2-circle me-1"></i> Submit Ballot</button>
-                      </form>
-                  </div>
+    <!-- Voter Section -->
+    <div class="p-4 rounded-4" style="background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(5px);">
+        {% if event.categories.all %}
+        <div class="text-center mb-4">
+            <i class="bi bi-arrow-down-circle fs-2 d-block mb-2" style="color: var(--primary);"></i>
+            <h6 class="fw-bold mb-0" style="color: var(--primary);">Please select a category below to view the candidates.</h6>
+        </div>
+        <ul class="nav nav-pills mb-5 justify-content-center gap-2" id="categoryTabs" role="tablist">
+            {% for category in event.categories.all %}
+            <li class="nav-item" role="presentation">
+                <div class="d-flex align-items-center gap-1">
+                    <button class="nav-link rounded-pill px-4 py-2 shadow-sm fw-bold cat-tab" data-bs-toggle="pill" data-bs-target="#pane-{{ category.id }}" type="button">{{ category.name }}</button>
+                    {% if request.user == event.organizer or request.user.is_staff %}
+                    <a href="{% url 'edit_category' category.id %}" class="btn btn-sm btn-outline-secondary rounded-pill py-1 px-2"><i class="bi bi-pencil"></i></a>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        <div class="tab-content" id="categoryTabsContent">
+            {% for category in event.categories.all %}
+            <div class="tab-pane fade" id="pane-{{ category.id }}" role="tabpanel">
+                <div class="bg-white rounded-4 shadow-sm p-3 mb-4 text-center"><h4 class="fw-bold mb-0" style="color: var(--primary);">{{ category.name }}</h4></div>
+                <div class="row g-4">
+                    {% for candidate in candidates %}
+                    {% if candidate.category_id == category.id %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card text-center shadow border-0 card-hover overflow-hidden rounded-4 h-100">
+                            {% if candidate.image %}<img src="{{ candidate.image.url }}" class="card-img-top" alt="{{ candidate.name }}" style="height: 250px; width: 100%; object-fit: contain; background-color: #f8f9fa;">
+                            {% else %}<div class="bg-light d-flex align-items-center justify-content-center" style="height: 250px;"><span class="text-muted">No Image</span></div>{% endif %}
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title fw-bold mb-1">{{ candidate.name }}</h5>
+                                <p class="card-text text-muted small">{{ candidate.bio }}</p>
+                                {% if candidate.nominee_code %}<div class="mb-2"><span class="badge bg-dark">Nominee Code: {{ candidate.nominee_code }}</span></div>{% endif %}
+                                {% if request.user == event.organizer or request.user.is_staff %}
+                                <div class="mb-2 text-end"><a href="{% url 'edit_candidate' candidate.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Edit</a></div>
+                                {% endif %}
+                                {% if is_organizer_or_admin %}
+                                <div class="mt-auto">
+                                    <div class="d-flex justify-content-between align-items-center mb-1"><span class="fw-bold">Votes: <span id="vote-count-{{ candidate.id }}">{{ candidate.vote_count }}</span></span><span class="badge" id="percentage-{{ candidate.id }}" style="background-color: var(--primary); color: var(--accent);">{{ candidate.percentage }}%</span></div>
+                                    <div class="d-flex justify-content-between align-items-center mb-1"><small class="text-muted">Tie-Breaker: <span id="tie-breaker-count-{{ candidate.id }}">{{ candidate.tie_breaker_count }}</span></small></div>
+                                    <div class="progress mb-3" style="height: 8px;"><div class="progress-bar" id="progress-{{ candidate.id }}" role="progressbar" style="width: {{ candidate.percentage }}%; background-color: var(--primary);"></div></div>
+                                </div>
+                                {% else %}
+                                <div class="mt-auto mb-3 text-muted small"><i>Votes are hidden until the event ends.</i></div>
+                                {% endif %}
 
-                  <!-- Step 3: Success (Hidden by default) -->
-                  <div id="ballot-step-3" class="text-center" style="display: none;">
-                      <i class="bi bi-check-circle-fill text-success fs-1 mb-3"></i>
-                      <h5 class="fw-bold text-wine">Ballot Cast Successfully!</h5>
-                      <p class="text-muted" id="ballot-success-msg"></p>
-                  </div>
+                                {% if is_expired %}
+                                <button class="btn btn-secondary w-100" disabled>Voting Closed</button>
+                                {% elif is_organizer_or_admin %}
+                                <button class="btn btn-outline-secondary w-100" disabled>Organizer/Admin View</button>
+                                {% else %}
+                                    {% if event.voting_mode == 'Code Voting' %}
+                                    <button type="button" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" data-bs-toggle="modal" data-bs-target="#ballotModal">Cast Vote</button>
+                                    {% else %}
+                                    <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">Vote for me</button>
+                                    <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
+                                        <div class="mb-3 text-start">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <label class="form-label small fw-bold mb-0">Amount (₵{{ event.vote_price }} = 1 Vote)</label>
+                                                {% if event.enable_tie_breaker %}<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleVoteMode({{ candidate.id }})" id="toggle-btn-{{ candidate.id }}">Cast Free Vote</button>{% endif %}
+                                            </div>
+                                            <div id="donate-form-{{ candidate.id }}">
+                                                <form action="{% url 'initiate_vote' candidate.id %}" method="POST">
+                                                    {% csrf_token %}
+                                                    <div class="input-group mb-2"><span class="input-group-text">₵</span><input type="number" name="amount" class="form-control" min="1" placeholder="e.g., 50" required oninput="calculateVotes({{ candidate.id }}, '{{ candidate.name }}')"></div>
+                                                    <div id="calc-text-{{ candidate.id }}" class="text-muted text-center mt-1" style="font-size: 0.9rem; min-height: 20px"></div>
+                                                    <button type="submit" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none;">Confirm Vote</button>
+                                                </form>
+                                            </div>
+                                            {% if event.enable_tie_breaker %}
+                                            <div id="ticket-form-{{ candidate.id }}" style="display: none;">
+                                                <form action="{% url 'cast_vote_with_code' candidate.id %}" method="POST">
+                                                    {% csrf_token %}
+                                                    <div class="input-group mb-2"><input type="text" name="code" class="form-control text-uppercase" placeholder="e.g., TK-123456" required></div>
+                                                    <small class="text-muted d-block text-center mb-2">Enter ticket reference to cast free votes.</small>
+                                                    <button type="submit" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none;">Submit Free Vote</button>
+                                                </form>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="row g-4">
+            {% for candidate in candidates %}
+            <div class="col-md-4 mb-4">
+                <div class="card text-center shadow border-0 card-hover overflow-hidden rounded-4 h-100">
+                    {% if candidate.image %}<img src="{{ candidate.image.url }}" class="card-img-top" alt="{{ candidate.name }}" style="height: 250px; width: 100%; object-fit: contain; background-color: #f8f9fa;">
+                    {% else %}<div class="bg-light d-flex align-items-center justify-content-center" style="height: 250px;"><span class="text-muted">No Image</span></div>{% endif %}
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title fw-bold mb-1">{{ candidate.name }}</h5>
+                        <p class="card-text text-muted small">{{ candidate.bio }}</p>
+                        {% if candidate.nominee_code %}<div class="mb-2"><span class="badge bg-dark">Nominee Code: {{ candidate.nominee_code }}</span></div>{% endif %}
+                        {% if request.user == event.organizer or request.user.is_staff %}
+                        <div class="mb-2 text-end"><a href="{% url 'edit_candidate' candidate.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i> Edit</a></div>
+                        {% endif %}
+                        {% if is_organizer_or_admin %}
+                        <div class="mt-auto">
+                            <div class="d-flex justify-content-between align-items-center mb-1"><span class="fw-bold">Votes: <span id="vote-count-{{ candidate.id }}">{{ candidate.vote_count }}</span></span><span class="badge" id="percentage-{{ candidate.id }}" style="background-color: var(--primary); color: var(--accent);">{{ candidate.percentage }}%</span></div>
+                            <div class="d-flex justify-content-between align-items-center mb-1"><small class="text-muted">Tie-Breaker: <span id="tie-breaker-count-{{ candidate.id }}">{{ candidate.tie_breaker_count }}</span></small></div>
+                            <div class="progress mb-3" style="height: 8px;"><div class="progress-bar" id="progress-{{ candidate.id }}" role="progressbar" style="width: {{ candidate.percentage }}%; background-color: var(--primary);"></div></div>
+                        </div>
+                        {% else %}
+                        <div class="mt-auto mb-3 text-muted small"><i>Votes are hidden until the event ends.</i></div>
+                        {% endif %}
 
-              </div>
-          </div>
-      </div>
-  </div>
+                        {% if is_expired %}
+                        <button class="btn btn-secondary w-100" disabled>Voting Closed</button>
+                        {% elif is_organizer_or_admin %}
+                        <button class="btn btn-outline-secondary w-100" disabled>Organizer/Admin View</button>
+                        {% else %}
+                            {% if event.voting_mode == 'Code Voting' %}
+                            <button type="button" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" data-bs-toggle="modal" data-bs-target="#ballotModal">Cast Vote</button>
+                            {% else %}
+                            <button type="button" id="vote-btn-{{ candidate.id }}" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none; font-weight: 600;" onclick="toggleVoteForm({{ candidate.id }})">Vote for me</button>
+                            <div id="vote-form-{{ candidate.id }}" class="mt-3" style="display: none;">
+                                <div class="mb-3 text-start">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <label class="form-label small fw-bold mb-0">Amount (₵{{ event.vote_price }} = 1 Vote)</label>
+                                        {% if event.enable_tie_breaker %}<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="toggleVoteMode({{ candidate.id }})" id="toggle-btn-{{ candidate.id }}">Cast Free Vote</button>{% endif %}
+                                    </div>
+                                    <div id="donate-form-{{ candidate.id }}">
+                                        <form action="{% url 'initiate_vote' candidate.id %}" method="POST">
+                                            {% csrf_token %}
+                                            <div class="input-group mb-2"><span class="input-group-text">₵</span><input type="number" name="amount" class="form-control" min="1" placeholder="e.g., 50" required oninput="calculateVotes({{ candidate.id }}, '{{ candidate.name }}')"></div>
+                                            <div id="calc-text-{{ candidate.id }}" class="text-muted text-center mt-1" style="font-size: 0.9rem; min-height: 20px"></div>
+                                            <button type="submit" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none;">Confirm Vote</button>
+                                        </form>
+                                    </div>
+                                    {% if event.enable_tie_breaker %}
+                                    <div id="ticket-form-{{ candidate.id }}" style="display: none;">
+                                        <form action="{% url 'cast_vote_with_code' candidate.id %}" method="POST">
+                                            {% csrf_token %}
+                                            <div class="input-group mb-2"><input type="text" name="code" class="form-control text-uppercase" placeholder="e.g., TK-123456" required></div>
+                                            <small class="text-muted d-block text-center mb-2">Enter ticket reference to cast free votes.</small>
+                                            <button type="submit" class="btn w-100 mt-2" style="background-color: var(--primary); color: var(--accent); border: none;">Submit Free Vote</button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Digital Ballot Modal -->
+<div class="modal fade" id="ballotModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-wine">
+                <h5 class="modal-title text-gold"><i class="bi bi-card-checklist me-2"></i>Cast Your Ballot</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="ballot-step-1">
+                    <h6 class="fw-bold text-wine mb-3">Enter your voting details to access the ballot.</h6>
+                    <form id="ballot-code-form">
+                        {% csrf_token %}
+                        {% if event.code_voting_mode == 'Student ID' %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">Student ID</label>
+                            <input type="text" id="ballot_identifier" class="form-control" placeholder="e.g., STD001" required>
+                        </div>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">Voting Code</label>
+                            <input type="text" id="ballot_code" class="form-control text-uppercase" placeholder="e.g., A1B2C3D4" required>
+                        </div>
+                        <button type="submit" class="btn btn-wine w-100 fw-bold">Access Ballot</button>
+                    </form>
+                </div>
+                <div id="ballot-step-2" style="display: none;">
+                    <div id="ballot-error" class="alert alert-danger" style="display: none;"></div>
+                    <form id="ballot-submit-form">
+                        <div id="ballot-content"></div>
+                        <button type="submit" class="btn btn-success w-100 mt-3 fw-bold"><i class="bi bi-check2-circle me-1"></i> Submit Ballot</button>
+                    </form>
+                </div>
+                <div id="ballot-step-3" class="text-center" style="display: none;">
+                    <i class="bi bi-check-circle-fill text-success fs-1 mb-3"></i>
+                    <h5 class="fw-bold text-wine">Ballot Cast Successfully!</h5>
+                    <p class="text-muted" id="ballot-success-msg"></p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
-  // Toggle the inline form visibility (Accordion style)
-  function toggleVoteForm(candidateId) {
-      document.querySelectorAll('[id^="vote-form-"]').forEach(form => {
-          if (form.id !== `vote-form-${candidateId}`) {
-              form.style.display = 'none';
-              const otherBtnId = form.id.replace('vote-form-', 'vote-btn-');
-              document.getElementById(otherBtnId).style.display = 'block';
-          }
-      });
+    function toggleVoteForm(candidateId) {
+        document.querySelectorAll('[id^="vote-form-"]').forEach(form => {
+            if (form.id !== `vote-form-${candidateId}`) {
+                form.style.display = 'none';
+                const otherBtnId = form.id.replace('vote-form-', 'vote-btn-');
+                if (document.getElementById(otherBtnId)) document.getElementById(otherBtnId).style.display = 'block';
+            }
+        });
+        const formDiv = document.getElementById(`vote-form-${candidateId}`);
+        const btnDiv = document.getElementById(`vote-btn-${candidateId}`);
+        if (formDiv.style.display === 'none' || formDiv.style.display === '') {
+            formDiv.style.display = 'block';
+            btnDiv.style.display = 'none';
+        } else {
+            formDiv.style.display = 'none';
+            btnDiv.style.display = 'block';
+        }
+    }
 
-      const formDiv = document.getElementById(`vote-form-${candidateId}`);
-      const btnDiv = document.getElementById(`vote-btn-${candidateId}`);
+    function toggleVoteMode(candidateId) {
+        const donateForm = document.getElementById(`donate-form-${candidateId}`);
+        const ticketForm = document.getElementById(`ticket-form-${candidateId}`);
+        const toggleBtn = document.getElementById(`toggle-btn-${candidateId}`);
+        if (ticketForm.style.display === 'none') {
+            donateForm.style.display = 'none';
+            ticketForm.style.display = 'block';
+            toggleBtn.innerText = 'Normal Voting';
+        } else {
+            donateForm.style.display = 'block';
+            ticketForm.style.display = 'none';
+            toggleBtn.innerText = 'Cast Free Vote';
+        }
+    }
 
-      if (formDiv.style.display === 'none' || formDiv.style.display === '') {
-          formDiv.style.display = 'block';
-          btnDiv.style.display = 'none';
-      } else {
-          formDiv.style.display = 'none';
-          btnDiv.style.display = 'block';
-      }
-  }
+    function calculateVotes(candidateId, candidateName) {
+        const amountInput = document.querySelector(`#donate-form-${candidateId} input[name="amount"]`);
+        const calcText = document.getElementById(`calc-text-${candidateId}`);
+        const amount = parseInt(amountInput.value);
+        const votePrice = parseFloat('{{ event.vote_price }}') || 1;
+        if (amount > 0) {
+            const votes = Math.floor(amount / votePrice);
+            calcText.innerHTML = `You are giving <b>${votes}</b> votes to <b>${candidateName}</b>`;
+            calcText.style.color = '#1E1E1E';
+        } else { calcText.innerHTML = ''; }
+    }
 
-  // NEW: Toggle between Donate Form and Ticket Form
-  function toggleVoteMode(candidateId) {
-      const donateForm = document.getElementById(`donate-form-${candidateId}`);
-      const ticketForm = document.getElementById(`ticket-form-${candidateId}`);
-      const toggleBtn = document.getElementById(`toggle-btn-${candidateId}`);
-      const voteLabel = document.getElementById(`vote-label-${candidateId}`);
+    const eventId = window.location.pathname.split('/')[2];
 
-      if (ticketForm.style.display === 'none') {
-          donateForm.style.display = 'none';
-          ticketForm.style.display = 'block';
-          toggleBtn.innerText = 'Normal Voting';
-          voteLabel.innerText = 'Ticket Reference';
-      } else {
-          donateForm.style.display = 'block';
-          ticketForm.style.display = 'none';
-          toggleBtn.innerText = 'Cast Free Vote';
-          voteLabel.innerText = 'Amount (1 = 1 Vote)';
-      }
-  }
+    async function updateVotes() {
+        const response = await fetch(`/event/${eventId}/live-counts/`);
+        const data = await response.json();
+        data.candidates.forEach(candidate => {
+            const countElement = document.getElementById(`vote-count-${candidate.id}`);
+            if (countElement) countElement.innerText = candidate.votes;
+            const tieBreakerElement = document.getElementById(`tie-breaker-count-${candidate.id}`);
+            if (tieBreakerElement) tieBreakerElement.innerText = candidate.tie_breakers;
+            const percentageElement = document.getElementById(`percentage-${candidate.id}`);
+            if (percentageElement) percentageElement.innerText = `${candidate.percentage}%`;
+            const progressBar = document.getElementById(`progress-${candidate.id}`);
+            if (progressBar) {
+                progressBar.style.width = `${candidate.percentage}%`;
+                progressBar.setAttribute('aria-valuenow', candidate.percentage);
+            }
+        });
+    }
+    {% if is_organizer_or_admin %} setInterval(updateVotes, 5000); {% endif %}
 
-  // Real-time calculator for the inline form
-   function calculateVotes(candidateId, candidateName) {
-       const amountInput = document.querySelector(`#donate-form-${candidateId} input[name="amount"]`);
-       const calcText = document.getElementById(`calc-text-${candidateId}`);
-       const amount = parseInt(amountInput.value);
-       const votePrice = parseFloat('{{ event.vote_price }}') || 1;
+    function startCountdown() {
+        const endDateStr = "{{ event.end_date|date:'c' }}";
+        const endDate = new Date(endDateStr).getTime();
+        const timer = setInterval(function() {
+            const now = new Date().getTime();
+            const distance = endDate - now;
+            if (distance < 0) {
+                clearInterval(timer);
+                document.getElementById("countdown-container").innerHTML = "<h5 class='text-danger mb-0'>Voting Has Ended</h5>";
+                return;
+            }
+            document.getElementById("days").innerText = Math.floor(distance / (1000 * 60 * 60 * 24));
+            document.getElementById("hours").innerText = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            document.getElementById("minutes").innerText = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            document.getElementById("seconds").innerText = Math.floor((distance % (1000 * 60)) / 1000);
+        }, 1000);
+    }
+    startCountdown();
 
-       if (amount > 0) {
-           const votes = Math.floor(amount / votePrice);
-           calcText.innerHTML = `You are giving <b>${votes}</b> votes to <b>${candidateName}</b>`;
-           calcText.style.color = '#1E1E1E';
-       } else {
-           calcText.innerHTML = '';
-       }
-   }
-
-  const eventId = window.location.pathname.split('/')[2];
-
-  // Live Vote Counts (Only runs if the user is an Admin/Organizer)
-  async function updateVotes() {
-      const response = await fetch(`/event/${eventId}/live-counts/`);
-      const data = await response.json();
-
-      data.candidates.forEach(candidate => {
-          // Update Main Votes
-          const countElement = document.getElementById(`vote-count-${candidate.id}`);
-          if (countElement && countElement.innerText != candidate.votes) {
-              countElement.innerText = candidate.votes;
-              countElement.classList.remove('vote-pulse');
-              void countElement.offsetWidth; // restart the animation if it's already mid-flight
-              countElement.classList.add('vote-pulse');
-          }
-
-          // Update Tie-Breaker Votes
-          const tieBreakerElement = document.getElementById(`tie-breaker-count-${candidate.id}`);
-          if (tieBreakerElement) {
-              tieBreakerElement.innerText = candidate.tie_breakers;
-          }
-
-          // Update Percentage
-          const percentageElement = document.getElementById(`percentage-${candidate.id}`);
-          if (percentageElement) {
-              percentageElement.innerText = `${candidate.percentage}%`;
-          }
-
-          // Update Progress Bar
-          const progressBar = document.getElementById(`progress-${candidate.id}`);
-          if (progressBar) {
-              progressBar.style.width = `${candidate.percentage}%`;
-              progressBar.setAttribute('aria-valuenow', candidate.percentage);
-          }
-      });
-  }
-
-  // ONLY poll the server if the user can actually see the votes!
-  {% if is_organizer_or_admin %}
-      setInterval(updateVotes, 5000);
-  {% endif %}
-
-  // Countdown Timer Logic
-  function startCountdown() {
-      const endDateStr = "{{ event.end_date|date:'c' }}";
-      const endDate = new Date(endDateStr).getTime();
-
-      const timer = setInterval(function() {
-          const now = new Date().getTime();
-          const distance = endDate - now;
-
-          if (distance < 0) {
-              clearInterval(timer);
-              document.getElementById("countdown-container").innerHTML = "<h5 class='text-danger mb-0'>Voting Has Ended</h5>";
-              return;
-          }
-
-          const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-          document.getElementById("days").innerText = days;
-          document.getElementById("hours").innerText = hours;
-          document.getElementById("minutes").innerText = minutes;
-          document.getElementById("seconds").innerText = seconds;
-      }, 1000);
-  }
-
-  startCountdown();
-
-      // ==========================================
     // DIGITAL BALLOT LOGIC
-    // ==========================================
     const ballotCodeForm = document.getElementById('ballot-code-form');
     const ballotSubmitForm = document.getElementById('ballot-submit-form');
-    const eventId = '{{ event.id }}';
 
     if (ballotCodeForm) {
         ballotCodeForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const code = document.getElementById('ballot_code').value;
             const identifier = document.getElementById('ballot_identifier') ? document.getElementById('ballot_identifier').value : '';
-
             fetch(`/event/${eventId}/validate-ballot/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
@@ -1407,17 +536,11 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Build Ballot
                     let html = '';
                     data.categories.forEach(cat => {
                         html += `<h6 class="fw-bold text-wine mt-3 mb-2">${cat.name}</h6>`;
                         cat.candidates.forEach(c => {
-                            html += `
-                                <div class="form-check mb-2">
-                                    <input class="form-check-input" type="radio" name="cat-${cat.id}" value="${c.id}" id="cand-${c.id}">
-                                    <label class="form-check-label" for="cand-${c.id}">${c.name}</label>
-                                </div>
-                            `;
+                            html += `<div class="form-check mb-2"><input class="form-check-input" type="radio" name="cat-${cat.id}" value="${c.id}" id="cand-${c.id}"><label class="form-check-label" for="cand-${c.id}">${c.name}</label></div>`;
                         });
                     });
                     document.getElementById('ballot-content').innerHTML = html;
@@ -1436,14 +559,10 @@
             const code = document.getElementById('ballot_code').value;
             const identifier = document.getElementById('ballot_identifier') ? document.getElementById('ballot_identifier').value : '';
             const votes = {};
-            
-            // Collect radio button selections
-            const radios = document.querySelectorAll('#ballot-content input[type="radio"]:checked');
-            radios.forEach(r => {
+            document.querySelectorAll('#ballot-content input[type="radio"]:checked').forEach(r => {
                 const catId = r.name.replace('cat-', '');
                 votes[catId] = r.value;
             });
-
             fetch(`/event/${eventId}/cast-ballot/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
@@ -1455,7 +574,7 @@
                     document.getElementById('ballot-step-2').style.display = 'none';
                     document.getElementById('ballot-success-msg').innerText = data.message;
                     document.getElementById('ballot-step-3').style.display = 'block';
-                    setTimeout(() => location.reload(), 3000); // Reload after 3s to update counts
+                    setTimeout(() => location.reload(), 3000);
                 } else {
                     const errDiv = document.getElementById('ballot-error');
                     errDiv.innerText = data.message;
@@ -1465,89 +584,36 @@
         });
     }
 
-  // ==========================================
-  // AJAX FORM SUBMISSIONS (NO PAGE RELOAD)
-  // ==========================================
-
-  // 1. Add Category Form
-  const addCategoryForm = document.getElementById('add-category-form');
-  if (addCategoryForm) {
-      addCategoryForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const formData = new FormData(this);
-
-          fetch(this.action, {
-              method: 'POST',
-              body: formData,
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
-          })
-          .then(res => res.json())
-          .then(data => {
-              if (data.status === 'success') {
-                  // Reload the page to show the new tab cleanly (fastest way)
-                  // For a true SPA feel, we'd inject the tab, but reload is safe and easy
-                  location.reload();
-              }
-          });
-      });
-  }
-
-  // 2. Add Candidate Form
-  const addCandidateForm = document.getElementById('add-candidate-form');
-  if (addCandidateForm) {
-      addCandidateForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const formData = new FormData(this);
-          const submitBtn = this.querySelector('button[type="submit"]');
-          submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
-          submitBtn.disabled = true;
-
-          fetch(this.action, {
-              method: 'POST',
-              body: formData,
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
-          })
-          .then(res => res.json())
-          .then(data => {
-              if (data.status === 'success') {
-                  // Instantly reload the page to show the new candidate in the tab
-                  window.location.reload();
-              } else {
-                  alert('Error adding candidate.');
-                  submitBtn.disabled = false;
-                  submitBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
-              }
-          })
-          .catch(err => {
-              alert('Network error.');
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
-          });
-      });
-  }
-
-  // 3. Bulk Add Candidates Form
-  const bulkAddForm = document.getElementById('bulk-add-form');
-  if (bulkAddForm) {
-      bulkAddForm.addEventListener('submit', function(e) {
-          e.preventDefault();
-          const formData = new FormData(this);
-
-          fetch(this.action, {
-              method: 'POST',
-              body: formData,
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
-          })
-          .then(res => res.json())
-          .then(data => {
-              if (data.status === 'success') {
-                  alert(data.count + ' contestants added successfully!');
-                  location.reload(); // Reload to show the new candidates
-              } else {
-                  alert(data.message || 'An error occurred.');
-              }
-          });
-      });
-  }
+    // AJAX FORM SUBMISSIONS
+    const addCategoryForm = document.getElementById('add-category-form');
+    if (addCategoryForm) {
+        addCategoryForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch(this.action, { method: 'POST', body: new FormData(this), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json()).then(data => { if (data.status === 'success') location.reload(); });
+        });
+    }
+    const addCandidateForm = document.getElementById('add-candidate-form');
+    if (addCandidateForm) {
+        addCandidateForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const submitBtn = this.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch(this.action, { method: 'POST', body: new FormData(this), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json()).then(data => { if (data.status === 'success') window.location.reload(); })
+            .catch(err => { alert('Network error.'); submitBtn.innerHTML = '<i class="bi bi-plus-lg"></i>'; });
+        });
+    }
+    const bulkAddForm = document.getElementById('bulk-add-form');
+    if (bulkAddForm) {
+        bulkAddForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            fetch(this.action, { method: 'POST', body: new FormData(this), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json()).then(data => {
+                if (data.status === 'success') { alert(data.count + ' contestants added!'); location.reload(); }
+                else { alert(data.message || 'Error.'); }
+            });
+        });
+    }
 </script>
 {% endblock %}
