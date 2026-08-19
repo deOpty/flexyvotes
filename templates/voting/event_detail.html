@@ -41,6 +41,15 @@
                     <h5 class="mb-2 fw-bold" style="color: var(--accent);"><i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!</h5>
                     <p class="small mb-3" style="color: #fff; opacity: 0.9;">Secure your entry for this event now.</p>
                     <a href="{% url 'event_tickets' event.id %}" class="btn btn-gold fw-bold">Buy Tickets Here</a>
+                    <h5 class="mb-2 fw-bold" style="color: var(--accent);"><i class="bi bi-ticket-perforated-fill me-2"></i>Tickets Available!</h5>
+                    <p class="small mb-3" style="color: #fff; opacity: 0.9;">Secure your entry for this event now.</p>
+                    <a href="{% url 'event_tickets' event.id %}" class="btn btn-gold fw-bold">Buy Tickets Here</a>
+                </div>
+                {% else %}
+                <div class="p-4 rounded-3 text-center h-100 d-flex flex-column justify-content-center bg-light border">
+                    <h5 class="mb-2 fw-bold text-muted"><i class="bi bi-info-circle me-2"></i>No Tickets Required</h5>
+                    <p class="small mb-0 text-muted">This is a free entry or voting-only event.</p>
+                </div>
                 </div>
                 {% endif %}
             </div>
@@ -120,7 +129,7 @@
                 </div>
                 {% endif %}
                 <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-                    <small class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i> {{ event.voting_codes.filter.is_used.count }} Used | <i class="bi bi-hourglass-split text-warning me-1"></i> {{ event.voting_codes.count }} Total | <a href="{% url 'download_codes' event.id %}" class="fw-bold text-wine ms-2"><i class="bi bi-download"></i> Export CSV</a></small>
+                    <small class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i> {{ used_codes_count }} Used | <i class="bi bi-hourglass-split text-warning me-1"></i> {{ event.voting_codes.count }} Total | <a href="{% url 'download_codes' event.id %}" class="fw-bold text-wine ms-2"><i class="bi bi-download"></i> Export CSV</a></small>
                     {% if event.voting_codes.count > 0 %}
                     <form action="{% url 'clear_codes' event.id %}" method="POST" onsubmit="return confirm('Delete ALL codes?');">
                         {% csrf_token %}

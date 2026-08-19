@@ -180,17 +180,16 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.product.name}"
-    @property
-    def discount_percentage(self):
-        if self.old_price and self.old_price > self.price:
-            discount = ((self.old_price - self.price) / self.old_price) * 100
-            return int(discount)
-        return 0
-    
+
 class VotingCode(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='voting_codes')
-    # REMOVED unique=True from here
-    code = models.CharField(max_length=50, default=uuid.uuid4().hex[:8].upper())
+    # Uniqueness is enforced per-event via Meta.unique_together below, not
+    # globally on this field. The default MUST be a callable (not a
+    # pre-computed value) - a plain value here is evaluated exactly once at
+    # class-definition time, so every VotingCode created without an explicit
+    # code would silently get the *same* value, colliding on the very next
+    # save for the same event.
+    code = models.CharField(max_length=50, default=generate_voting_code)
     voter_identifier = models.CharField(max_length=100, blank=True, null=True) 
     is_used = models.BooleanField(default=False)
     used_at = models.DateTimeField(null=True, blank=True)
