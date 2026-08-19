@@ -21,3 +21,43 @@
 ---
 
 Add pgAdmin front so the admin can login and access the data on the server. pgAdmin image is already on the server. Add a front so admins can login and access data.
+
+---
+
+---
+
+1. Fix the admin event approval from the admin dashboard so that admins can approve newly created events before they are displayed in the home screen. Add a button to the actions for events pending approval.
+
+2. All amount input fields can not be negative value as prices are suppose to be positive. Check all input field and make sure they don't enter a negative value.
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---

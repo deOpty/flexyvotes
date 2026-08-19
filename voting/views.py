@@ -12,7 +12,6 @@ from decimal import Decimal, InvalidOperation
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.core.cache import cache
-from PIL import Image, ImageDraw, ImageFont
 from django.core.mail import EmailMessage
 from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
@@ -26,7 +25,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
-from django.db.models import Sum, Q, IntegerField
+from django.db.models import Sum, Q, IntegerField, DecimalField
 from django.db.models.functions import Coalesce
 from django.views.decorators.csrf import csrf_exempt
 from .models import (Event, Candidate, VoteTransaction, Profile, ActivityLog, 
@@ -92,9 +91,12 @@ def event_detail(request, event_id):
     total_votes = sum(c.vote_count for c in candidates)
     for c in candidates:
         c.percentage = int((c.vote_count / total_votes) * 100) if total_votes > 0 else 0
-    
+
+    used_codes_count = event.voting_codes.filter(is_used=True).count()
+
     return render(request, 'voting/event_detail.html', {
-        'event': event, 'candidates': candidates, 'is_expired': is_expired, 'is_organizer_or_admin': is_organizer_or_admin
+        'event': event, 'candidates': candidates, 'is_expired': is_expired, 'is_organizer_or_admin': is_organizer_or_admin,
+        'used_codes_count': used_codes_count
     })
 
 def initiate_vote(request, candidate_id):
@@ -106,11 +108,11 @@ def initiate_vote(request, candidate_id):
 
     if request.method == 'POST':
         candidate = get_object_or_404(Candidate, id=candidate_id)
-        try:
-            amount = float(request.POST.get('amount', 0))
-        except (TypeError, ValueError):
-            messages.error(request, "Please enter a valid amount.")
+        amount, amount_error = parse_non_negative_decimal(request.POST.get('amount', 0), 'Amount')
+        if amount_error:
+            messages.error(request, amount_error)
             return redirect('event_detail', event_id=candidate.event.id)
+        amount = float(amount)
 
         if amount < 1:
             messages.error(request, "Please enter a valid amount.")
@@ -414,7 +416,7 @@ def event_analytics(request, event_id):
     all_candidates = event.candidates.annotate(
         main_votes=Coalesce(Sum('transactions__number_of_votes', filter=Q(transactions__status='Success', transactions__vote_type='Main')), 0, output_field=IntegerField()),
         tie_breaker_votes=Coalesce(Sum('transactions__number_of_votes', filter=Q(transactions__status='Success', transactions__vote_type='Tie-Breaker')), 0, output_field=IntegerField()),
-        revenue=Coalesce(Sum('transactions__amount', filter=Q(transactions__status='Success')), 0, output_field=IntegerField())
+        revenue=Coalesce(Sum('transactions__amount', filter=Q(transactions__status='Success')), 0, output_field=DecimalField())
     ).order_by('category__name', '-main_votes')
     return render(request, 'voting/analytics.html', {'event': event, 'chart_data': chart_data, 'all_candidates': all_candidates})
 
@@ -592,6 +594,8 @@ def generate_codes(request, event_id):
                 # UPDATED: Check if code exists IN THIS EVENT
                 while VotingCode.objects.filter(event=event, code=code).exists():
                     code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+                VotingCode.objects.create(event=event, code=code, voter_identifier=identifier)
+                generated_count += 1
             messages.success(request, f'{generated_count} codes generated successfully for the provided IDs.')
         else:
             count, count_error = parse_non_negative_int(request.POST.get('count', '10'), 'Count')
@@ -906,12 +910,9 @@ def buy_ticket(request, ticket_id):
         ticket = get_object_or_404(Ticket, id=ticket_id)
         buyer_name = request.POST.get('name')
         buyer_email = request.POST.get('email')
-        try:
-            quantity = int(request.POST.get('quantity', 1))
-        except (TypeError, ValueError):
-            quantity = 0
-        if quantity < 1:
-            messages.error(request, "Please enter a valid quantity.")
+        quantity, quantity_error = parse_non_negative_int(request.POST.get('quantity', 1), 'Quantity')
+        if quantity_error or quantity < 1:
+            messages.error(request, quantity_error or "Please enter a valid quantity.")
             return redirect('event_tickets', event_id=ticket.event.id)
         already_sold = TicketPurchase.objects.filter(ticket=ticket, status='Success').aggregate(total=Sum('quantity'))['total'] or 0
         if already_sold + quantity > ticket.quantity_available:
@@ -1244,7 +1245,6 @@ def upload_codes_csv(request, event_id):
 # DIGITAL BALLOT SYSTEM (AJAX)
 # ==========================================
 
-@csrf_exempt
 def validate_ballot_code(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     if request.method == 'POST':
@@ -1277,7 +1277,6 @@ def validate_ballot_code(request, event_id):
             return JsonResponse({'status': 'error', 'message': 'Invalid voting code. Please check and try again.'}, status=400)
     return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)
 
-@csrf_exempt
 def cast_ballot(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     if request.method == 'POST':
