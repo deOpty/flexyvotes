@@ -25,37 +25,27 @@ services:
       PORT: ${PORT:-8000}
     volumes:
       - media_data:/app/media
+      - .:/app
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
     depends_on:
       db:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+        - action: rebuild
+          path: requirements.txt
 
-  # Web UI for administering the `db` Postgres instance directly.
-  # SECURITY: restrict access at the network level (security group /
-  # firewall allow-list of admin IPs only) - this serves a database login
-  # over plain HTTP unless you put TLS in front of it. See DEPLOYMENT.md.
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-      # Explicit (this image's own default already resolves to unlimited -
-      # config.py reads CSRF_TIME_LIMIT, which isn't set, so
-      # WTF_CSRF_TIME_LIMIT is already None). Kept here defensively in case a
-      # future image version changes that default.
       PGADMIN_CONFIG_WTF_CSRF_TIME_LIMIT: "None"
-      # Every pgAdmin image defaults to the SAME session cookie name
-      # ('pga4_session', Path=/, no Domain attribute). Browser cookies are
-      # scoped by host only - NOT port - so a second, unrelated pgAdmin
-      # instance on the same host/IP (even on a different port) will
-      # silently clobber this one's session cookie in any browser that has
-      # visited both, producing exactly the "session works, then suddenly
-      # 401 / CSRF token missing" symptom. Giving this instance its own
-      # cookie name avoids the collision. Value must be a quoted Python
-      # string literal (pgAdmin evaluates PGADMIN_CONFIG_* values via
-      # ast.literal_eval).
       PGADMIN_CONFIG_SESSION_COOKIE_NAME: "'flexyvotes_pga_session'"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
