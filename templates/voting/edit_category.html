@@ -16,6 +16,25 @@
                         <label class="form-label">Category Name</label>
                         <input type="text" name="name" class="form-control" value="{{ category.name }}" required>
                     </div>
+                    {% if event.voting_mode == 'Code Voting' %}
+                    <div class="mb-4">
+                        <label class="form-label">Ballot Rules</label>
+                        <div class="row g-2 align-items-center">
+                            <div class="col-4">
+                                <label class="small text-muted mb-0">Min selections</label>
+                                <input type="number" name="min_select" class="form-control form-control-sm" value="{{ category.min_select }}" min="0">
+                            </div>
+                            <div class="col-4">
+                                <label class="small text-muted mb-0">Max selections</label>
+                                <input type="number" name="max_select" class="form-control form-control-sm" value="{{ category.max_select }}" min="1">
+                            </div>
+                            <div class="col-4 form-check mt-4">
+                                <input type="checkbox" class="form-check-input" name="allow_abstain" id="edit-cat-allow-abstain" {% if category.allow_abstain %}checked{% endif %}>
+                                <label class="form-check-label small" for="edit-cat-allow-abstain">Allow abstain</label>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                     <div class="d-flex flex-column-reverse flex-sm-row gap-2">
                         <a href="{% url 'event_detail' event.id %}" class="btn btn-outline-secondary">Cancel</a>
                         <button type="submit" class="btn btn-wine flex-grow-1 fw-bold"><i class="bi bi-check-circle me-2"></i>Save Changes</button>

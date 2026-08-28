@@ -9,11 +9,34 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 
 
-                     
-admin.site.register(VotingCode)
+
+class VotingCodeAdmin(admin.ModelAdmin):
+    list_display = ('event', 'voter_identifier', 'is_used', 'used_at')
+    list_filter = ('event', 'is_used')
+    search_fields = ('voter_identifier',)
+    # `code`/`code_hash` are never shown/editable through the admin - once a
+    # code is generated it's a one-time secret; officials manage state
+    # through the reset action below rather than reading it back.
+    readonly_fields = ('code_hash', 'created_at', 'used_at', 'invalidated_at')
+    exclude = ('code',)
+    actions = ['reset_selected_codes']
+
+    def reset_selected_codes(self, request, queryset):
+        reset_count = 0
+        for voting_code in queryset.filter(is_used=False):
+            voting_code.reset()
+            reset_count += 1
+        self.message_user(request, f"{reset_count} voting code(s) invalidated and replaced.")
+    reset_selected_codes.short_description = "Invalidate & issue new codes for selected (unused only)"
+
+admin.site.register(VotingCode, VotingCodeAdmin)
 
 # --- Event & Category Admin ---
-admin.site.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'event', 'min_select', 'max_select', 'allow_abstain')
+    list_filter = ('event',)
+
+admin.site.register(Category, CategoryAdmin)
 
 # --- Candidate Admin ---
 class CandidateAdmin(admin.ModelAdmin):
@@ -112,8 +135,8 @@ class ProductAdmin(admin.ModelAdmin):
 admin.site.register(Product, ProductAdmin)
 
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('title', 'organizer', 'is_active', 'is_approved', 'start_date')
-    list_filter = ('is_active', 'is_approved')
+    list_display = ('title', 'organizer', 'is_active', 'is_approved', 'voting_locked', 'start_date')
+    list_filter = ('is_active', 'is_approved', 'voting_locked')
     actions = ['approve_events']
 
     def approve_events(self, request, queryset):

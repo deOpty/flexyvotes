@@ -70,8 +70,16 @@ run with `DEBUG=False`.
 
 **Admin account.** Set `DJANGO_SUPERUSER_USERNAME`/`_EMAIL`/`_PASSWORD` in
 `.env` and the entrypoint will automatically create that Django superuser on
-container start (idempotent — skipped if it already exists). Leave them
-unset to create your admin manually instead (see §5).
+container start. `.env` is the source of truth for this account: if a user
+with that username already exists, `seed_admin` now **syncs its password,
+email, and staff/superuser flags to the current `.env` values on every
+start** (it used to skip existing accounts entirely, so rotating
+`DJANGO_SUPERUSER_PASSWORD` and restarting silently had no effect — the
+account kept whatever password it was first created with). If you manage
+this account's password some other way (e.g. changing it by hand through
+`/admin/`), be aware the next restart will reset it back to whatever
+`DJANGO_SUPERUSER_PASSWORD` holds. Leave the three vars unset to manage your
+admin account entirely by hand instead (see §5).
 
 **Database admin UI (pgAdmin).** `docker-compose.yml` includes a `pgadmin`
 service (`dpage/pgadmin4`) pre-wired on the same Docker network as `db`, so
@@ -218,12 +226,13 @@ required for routine releases (all 29 existing migrations were verified to
 apply cleanly against a fresh Postgres database during this review).
 
 **Admin account:** the same entrypoint also runs `manage.py seed_admin` on
-every start, which creates a superuser from `DJANGO_SUPERUSER_USERNAME`/
-`_EMAIL`/`_PASSWORD` if one with that username doesn't already exist — set
-those three env vars/secrets (§4) and the first deploy will have a working
-admin login with no extra step. If you'd rather not manage the password as
-infrastructure config, leave them unset and create the superuser manually
-via a one-off task instead:
+every start, which creates (or, if it already exists, updates the
+password/email/flags of) a superuser from `DJANGO_SUPERUSER_USERNAME`/
+`_EMAIL`/`_PASSWORD` — set those three env vars/secrets (§4) and every
+deploy will have a working admin login matching whatever those secrets
+currently hold, including after a password rotation. If you'd rather not
+manage the password as infrastructure config, leave them unset and create
+the superuser manually via a one-off task instead:
 
 ```bash
 aws ecs run-task \

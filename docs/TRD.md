@@ -186,7 +186,16 @@ Core entities defined in `voting/models.py`:
 - `ProductCategory` / `Product` — simple merch store, no checkout/payment
   wiring visible in `views.py` beyond listing.
 - `VotingCode` — single-use code (optionally bound to a `voter_identifier`
-  i.e. student ID) for `Code Voting` events.
+  i.e. student ID, and a `voter_email` for reset/resend) for `Code Voting`
+  events. `code` holds the plaintext only transiently (blank once used or
+  reset); every live lookup/uniqueness check goes through `code_hash`
+  (HMAC-SHA256 of the code, keyed by `SECRET_KEY`, scoped per-event) — see
+  `docs/API.md`'s "Voting code security model" for the full rationale.
+- `Category` (an election "position") additionally carries `min_select`/
+  `max_select`/`allow_abstain` — the per-position ballot rules enforced
+  server-side by `cast_ballot`.
+- `Event.voting_locked` — an explicit organizer/admin kill-switch that closes
+  voting immediately, independent of the scheduled `start_date`/`end_date`.
 - `Ticket` / `TicketPurchase` — ticket types per event and purchase records,
   with QR-code check-in fields (`is_checked_in`, `checked_in_at`) and a
   `has_voted` flag used to gate the tie-breaker free-vote flow.
@@ -354,6 +363,14 @@ general query/page caching:
 - `send_ticket_email`: keys `send_ticket_email_{ip}`, blocks after 10 calls
   within 60 seconds — protects the open (`@csrf_exempt`, unauthenticated)
   email-sending endpoint from being used as a spam relay.
+- `cast_vote_with_code`: keys `cast_vote_with_code_{ip}`, 20/minute.
+- `validate_ballot_code` / `cast_ballot`: keys `validate_ballot_code_{ip}` /
+  `cast_ballot_{ip}`, 15/minute each — throttles brute-forcing of voting
+  codes through the Digital Ballot wizard (returns HTTP 429 once exceeded).
+- `retrieve_voting_code`: keys `retrieve_voting_code_{ip}`, 5/minute —
+  throttles the public code-reset/resend form.
+All four share the `is_rate_limited()` helper in `voting/views.py` (same
+cache-counter shape as `login_view`/`register_view`).
 
 **Known limitation**: `LocMemCache` is per-process, in-memory, and not
 shared across workers. Gunicorn typically runs multiple worker processes

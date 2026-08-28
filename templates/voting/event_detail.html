@@ -10,7 +10,75 @@
     .cat-tab.active { background-color: var(--primary); color: var(--accent); border: 1px solid var(--primary); }
     .collapse-btn { transition: transform 0.2s ease; color: #FFD700; }
     .collapsed .collapse-btn { transform: rotate(-90deg); }
-    .wizard-radio:checked + label { background-color: var(--primary); color: var(--accent); border-color: var(--primary) !important; }
+
+    /* Modern candidate selection cards (replaces the old long list rows) */
+    .candidate-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+    .candidate-card {
+        position: relative;
+        display: block;
+        cursor: pointer;
+        border-radius: 1.1rem;
+        overflow: hidden;
+        border: 2px solid transparent;
+        background: #fff;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .candidate-card:hover { transform: translateY(-4px); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.14); }
+    .candidate-card.selected { border-color: var(--primary); box-shadow: 0 10px 22px rgba(0, 0, 0, 0.14); }
+    .candidate-card input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+    .candidate-card-img-wrap {
+        aspect-ratio: 1 / 1;
+        background: #f1f1f1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .candidate-card-img-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .candidate-card-img-wrap .placeholder-icon { font-size: 2.2rem; color: #c6c6c6; }
+    .candidate-card-body { padding: 0.6rem 0.5rem; text-align: center; }
+    .candidate-card-name { font-weight: 600; font-size: 0.9rem; margin: 0; line-height: 1.25; color: #222; }
+    .candidate-card-check {
+        position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9); display: flex; align-items: center; justify-content: center;
+        opacity: 0; transform: scale(0.6); transition: all 0.15s ease; color: var(--primary); font-size: 1rem;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+    }
+    .candidate-card.selected .candidate-card-check {
+        opacity: 1; transform: scale(1); background: var(--primary); color: var(--accent);
+    }
+    .abstain-card {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 100%; padding: 1rem 0.5rem; text-align: center; border: 2px dashed #d5d5d5 !important;
+        background: #fafafa;
+    }
+    .abstain-card i { font-size: 1.6rem; color: #aaa; margin-bottom: 0.35rem; }
+    .abstain-card.selected { background: #fff; border-style: solid !important; }
+    .abstain-card.selected i { color: var(--primary); }
+
+    /* Ballot review / receipt - same compact card look as the candidate
+       selection grid, not elongated rows. Each entry is a small labeled
+       card reusing .candidate-card's visuals. */
+    .review-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 1rem;
+        max-width: 100%;
+    }
+    .review-item-label {
+        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: #888;
+        text-align: center; margin: 0 0 0.35rem;
+    }
+    /* Abstained review/receipt entry: a muted, dashed candidate-card variant
+       (distinct from .abstain-card, which is laid out for the interactive
+       selection button, not this img-wrap+body card structure). */
+    .candidate-card.review-abstained { border: 2px dashed #d5d5d5; }
+    .candidate-card.review-abstained .candidate-card-img-wrap { background: #fafafa; }
 </style>
 
 <div style="--primary: {{ event.primary_color }}; --accent: {{ event.accent_color }}; 
@@ -54,11 +122,11 @@
             </div>
             <div class="collapse" id="retrieveCodeForm">
                 <hr class="my-3">
+                <p class="small text-muted mb-2">We'll send a new voting code to the email address on file for this Student ID. Any previous code will stop working.</p>
                 <form action="{% url 'retrieve_voting_code' event.id %}" method="POST">
                     {% csrf_token %}
                     <div class="row g-2 align-items-end">
-                        <div class="col-md-5"><input type="text" name="student_id" class="form-control" placeholder="Student ID" required></div>
-                        <div class="col-md-5"><input type="email" name="email" class="form-control" placeholder="Email Address" required></div>
+                        <div class="col-md-10"><input type="text" name="student_id" class="form-control" placeholder="Student ID" required></div>
                         <div class="col-md-2"><button type="submit" class="btn btn-wine w-100">Send Code</button></div>
                     </div>
                 </form>
@@ -97,13 +165,29 @@
                     </form>
                 </div>
 
-                <!-- Step 2: Category Navigation -->
-                <div id="wizard-step-2" style="display: none;">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 id="wizard-category-title" class="fw-bold text-wine mb-0"></h5>
-                        <span id="wizard-progress" class="badge bg-secondary"></span>
+                <!-- Step 1.5: Confirm Identity -->
+                <div id="wizard-step-1b" style="display: none;" class="text-center p-5 bg-white rounded-4 shadow-sm">
+                    <i class="bi bi-person-check fs-1 text-wine mb-3"></i>
+                    <h4 class="fw-bold text-wine mb-3">Confirm Your Identity</h4>
+                    <p class="text-muted mb-1">We found a valid, unused voting credential for:</p>
+                    <h5 class="fw-bold mb-1" id="wizard-confirm-identifier"></h5>
+                    <p class="text-muted small mb-4" id="wizard-confirm-email"></p>
+                    <p class="text-muted small mb-4">If this isn't you, close this page - do not continue.</p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <button id="wizard-identity-cancel-btn" class="btn btn-outline-secondary px-4">Cancel</button>
+                        <button id="wizard-identity-confirm-btn" class="btn btn-wine px-4">Yes, This Is Me - Continue</button>
                     </div>
-                    <div id="wizard-candidate-list" class="mb-4"></div>
+                </div>
+
+                <!-- Step 2: Category Navigation -->
+                <div id="wizard-step-2" style="display: none;" class="p-4 p-md-5 bg-white rounded-4 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <h5 id="wizard-category-title" class="fw-bold text-wine mb-0"></h5>
+                        <span id="wizard-progress" class="badge rounded-pill" style="background-color: var(--primary); color: var(--accent);"></span>
+                    </div>
+                    <p class="text-muted small mb-3" id="wizard-category-rules"></p>
+                    <div id="wizard-error-2" class="alert alert-danger" style="display: none;"></div>
+                    <div id="wizard-candidate-list" class="candidate-grid mb-4"></div>
                     <div class="d-flex justify-content-between">
                         <button id="wizard-prev-btn" class="btn btn-outline-secondary px-4" style="display: none;">Previous</button>
                         <button id="wizard-next-btn" class="btn btn-wine px-4">Next Category <i class="bi bi-arrow-right ms-1"></i></button>
@@ -115,9 +199,16 @@
                 <div id="wizard-step-3" style="display: none;" class="p-5 bg-white rounded-4 shadow-sm">
                     <h4 class="fw-bold text-wine mb-4 text-center">Review Your Ballot</h4>
                     <div id="wizard-review-list" class="mb-4"></div>
+                    <div id="wizard-error-3" class="alert alert-danger" style="display: none;"></div>
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="wizard-final-confirm-check">
+                        <label class="form-check-label fw-bold" for="wizard-final-confirm-check">
+                            I confirm these selections are final. This action cannot be undone.
+                        </label>
+                    </div>
                     <div class="d-flex justify-content-between">
                         <button id="wizard-back-btn" class="btn btn-outline-secondary px-4">Back</button>
-                        <button id="wizard-submit-btn" class="btn btn-success px-4">Cast Vote <i class="bi bi-check2-circle ms-1"></i></button>
+                        <button id="wizard-submit-btn" class="btn btn-success px-4" disabled>Cast Vote <i class="bi bi-check2-circle ms-1"></i></button>
                     </div>
                 </div>
 
@@ -126,6 +217,7 @@
                     <i class="bi bi-check-circle-fill text-success fs-1 mb-3"></i>
                     <h4 class="fw-bold text-wine">Ballot Cast Successfully!</h4>
                     <p class="text-muted">Your votes have been securely recorded. You may now close this page.</p>
+                    <div id="wizard-receipt-list" class="text-start mx-auto mt-4" style="max-width: 420px;"></div>
                 </div>
             </div>
 
@@ -355,15 +447,27 @@
                     </div>
                 </div>
                 {% endif %}
-                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
-                    <small class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i> {{ event.voting_codes.filter.is_used.count }} Used | <i class="bi bi-hourglass-split text-warning me-1"></i> {{ event.voting_codes.count }} Total | <a href="{% url 'download_codes' event.id %}" class="fw-bold text-wine ms-2"><i class="bi bi-download"></i> Export CSV</a></small>
-                    {% if event.voting_codes.count > 0 %}
-                    <form action="{% url 'clear_codes' event.id %}" method="POST" onsubmit="return confirm('Delete ALL codes?');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i> Clear All</button>
-                    </form>
-                    {% endif %}
+                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top flex-wrap gap-2">
+                    <small class="text-muted"><i class="bi bi-check-circle-fill text-success me-1"></i> {{ used_codes_count }} Used | <i class="bi bi-hourglass-split text-warning me-1"></i> {{ total_codes_count }} Total ({% if total_codes_count > 0 %}{% widthratio used_codes_count total_codes_count 100 %}% turnout{% else %}0% turnout{% endif %}) | <a href="{% url 'download_codes' event.id %}" class="fw-bold text-wine ms-2"><i class="bi bi-download"></i> Export CSV</a></small>
+                    <div class="d-flex gap-2">
+                        <form action="{% url 'toggle_voting_lock' event.id %}" method="POST" onsubmit="return confirm('{% if event.voting_locked %}Re-open voting for this event?{% else %}Immediately close voting? Voters will no longer be able to cast ballots.{% endif %}');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm {% if event.voting_locked %}btn-success{% else %}btn-outline-danger{% endif %}">
+                                <i class="bi {% if event.voting_locked %}bi-unlock-fill{% else %}bi-lock-fill{% endif %} me-1"></i>
+                                {% if event.voting_locked %}Re-open Voting{% else %}Close Voting Now{% endif %}
+                            </button>
+                        </form>
+                        {% if total_codes_count > 0 %}
+                        <form action="{% url 'clear_codes' event.id %}" method="POST" onsubmit="return confirm('Delete ALL codes?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i> Clear All</button>
+                        </form>
+                        {% endif %}
+                    </div>
                 </div>
+                {% if event.voting_locked %}
+                <div class="alert alert-warning mt-3 mb-0 py-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Voting is currently closed by an organizer/admin, regardless of the scheduled end date.</div>
+                {% endif %}
             </div></div>
         </div>
         {% endif %}
@@ -376,11 +480,18 @@
             <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
                 <form action="{% url 'add_category' event.id %}" method="POST" class="mb-4" id="add-category-form">
                     {% csrf_token %}
-                    <label class="form-label small fw-bold text-muted">Add New Category</label>
-                    <div class="input-group">
+                    <label class="form-label small fw-bold text-muted">Add New Category / Position</label>
+                    <div class="input-group mb-2">
                         <input type="text" name="name" class="form-control" placeholder="e.g., Best Female Artist" required>
                         <button type="submit" class="btn btn-outline-secondary px-4">Add Category</button>
                     </div>
+                    {% if event.voting_mode == 'Code Voting' %}
+                    <div class="row g-2 align-items-center">
+                        <div class="col-auto"><label class="small text-muted mb-0">Min selections</label><input type="number" name="min_select" class="form-control form-control-sm" value="1" min="0" style="width: 80px;"></div>
+                        <div class="col-auto"><label class="small text-muted mb-0">Max selections</label><input type="number" name="max_select" class="form-control form-control-sm" value="1" min="1" style="width: 80px;"></div>
+                        <div class="col-auto form-check mt-4"><input type="checkbox" class="form-check-input" name="allow_abstain" id="new-cat-allow-abstain" checked><label class="form-check-label small" for="new-cat-allow-abstain">Allow abstain</label></div>
+                    </div>
+                    {% endif %}
                 </form>
                 <label class="form-label small fw-bold text-muted">Add Contestant</label>
                 <form action="{% url 'add_candidate' event.id %}" method="POST" enctype="multipart/form-data" id="add-candidate-form">
@@ -584,11 +695,36 @@
     // ==========================================
     // VOTING WIZARD LOGIC (CODE VOTING)
     // ==========================================
+    // Guard the whole block: none of this DOM exists for organizers/admins
+    // (the voter section is hidden for them) or on Pay-to-Vote events, and
+    // several listeners below are attached unconditionally - without this
+    // guard they throw on those pages and halt the rest of the script.
+    if (document.getElementById('wizard-container')) {
     let wizardCategories = [];
     let wizardCurrentStep = 0;
-    let wizardSelections = {};
+    let wizardSelections = {}; // { positionId: [candidateId, ...] }
     let wizardCode = '';
     let wizardIdentifier = '';
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    function wizardShow(stepId) {
+        ['wizard-step-1', 'wizard-step-1b', 'wizard-step-2', 'wizard-step-3', 'wizard-step-4'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = (id === stepId) ? 'block' : 'none';
+        });
+    }
+
+    // Casting a vote must never be blocked by a missing/removed error-display
+    // element (e.g. a browser extension stripping anything that looks like
+    // an "alert"/"error" box) - fall back to a plain alert() so the voter
+    // still sees the message, but the actual vote flow keeps working.
+    function showWizardError(el, message) {
+        if (el) { el.innerText = message; el.style.display = 'block'; }
+        else { console.error('Wizard error element missing from DOM:', message); alert(message); }
+    }
+    function hideWizardError(el) {
+        if (el) el.style.display = 'none';
+    }
 
     const wizardCodeForm = document.getElementById('wizard-code-form');
     if (wizardCodeForm) {
@@ -597,156 +733,279 @@
             wizardCode = document.getElementById('wizard_code').value;
             wizardIdentifier = document.getElementById('wizard_identifier') ? document.getElementById('wizard_identifier').value : '';
             const errDiv = document.getElementById('wizard-error');
-            errDiv.style.display = 'none';
+            hideWizardError(errDiv);
             const submitBtn = this.querySelector('button[type="submit"]');
+            const originalLabel = submitBtn.innerHTML;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
             fetch(`/event/${eventId}/validate-ballot/`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
                 body: JSON.stringify({ code: wizardCode, identifier: wizardIdentifier })
             })
-            .then(res => {
-                if (!res.ok) throw new Error('Network response was not ok');
-                return res.json();
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'An error occurred.');
+                return data;
             })
             .then(data => {
-                if (data.status === 'success') {
-                    wizardCategories = data.categories;
-                    if (wizardCategories.length === 0) {
-                        errDiv.innerText = 'There are no categories or candidates set up for this event yet.';
-                        errDiv.style.display = 'block';
-                        submitBtn.innerHTML = 'Start';
-                        return;
-                    }
-                    wizardCurrentStep = 0;
-                    wizardSelections = {};
-                    renderWizardStep();
-                    document.getElementById('wizard-step-1').style.display = 'none';
-                    document.getElementById('wizard-step-2').style.display = 'block';
-                } else {
-                    errDiv.innerText = data.message || 'An error occurred.';
-                    errDiv.style.display = 'block';
-                    submitBtn.innerHTML = 'Start';
+                wizardCategories = data.categories;
+                if (wizardCategories.length === 0) {
+                    showWizardError(errDiv, 'There are no categories or candidates set up for this event yet.');
+                    submitBtn.innerHTML = originalLabel;
+                    return;
                 }
+                wizardCurrentStep = 0;
+                wizardSelections = {};
+                // Step 1.5: confirm identity before showing the ballot at all.
+                const idEl = document.getElementById('wizard-confirm-identifier');
+                if (idEl) idEl.innerText = data.voter_identifier || 'Standard Code Voter';
+                const emailEl = document.getElementById('wizard-confirm-email');
+                if (emailEl) emailEl.innerText = data.voter_email_masked ? `Code will be tied to: ${data.voter_email_masked}` : '';
+                wizardShow('wizard-step-1b');
+                submitBtn.innerHTML = originalLabel;
             })
             .catch(err => {
-                errDiv.innerText = 'Network error or server issue. Check console (F12).';
-                errDiv.style.display = 'block';
-                submitBtn.innerHTML = 'Start';
+                showWizardError(errDiv, err.message || 'Network error or server issue.');
+                submitBtn.innerHTML = originalLabel;
                 console.error('Wizard Fetch Error:', err);
             });
         });
     }
 
-    function renderWizardStep() {
-        const cat = wizardCategories[wizardCurrentStep];
-        document.getElementById('wizard-category-title').innerText = cat.name;
-        document.getElementById('wizard-progress').innerText = `Category ${wizardCurrentStep + 1} of ${wizardCategories.length}`;
-        
-        const listDiv = document.getElementById('wizard-candidate-list');
-        let html = '';
-        cat.candidates.forEach(c => {
-            const checked = wizardSelections[cat.id] == c.id ? 'checked' : '';
-            // Render image, name, and radio button
-            html += `
-                <div class="list-group-item list-group-item-action d-flex align-items-center p-3 rounded-3 mb-2 border">
-                    <input class="form-check-input me-3 mt-0 wizard-radio" type="radio" name="wizard-cat-${cat.id}" value="${c.id}" id="cand-${c.id}" ${checked} required>
-                    <label class="flex-grow-1 d-flex align-items-center" for="cand-${c.id}" style="cursor:pointer;">
-                        ${c.image_url ? `<img src="${c.image_url}" class="rounded-circle me-3" style="width: 50px; height: 50px; object-fit: cover;">` : `<div class="bg-light rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;"><i class="bi bi-person text-muted"></i></div>`}
-                        <span class="fw-bold">${c.name}</span>
-                    </label>
-                </div>
-            `;
+    const identityCancelBtn = document.getElementById('wizard-identity-cancel-btn');
+    if (identityCancelBtn) {
+        identityCancelBtn.addEventListener('click', function() {
+            wizardShow('wizard-step-1');
         });
-        listDiv.innerHTML = html;
-
-        document.getElementById('wizard-prev-btn').style.display = wizardCurrentStep > 0 ? 'block' : 'none';
-        const isLast = wizardCurrentStep === wizardCategories.length - 1;
-        document.getElementById('wizard-next-btn').style.display = isLast ? 'none' : 'block';
-        document.getElementById('wizard-review-btn').style.display = isLast ? 'block' : 'none';
     }
 
-    document.getElementById('wizard-next-btn').addEventListener('click', function() {
+    const identityConfirmBtn = document.getElementById('wizard-identity-confirm-btn');
+    if (identityConfirmBtn) {
+        identityConfirmBtn.addEventListener('click', function() {
+            renderWizardStep();
+            wizardShow('wizard-step-2');
+        });
+    }
+
+    function renderWizardStep() {
         const cat = wizardCategories[wizardCurrentStep];
-        const selected = document.querySelector(`input[name="wizard-cat-${cat.id}"]:checked`);
-        if (!selected) { alert('Please select a candidate to proceed.'); return; }
-        wizardSelections[cat.id] = selected.value;
+        const titleEl = document.getElementById('wizard-category-title');
+        if (titleEl) titleEl.innerText = cat.name;
+        const progressEl = document.getElementById('wizard-progress');
+        if (progressEl) progressEl.innerText = `Category ${wizardCurrentStep + 1} of ${wizardCategories.length}`;
+        hideWizardError(document.getElementById('wizard-error-2'));
+
+        const isMulti = cat.max_select > 1;
+        const rulesEl = document.getElementById('wizard-category-rules');
+        if (rulesEl) rulesEl.innerText = isMulti
+            ? `Select up to ${cat.max_select} candidate(s).${cat.allow_abstain ? ' You may abstain.' : ''}`
+            : (cat.allow_abstain ? 'Select one candidate, or abstain.' : 'Select one candidate.');
+
+        const listDiv = document.getElementById('wizard-candidate-list');
+        if (!listDiv) { console.error('wizard-candidate-list element missing from DOM'); return; }
+        const inputType = isMulti ? 'checkbox' : 'radio';
+        const currentSelections = wizardSelections[cat.id] || [];
+        let html = '';
+        cat.candidates.forEach(c => {
+            const checked = currentSelections.includes(String(c.id)) ? 'checked' : '';
+            const selectedClass = checked ? ' selected' : '';
+            html += `
+                <label class="candidate-card${selectedClass}" for="cand-${c.id}">
+                    <input type="${inputType}" name="wizard-cat-${cat.id}" value="${c.id}" id="cand-${c.id}" ${checked}>
+                    <span class="candidate-card-check"><i class="bi bi-check-lg"></i></span>
+                    <div class="candidate-card-img-wrap">
+                        ${c.image_url ? `<img src="${c.image_url}" alt="${c.name}">` : `<i class="bi bi-person-fill placeholder-icon"></i>`}
+                    </div>
+                    <div class="candidate-card-body"><p class="candidate-card-name">${c.name}</p></div>
+                </label>
+            `;
+        });
+        if (cat.allow_abstain) {
+            const abstainChecked = currentSelections.length === 0 && wizardSelections.hasOwnProperty(cat.id) ? 'checked' : '';
+            const abstainSelectedClass = abstainChecked ? ' selected' : '';
+            html += `
+                <label class="candidate-card abstain-card${abstainSelectedClass}" for="abstain-${cat.id}">
+                    <input type="radio" name="wizard-abstain-${cat.id}" id="abstain-${cat.id}" ${abstainChecked}>
+                    <i class="bi bi-slash-circle"></i>
+                    <span class="candidate-card-name">Abstain</span>
+                </label>
+            `;
+        }
+        listDiv.innerHTML = html;
+
+        // Keep the visible "selected" highlight on each card in sync with
+        // its underlying (visually hidden) input's checked state.
+        function syncCardSelection() {
+            listDiv.querySelectorAll('.candidate-card').forEach(card => card.classList.remove('selected'));
+            listDiv.querySelectorAll('input:checked').forEach(input => {
+                const card = input.closest('.candidate-card');
+                if (card) card.classList.add('selected');
+            });
+        }
+
+        // Selecting "abstain" clears any checked candidates for this position, and vice versa.
+        const abstainInput = document.getElementById(`abstain-${cat.id}`);
+        if (abstainInput) {
+            abstainInput.addEventListener('change', function() {
+                if (this.checked) {
+                    listDiv.querySelectorAll(`input[name="wizard-cat-${cat.id}"]`).forEach(i => i.checked = false);
+                }
+                syncCardSelection();
+            });
+            listDiv.querySelectorAll(`input[name="wizard-cat-${cat.id}"]`).forEach(i => {
+                i.addEventListener('change', function() {
+                    if (this.checked) abstainInput.checked = false;
+                    syncCardSelection();
+                });
+            });
+        } else {
+            listDiv.querySelectorAll(`input[name="wizard-cat-${cat.id}"]`).forEach(i => {
+                i.addEventListener('change', syncCardSelection);
+            });
+        }
+
+        const prevBtn = document.getElementById('wizard-prev-btn');
+        if (prevBtn) prevBtn.style.display = wizardCurrentStep > 0 ? 'block' : 'none';
+        const isLast = wizardCurrentStep === wizardCategories.length - 1;
+        const nextBtn = document.getElementById('wizard-next-btn');
+        if (nextBtn) nextBtn.style.display = isLast ? 'none' : 'block';
+        const reviewBtn = document.getElementById('wizard-review-btn');
+        if (reviewBtn) reviewBtn.style.display = isLast ? 'block' : 'none';
+    }
+
+    function captureCurrentSelections() {
+        const cat = wizardCategories[wizardCurrentStep];
+        const checked = Array.from(document.querySelectorAll(`input[name="wizard-cat-${cat.id}"]:checked`)).map(i => i.value);
+        const abstainInput = document.getElementById(`abstain-${cat.id}`);
+        const abstained = abstainInput && abstainInput.checked;
+        const errDiv2 = document.getElementById('wizard-error-2');
+
+        if (checked.length === 0 && !abstained && !cat.allow_abstain) {
+            showWizardError(errDiv2, `Please make a selection for "${cat.name}".`);
+            return false;
+        }
+        if (checked.length > cat.max_select) {
+            showWizardError(errDiv2, `"${cat.name}" allows at most ${cat.max_select} selection(s).`);
+            return false;
+        }
+        wizardSelections[cat.id] = checked;
+        return true;
+    }
+
+    const wizardNextBtn = document.getElementById('wizard-next-btn');
+    if (wizardNextBtn) wizardNextBtn.addEventListener('click', function() {
+        if (!captureCurrentSelections()) return;
         wizardCurrentStep++;
         renderWizardStep();
     });
 
-    document.getElementById('wizard-prev-btn').addEventListener('click', function() {
+    const wizardPrevBtn = document.getElementById('wizard-prev-btn');
+    if (wizardPrevBtn) wizardPrevBtn.addEventListener('click', function() {
         wizardCurrentStep--;
         renderWizardStep();
     });
 
-    document.getElementById('wizard-review-btn').addEventListener('click', function() {
-        const cat = wizardCategories[wizardCurrentStep];
-        const selected = document.querySelector(`input[name="wizard-cat-${cat.id}"]:checked`);
-        if (!selected) { alert('Please select a candidate to proceed.'); return; }
-        wizardSelections[cat.id] = selected.value;
-        
-        let reviewHtml = '<ul class="list-group list-group-flush">';
+    const wizardReviewBtn = document.getElementById('wizard-review-btn');
+    if (wizardReviewBtn) wizardReviewBtn.addEventListener('click', function() {
+        if (!captureCurrentSelections()) return;
+
+        let reviewHtml = '<div class="review-grid">';
         wizardCategories.forEach(c => {
-            const candId = wizardSelections[c.id];
-            const cand = c.candidates.find(x => x.id == candId);
-            reviewHtml += `<li class="list-group-item d-flex justify-content-between align-items-center"><span class="text-muted">${c.name}</span> <b class="text-wine">${cand ? cand.name : 'No selection'}</b></li>`;
+            const ids = wizardSelections[c.id] || [];
+            const chosen = c.candidates.filter(x => ids.includes(String(x.id)));
+            const choiceText = chosen.length ? chosen.map(x => x.name).join(', ') : 'Abstained';
+            const thumb = chosen.length && chosen[0].image_url
+                ? `<img src="${chosen[0].image_url}" alt="${chosen[0].name}">`
+                : `<i class="bi ${chosen.length ? 'bi-person-fill' : 'bi-slash-circle'} placeholder-icon"></i>`;
+            reviewHtml += `
+                <div>
+                    <p class="review-item-label">${c.name}</p>
+                    <div class="candidate-card${chosen.length ? ' selected' : ' review-abstained'}">
+                        <div class="candidate-card-img-wrap">${thumb}</div>
+                        <div class="candidate-card-body"><p class="candidate-card-name">${choiceText}</p></div>
+                        <span class="candidate-card-check"><i class="bi bi-check-lg"></i></span>
+                    </div>
+                </div>
+            `;
         });
-        reviewHtml += '</ul>';
-        document.getElementById('wizard-review-list').innerHTML = reviewHtml;
-        
-        document.getElementById('wizard-step-2').style.display = 'none';
-        document.getElementById('wizard-step-3').style.display = 'block';
+        reviewHtml += '</div>';
+        const reviewListEl = document.getElementById('wizard-review-list');
+        if (reviewListEl) reviewListEl.innerHTML = reviewHtml;
+        const confirmCheckEl = document.getElementById('wizard-final-confirm-check');
+        if (confirmCheckEl) confirmCheckEl.checked = false;
+        const submitBtnEl = document.getElementById('wizard-submit-btn');
+        if (submitBtnEl) submitBtnEl.disabled = !!confirmCheckEl; // stays enabled if there's no checkbox to gate it
+        hideWizardError(document.getElementById('wizard-error-3'));
+
+        wizardShow('wizard-step-3');
     });
 
-    document.getElementById('wizard-back-btn').addEventListener('click', function() {
-        document.getElementById('wizard-step-3').style.display = 'none';
-        document.getElementById('wizard-step-2').style.display = 'block';
+    const wizardBackBtn = document.getElementById('wizard-back-btn');
+    if (wizardBackBtn) wizardBackBtn.addEventListener('click', function() {
+        wizardCurrentStep = wizardCategories.length - 1;
+        renderWizardStep();
+        wizardShow('wizard-step-2');
     });
 
-    document.getElementById('wizard-submit-btn').addEventListener('click', function() {
+    const wizardFinalConfirmCheck = document.getElementById('wizard-final-confirm-check');
+    if (wizardFinalConfirmCheck) wizardFinalConfirmCheck.addEventListener('change', function() {
+        const submitBtnEl = document.getElementById('wizard-submit-btn');
+        if (submitBtnEl) submitBtnEl.disabled = !this.checked;
+    });
+
+    const wizardSubmitBtn = document.getElementById('wizard-submit-btn');
+    if (wizardSubmitBtn) wizardSubmitBtn.addEventListener('click', function() {
+        // Casting the ballot must never be skipped just because a decorative
+        // error-display element is missing - only display falls back to
+        // alert(), the actual submission below always runs.
         const submitBtn = this;
+        const errDiv3 = document.getElementById('wizard-error-3');
+        hideWizardError(errDiv3);
+        const originalLabel = submitBtn.innerHTML;
+        submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            fetch(`/event/${eventId}/validate-ballot/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value },
-                body: JSON.stringify({ code: wizardCode, identifier: wizardIdentifier })
-            })
-            .then(async res => {
-                // Always parse the JSON response, whether it's 200 OK or 400 Bad Request
-                const data = await res.json();
-                if (!res.ok) {
-                    // If Django returned an error (400), throw the specific message
-                    throw new Error(data.message || 'An error occurred.');
-                }
-                return data;
-            })
-            .then(data => {
-                if (data.status === 'success') {
-                    wizardCategories = data.categories;
-                    if (wizardCategories.length === 0) {
-                        errDiv.innerText = 'There are no categories or candidates set up for this event yet.';
-                        errDiv.style.display = 'block';
-                        submitBtn.innerHTML = 'Start';
-                        return;
-                    }
-                    wizardCurrentStep = 0;
-                    wizardSelections = {};
-                    renderWizardStep();
-                    document.getElementById('wizard-step-1').style.display = 'none';
-                    document.getElementById('wizard-step-2').style.display = 'block';
-                } else {
-                    errDiv.innerText = data.message || 'An error occurred.';
-                    errDiv.style.display = 'block';
-                    submitBtn.innerHTML = 'Start';
-                }
-            })
-            .catch(err => {
-                // This will now catch the specific Django error message (e.g. "Invalid voting code")
-                errDiv.innerText = err.message;
-                errDiv.style.display = 'block';
-                submitBtn.innerHTML = 'Start';
+
+        const votesPayload = {};
+        wizardCategories.forEach(c => { votesPayload[c.id] = wizardSelections[c.id] || []; });
+
+        fetch(`/event/${eventId}/cast-ballot/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ code: wizardCode, identifier: wizardIdentifier, votes: votesPayload })
+        })
+        .then(async res => {
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'An error occurred.');
+            return data;
+        })
+        .then(data => {
+            let receiptHtml = '<div class="review-grid">';
+            (data.receipt || []).forEach(r => {
+                const abstained = r.choice === 'Abstained';
+                const icon = abstained ? 'bi-slash-circle' : 'bi-check-lg';
+                receiptHtml += `
+                    <div>
+                        <p class="review-item-label">${r.position}</p>
+                        <div class="candidate-card${abstained ? ' review-abstained' : ' selected'}">
+                            <div class="candidate-card-img-wrap"><i class="bi ${icon} placeholder-icon"></i></div>
+                            <div class="candidate-card-body"><p class="candidate-card-name">${r.choice}</p></div>
+                        </div>
+                    </div>
+                `;
             });
+            receiptHtml += '</div>';
+            const receiptListEl = document.getElementById('wizard-receipt-list');
+            if (receiptListEl) receiptListEl.innerHTML = receiptHtml;
+            wizardShow('wizard-step-4');
+        })
+        .catch(err => {
+            showWizardError(errDiv3, err.message || 'Network error or server issue.');
+            submitBtn.innerHTML = originalLabel;
+            const confirmCheckEl = document.getElementById('wizard-final-confirm-check');
+            submitBtn.disabled = confirmCheckEl ? !confirmCheckEl.checked : false;
+        });
+    });
+    } // end wizard-container guard
 </script>
 {% endblock %}

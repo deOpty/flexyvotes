@@ -1,12 +1,17 @@
 import uuid
 import random
+import secrets
 import string
+import hmac
+import hashlib
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Sum, Q, IntegerField
 from django.db.models.functions import Coalesce
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
+from django.utils import timezone
 import os
 
 def validate_file_size(file):
@@ -17,7 +22,24 @@ def validate_file_size(file):
 
 
 def generate_voting_code():
-    return uuid.uuid4().hex[:8].upper()
+    # secrets (not uuid4/random) is the intention-revealing CSPRNG choice for
+    # bearer credentials like this.
+    alphabet = string.ascii_uppercase + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(8))
+
+
+def hash_voting_code(event_id, code):
+    """HMAC-SHA256 the code, keyed by SECRET_KEY, scoped to the event.
+
+    Voting codes are bearer secrets - only a salted/keyed digest is ever
+    persisted, never the plaintext, so a database dump alone can't be used
+    to cast votes. Scoping the HMAC input to event_id keeps the same code
+    string in two different events from colliding in the hash index (the
+    uniqueness constraint is per-event, not global).
+    """
+    normalized = (code or '').strip().upper()
+    message = f"{event_id}:{normalized}".encode('utf-8')
+    return hmac.new(settings.SECRET_KEY.encode('utf-8'), message, hashlib.sha256).hexdigest()
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -47,6 +69,11 @@ class Event(models.Model):
     end_date = models.DateTimeField()
     is_active = models.BooleanField(default=True)
     is_approved = models.BooleanField(default=False) # <--- ADD THIS
+    # Explicit organizer/admin kill-switch for voting, independent of the
+    # scheduled start_date/end_date window - lets officials close an
+    # election immediately (e.g. to investigate an issue) without editing
+    # the schedule.
+    voting_locked = models.BooleanField(default=False)
     
     # Theme Fields
     primary_color = models.CharField(max_length=7, default='#800020') 
@@ -76,10 +103,16 @@ class Event(models.Model):
         return total_revenue - fee
 
 
-# This is for categories WITHIN the event (e.g., Best Male, Best Female)
+# This is for categories WITHIN the event (e.g., Best Male, Best Female) -
+# i.e. an election "position".
 class Category(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='categories')
     name = models.CharField(max_length=100)
+    # Ballot rules for this position. max_select > 1 makes it a multi-choice
+    # (checkbox) position instead of single-choice (radio).
+    min_select = models.PositiveSmallIntegerField(default=1)
+    max_select = models.PositiveSmallIntegerField(default=1)
+    allow_abstain = models.BooleanField(default=True)
 
     def __str__(self):
         return self.name
@@ -190,19 +223,63 @@ class VotingCode(models.Model):
     # code would silently get the *same* value, colliding on the very next
     # save for the same event.
     code = models.CharField(max_length=50, default=generate_voting_code)
-    voter_identifier = models.CharField(max_length=100, blank=True, null=True) 
+    # SECURITY: this is the field every lookup/verification path actually
+    # queries on (see views.validate_ballot_code/cast_ballot). `code` above
+    # is kept only so a freshly-generated, still-unused code can be shown to
+    # the organizer once (CSV export); the live credential check never
+    # trusts it directly, so a DB dump alone can't be replayed as a vote.
+    code_hash = models.CharField(max_length=64, db_index=True, blank=True)
+    voter_identifier = models.CharField(max_length=100, blank=True, null=True)
+    # Roster email, captured at import time. retrieve_voting_code() only
+    # ever sends a reset code to this stored address - never to whatever
+    # email a requester types into the public form - so knowing someone
+    # else's student ID isn't enough to steal their credential.
+    voter_email = models.EmailField(blank=True, null=True)
     is_used = models.BooleanField(default=False)
     used_at = models.DateTimeField(null=True, blank=True)
+    invalidated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     # NEW: Enforce uniqueness only per event
     class Meta:
-        unique_together = ('event', 'code')
+        unique_together = ('event', 'code_hash')
 
     def __str__(self):
         if self.voter_identifier:
             return f"{self.code} - {self.voter_identifier} - {'Used' if self.is_used else 'Valid'}"
         return f"{self.code} - {'Used' if self.is_used else 'Valid'}"
+
+    def save(self, *args, **kwargs):
+        if self.event_id and self.code:
+            self.code_hash = hash_voting_code(self.event_id, self.code)
+        super().save(*args, **kwargs)
+
+    def mark_used(self):
+        # Scrub the plaintext code once spent - code_hash (unaffected, since
+        # save() only recomputes it from a non-blank `code`) is all that's
+        # needed afterward to know this credential was consumed.
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.code = ''
+        self.save(update_fields=['is_used', 'used_at', 'code'])
+
+    def reset(self):
+        """Invalidate this code and issue a brand-new replacement.
+
+        Used instead of ever re-displaying a previously-generated code:
+        credentials are shown once and, if lost, replaced rather than
+        recovered from storage.
+        """
+        self.is_used = True
+        self.invalidated_at = timezone.now()
+        self.code = ''
+        self.save(update_fields=['is_used', 'invalidated_at', 'code'])
+        return VotingCode.objects.create(
+            event=self.event,
+            code=generate_voting_code(),
+            voter_identifier=self.voter_identifier,
+            voter_email=self.voter_email,
+        )
 
 class Ticket(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='tickets')

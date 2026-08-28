@@ -12,6 +12,7 @@ urlpatterns = [
     path('event/<int:event_id>/generate-codes/', views.generate_codes, name='generate_codes'),
     path('event/<int:event_id>/download-codes/', views.download_codes, name='download_codes'),
     path('event/<int:event_id>/clear-codes/', views.clear_codes, name='clear_codes'),
+    path('event/<int:event_id>/toggle-voting-lock/', views.toggle_voting_lock, name='toggle_voting_lock'),
     path('event/<int:event_id>/upload-csv/', views.upload_student_csv, name='upload_csv'),
     path('vote/<int:candidate_id>/', views.initiate_vote, name='initiate_vote'),
     path('vote/success/', views.vote_success, name='vote_success'),

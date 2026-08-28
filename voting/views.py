@@ -27,9 +27,11 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db.models import Sum, Q, IntegerField, DecimalField
 from django.db.models.functions import Coalesce
+from django.db import transaction, IntegrityError
 from django.views.decorators.csrf import csrf_exempt
-from .models import (Event, Candidate, VoteTransaction, Profile, ActivityLog, 
-                     Category, Product, ProductCategory, ProductImage, VotingCode, Ticket, TicketPurchase)
+from .models import (Event, Candidate, VoteTransaction, Profile, ActivityLog,
+                     Category, Product, ProductCategory, ProductImage, VotingCode, Ticket, TicketPurchase,
+                     hash_voting_code)
 from .services import initialize_paystack_payment, initialize_ticket_payment, verify_paystack_transaction
 
 # SECURITY: CSV Macro Injection Sanitizer
@@ -37,6 +39,96 @@ def sanitize_csv_value(value):
     if isinstance(value, str) and value and value[0] in ('=', '+', '-', '@'):
         return "'" + value
     return value
+
+def mask_email(email):
+    if not email or '@' not in email:
+        return None
+    local, _, domain = email.partition('@')
+    visible = local[0] if local else ''
+    return f"{visible}{'*' * max(len(local) - 1, 3)}@{domain}"
+
+def is_rate_limited(request, key_prefix, max_attempts, window_seconds=60):
+    """Shared per-IP cache-counter throttle (same idiom as login_view/register_view)."""
+    ip_address = request.META.get('REMOTE_ADDR')
+    cache_key = f'{key_prefix}_{ip_address}'
+    attempts = cache.get(cache_key, 0)
+    if attempts >= max_attempts:
+        return True
+    cache.set(cache_key, attempts + 1, window_seconds)
+    return False
+
+def opaque_vote_reference():
+    return f"CODE-{uuid.uuid4().hex}"
+
+def parse_ballot_rules(post_data):
+    try:
+        min_select = max(1, int(post_data.get('min_select', 1)))
+    except (TypeError, ValueError):
+        min_select = 1
+    try:
+        max_select = max(min_select, int(post_data.get('max_select', 1)))
+    except (TypeError, ValueError):
+        max_select = min_select
+    allow_abstain = post_data.get('allow_abstain', 'on') == 'on'
+    return min_select, max_select, allow_abstain
+
+def ballot_positions_for_event(event):
+    """Build the list of election "positions" a ballot must cover: one per
+    real Category, plus a virtual 'General' position for candidates with no
+    category (matches the default single-choice/abstainable rules, since
+    there's no Category row to hold custom ones)."""
+    positions = [
+        {
+            'key': str(cat.id), 'name': cat.name,
+            'min_select': cat.min_select, 'max_select': cat.max_select, 'allow_abstain': cat.allow_abstain,
+            'candidates': list(cat.candidates.all()),
+        }
+        for cat in event.categories.all()
+    ]
+    uncategorized = list(event.candidates.filter(category=None))
+    if uncategorized:
+        positions.append({
+            'key': 'none', 'name': 'General',
+            'min_select': 1, 'max_select': 1, 'allow_abstain': True,
+            'candidates': uncategorized,
+        })
+    return positions
+
+def validate_ballot_selections(positions, votes):
+    """Validate a submitted {position_key: [candidate_id, ...]} payload
+    against each position's min/max/abstain rules. Returns (selections, error)
+    where selections is a list of (position, [Candidate, ...]) ready to
+    persist, or (None, error_message) if anything is invalid. Rejecting the
+    whole payload here - rather than silently skipping bad entries - is what
+    keeps a malformed request from producing a partial ballot.
+    """
+    selections = []
+    for position in positions:
+        raw = votes.get(position['key'], [])
+        if not isinstance(raw, list):
+            raw = [raw] if raw else []
+        candidate_ids = [str(c) for c in raw if c]
+
+        if not candidate_ids:
+            if not position['allow_abstain']:
+                return None, f"You must make a selection for \"{position['name']}\"."
+            selections.append((position, []))
+            continue
+
+        if len(candidate_ids) > position['max_select']:
+            return None, f"\"{position['name']}\" allows at most {position['max_select']} selection(s)."
+        if len(candidate_ids) < position['min_select']:
+            return None, f"\"{position['name']}\" requires at least {position['min_select']} selection(s)."
+        if len(set(candidate_ids)) != len(candidate_ids):
+            return None, f"Duplicate candidate selection for \"{position['name']}\"."
+
+        valid_ids = {str(c.id) for c in position['candidates']}
+        if not set(candidate_ids).issubset(valid_ids):
+            return None, f"Invalid candidate selection for \"{position['name']}\"."
+
+        chosen = [c for c in position['candidates'] if str(c.id) in candidate_ids]
+        selections.append((position, chosen))
+    return selections, None
 
 def parse_non_negative_decimal(raw_value, field_label, required=True):
     if raw_value is None or str(raw_value).strip() == '':
@@ -93,10 +185,11 @@ def event_detail(request, event_id):
         c.percentage = int((c.vote_count / total_votes) * 100) if total_votes > 0 else 0
 
     used_codes_count = event.voting_codes.filter(is_used=True).count()
+    total_codes_count = event.voting_codes.count()
 
     return render(request, 'voting/event_detail.html', {
         'event': event, 'candidates': candidates, 'is_expired': is_expired, 'is_organizer_or_admin': is_organizer_or_admin,
-        'used_codes_count': used_codes_count
+        'used_codes_count': used_codes_count, 'total_codes_count': total_codes_count
     })
 
 def initiate_vote(request, candidate_id):
@@ -213,8 +306,12 @@ def login_view(request):
         messages.error(request, "Too many login attempts. Please wait a minute and try again.")
         return render(request, 'voting/login.html')
     if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        username = request.POST.get('username', '').strip()
+        # Only trim CR/LF, never spaces - a password copy-pasted from a
+        # CRLF-terminated .env file (e.g. edited on Windows) carries a
+        # trailing \r/\n onto the clipboard, which silently fails to match
+        # the stored hash and looks exactly like a wrong password.
+        password = request.POST.get('password', '').strip('\r\n')
         user = authenticate(request, username=username, password=password)
         if user is not None:
             cache.delete(cache_key)
@@ -428,7 +525,10 @@ def add_category(request, event_id):
     if request.method == 'POST':
         name = request.POST.get('name')
         if name:
-            category = Category.objects.create(event=event, name=name)
+            min_select, max_select, allow_abstain = parse_ballot_rules(request.POST)
+            category = Category.objects.create(
+                event=event, name=name, min_select=min_select, max_select=max_select, allow_abstain=allow_abstain
+            )
             ActivityLog.objects.create(user=request.user, event=event, action=f"Created category '{category.name}' under '{event.title}'")
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({'status': 'success'})
@@ -486,6 +586,7 @@ def edit_category(request, category_id):
         return redirect('event_detail', event_id=event.id)
     if request.method == 'POST':
         category.name = request.POST.get('name')
+        category.min_select, category.max_select, category.allow_abstain = parse_ballot_rules(request.POST)
         category.save()
         ActivityLog.objects.create(user=request.user, event=event, action=f"Updated category '{category.name}' in '{event.title}'")
         return redirect('event_detail', event_id=event.id)
@@ -587,15 +688,25 @@ def generate_codes(request, event_id):
     if request.method == 'POST':
         identifiers = request.POST.get('identifiers', '').strip()
         if identifiers:
+            # Each line is "identifier" or "identifier,email" - the email
+            # (if given) is the ONLY address a future code-reset will ever
+            # be sent to.
             id_list = [line.strip() for line in identifiers.split('\n') if line.strip()]
             generated_count = 0
-            for identifier in id_list:
-                code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                # UPDATED: Check if code exists IN THIS EVENT
-                while VotingCode.objects.filter(event=event, code=code).exists():
-                    code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                VotingCode.objects.create(event=event, code=code, voter_identifier=identifier)
+            for line in id_list:
+                identifier, _, email = line.partition(',')
+                identifier = identifier.strip()
+                email = email.strip() or None
+                if not identifier:
+                    continue
+                for _attempt in range(5):
+                    try:
+                        VotingCode.objects.create(event=event, voter_identifier=identifier, voter_email=email)
+                        break
+                    except IntegrityError:
+                        continue
                 generated_count += 1
+            ActivityLog.objects.create(user=request.user, event=event, action=f"Generated {generated_count} voting codes for provided IDs in '{event.title}'")
             messages.success(request, f'{generated_count} codes generated successfully for the provided IDs.')
         else:
             count, count_error = parse_non_negative_int(request.POST.get('count', '10'), 'Count')
@@ -603,13 +714,19 @@ def generate_codes(request, event_id):
                 messages.error(request, count_error)
                 return redirect('event_detail', event_id=event_id)
             count = min(count, 500)
-            generated_count = 0
-            while generated_count < count:
-                code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                # UPDATED: Check if code exists IN THIS EVENT
-                if not VotingCode.objects.filter(event=event, code=code).exists():
-                    VotingCode.objects.create(event=event, code=code)
-                    generated_count += 1
+            for _ in range(count):
+                # .create() (not bulk_create) is required here so
+                # VotingCode.save() runs and populates code_hash; collisions
+                # are astronomically unlikely (36^8 code space) but retried
+                # defensively since the (event, code_hash) constraint would
+                # otherwise raise.
+                for _attempt in range(5):
+                    try:
+                        VotingCode.objects.create(event=event)
+                        break
+                    except IntegrityError:
+                        continue
+            ActivityLog.objects.create(user=request.user, event=event, action=f"Generated {count} standard voting codes for '{event.title}'")
             messages.success(request, f'{count} standard voting codes generated successfully.')
     return redirect('event_detail', event_id=event_id)
 
@@ -633,60 +750,67 @@ def cast_vote_with_code(request, candidate_id):
         event = candidate.event
         code_input = request.POST.get('code', '').strip().upper()
         identifier_input = request.POST.get('identifier', '').strip()
-        if timezone.now() > event.end_date:
+        if timezone.now() > event.end_date or event.voting_locked:
             messages.error(request, "Voting for this event has ended.")
             return redirect('event_detail', event_id=event.id)
-        
+
+        if is_rate_limited(request, 'cast_vote_with_code', max_attempts=20):
+            messages.error(request, "Too many attempts. Please wait a minute and try again.")
+            return redirect('event_detail', event_id=event.id)
+
         # FLOW 1: TICKET REFERENCE (TIE-BREAKER VOTE)
         if code_input.startswith('TK-'):
-            ticket_purchase = TicketPurchase.objects.filter(paystack_reference=code_input, event=event).first()
-            if not ticket_purchase:
-                messages.error(request, "Invalid Ticket Reference. Please check your ticket.")
-                return redirect('event_detail', event_id=event.id)
-            if ticket_purchase.status != 'Success':
-                messages.error(request, "This ticket payment is still pending or failed.")
-                return redirect('event_detail', event_id=event.id)
-            if ticket_purchase.has_voted:
-                messages.error(request, "This ticket has already been used to vote!")
-                return redirect('event_detail', event_id=event.id)
-            if not event.enable_tie_breaker:
-                messages.error(request, "Ticket votes are not enabled for this event.")
-                return redirect('event_detail', event_id=event.id)
-            if ticket_purchase.purchase_method != 'Web':
-                messages.error(request, "Only online tickets are eligible for the free vote.")
-                return redirect('event_detail', event_id=event.id)
-            votes_to_cast = ticket_purchase.quantity
-            VoteTransaction.objects.create(
-                candidate=candidate, voter_email=f"ticket_{code_input}@FlexyVotes.com", amount=0,
-                paystack_reference=f"TIE_{code_input}_{uuid.uuid4().hex[:4].upper()}", status='Success',
-                vote_type='Tie-Breaker', number_of_votes=votes_to_cast
-            )
-            ticket_purchase.has_voted = True
-            ticket_purchase.save()
+            with transaction.atomic():
+                ticket_purchase = TicketPurchase.objects.select_for_update().filter(
+                    paystack_reference=code_input, event=event
+                ).first()
+                if not ticket_purchase:
+                    messages.error(request, "Invalid Ticket Reference. Please check your ticket.")
+                    return redirect('event_detail', event_id=event.id)
+                if ticket_purchase.status != 'Success':
+                    messages.error(request, "This ticket payment is still pending or failed.")
+                    return redirect('event_detail', event_id=event.id)
+                if ticket_purchase.has_voted:
+                    messages.error(request, "This ticket has already been used to vote!")
+                    return redirect('event_detail', event_id=event.id)
+                if not event.enable_tie_breaker:
+                    messages.error(request, "Ticket votes are not enabled for this event.")
+                    return redirect('event_detail', event_id=event.id)
+                if ticket_purchase.purchase_method != 'Web':
+                    messages.error(request, "Only online tickets are eligible for the free vote.")
+                    return redirect('event_detail', event_id=event.id)
+                votes_to_cast = ticket_purchase.quantity
+                VoteTransaction.objects.create(
+                    candidate=candidate, voter_email=f"ticket-vote@{event.id}.flexyvotes.internal", amount=0,
+                    paystack_reference=opaque_vote_reference(), status='Success',
+                    vote_type='Tie-Breaker', number_of_votes=votes_to_cast
+                )
+                ticket_purchase.has_voted = True
+                ticket_purchase.save(update_fields=['has_voted'])
             messages.success(request, f"Success! Your {votes_to_cast} free vote(s) for {candidate.name} has been cast.")
             return redirect('event_detail', event_id=event.id)
-            
+
         # FLOW 2: STANDARD VOTING CODE (Legacy fallback if modal isn't used)
-        try:
-            voting_code = VotingCode.objects.get(event=event, code=code_input)
+        code_hash = hash_voting_code(event.id, code_input)
+        with transaction.atomic():
+            voting_code = VotingCode.objects.select_for_update().filter(event=event, code_hash=code_hash).first()
+            if not voting_code:
+                messages.error(request, "Invalid voting code. Please check and try again.")
+                return redirect('event_detail', event_id=event.id)
             if voting_code.voter_identifier:
                 if voting_code.voter_identifier.upper() != identifier_input.upper():
                     messages.error(request, "The Student ID provided does not match this voting code.")
                     return redirect('event_detail', event_id=event.id)
             if voting_code.is_used:
                 messages.error(request, "This code has already been used.")
-            else:
-                voting_code.is_used = True
-                voting_code.used_at = timezone.now()
-                voting_code.save()
-                VoteTransaction.objects.create(
-                    candidate=candidate, voter_email=f"code_{code_input}@FlexyVotes.com", amount=0,
-                    paystack_reference=f"TIE_{code_input}_{uuid.uuid4().hex[:4].upper()}", status='Success',
-                    vote_type='Main', number_of_votes=1
-                )
-                messages.success(request, f"Success! Your vote for {candidate.name} has been cast.")
-        except VotingCode.DoesNotExist:
-            messages.error(request, "Invalid voting code. Please check and try again.")
+                return redirect('event_detail', event_id=event.id)
+            VoteTransaction.objects.create(
+                candidate=candidate, voter_email=f"code-vote@{event.id}.flexyvotes.internal", amount=0,
+                paystack_reference=opaque_vote_reference(), status='Success',
+                vote_type='Main', number_of_votes=1
+            )
+            voting_code.mark_used()
+        messages.success(request, f"Success! Your vote for {candidate.name} has been cast.")
     return redirect('event_detail', event_id=candidate.event.id)
 
 @login_required(login_url='/login/')
@@ -696,7 +820,21 @@ def clear_codes(request, event_id):
         return redirect('event_detail', event_id=event_id)
     if request.method == 'POST':
         event.voting_codes.all().delete()
+        ActivityLog.objects.create(user=request.user, event=event, action=f"Cleared all voting codes for '{event.title}'")
         messages.success(request, 'All voting codes have been cleared.')
+    return redirect('event_detail', event_id=event_id)
+
+@login_required(login_url='/login/')
+def toggle_voting_lock(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    if request.user != event.organizer and not request.user.is_staff:
+        return redirect('event_detail', event_id=event_id)
+    if request.method == 'POST':
+        event.voting_locked = not event.voting_locked
+        event.save(update_fields=['voting_locked'])
+        state = 'locked' if event.voting_locked else 'unlocked'
+        ActivityLog.objects.create(user=request.user, event=event, action=f"Voting {state} for '{event.title}'")
+        messages.success(request, f'Voting has been {state}.')
     return redirect('event_detail', event_id=event_id)
 
 @login_required(login_url='/login/')
@@ -715,12 +853,15 @@ def upload_student_csv(request, event_id):
         for row in reader:
             if row and row[0].strip():
                 identifier = row[0].strip()
-                code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                # UPDATED: Check if code exists IN THIS EVENT
-                while VotingCode.objects.filter(event=event, code=code).exists():
-                    code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                VotingCode.objects.create(event=event, code=code, voter_identifier=identifier)
+                email = row[1].strip() if len(row) > 1 and row[1].strip() else None
+                for _attempt in range(5):
+                    try:
+                        VotingCode.objects.create(event=event, voter_identifier=identifier, voter_email=email)
+                        break
+                    except IntegrityError:
+                        continue
                 generated_count += 1
+        ActivityLog.objects.create(user=request.user, event=event, action=f"Imported {generated_count} student IDs and generated codes for '{event.title}'")
         messages.success(request, f'{generated_count} codes generated successfully from the CSV file.')
     return redirect('event_detail', event_id=event_id)
 
@@ -1172,22 +1313,34 @@ def retrieve_voting_code(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     if request.method == 'POST':
         student_id = request.POST.get('student_id', '').strip()
-        email = request.POST.get('email', '').strip()
-        voting_code = VotingCode.objects.filter(event=event, voter_identifier__iexact=student_id).first()
-        if voting_code:
-            if voting_code.is_used:
-                messages.error(request, "This voting code has already been used to cast a vote.")
-            else:
+
+        if is_rate_limited(request, 'retrieve_voting_code', max_attempts=5):
+            messages.error(request, "Too many attempts. Please wait a minute and try again.")
+            return redirect('event_detail', event_id=event_id)
+
+        # SECURITY: the code is only ever emailed to the address captured on
+        # the roster at import time - NEVER to an address typed into this
+        # public form. Otherwise anyone who knows a student's ID (rosters
+        # are often not secret) could redirect that voter's credential to
+        # their own inbox. A generic response is returned either way so the
+        # form can't be used to enumerate which student IDs exist/have voted.
+        with transaction.atomic():
+            voting_code = VotingCode.objects.select_for_update().filter(
+                event=event, voter_identifier__iexact=student_id, is_used=False
+            ).first()
+            if voting_code and voting_code.voter_email:
+                new_code = voting_code.reset()
                 subject = f"Your Voting Code for {event.title}"
-                message = f"Hi {student_id},\n\nYour unique voting code for the event '{event.title}' is: {voting_code.code}\n\nPlease keep this secure and do not share it with anyone.\n\nThank you."
+                message = f"Hi,\n\nYour voting code for the event '{event.title}' is: {new_code.code}\n\nAny previous code issued to you is no longer valid. Please keep this secure and do not share it with anyone.\n\nThank you."
                 try:
-                    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=True)
+                    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [voting_code.voter_email], fail_silently=True)
                 except Exception:
                     pass
-                ActivityLog.objects.create(user=request.user if request.user.is_authenticated else None, event=event, action=f"Retrieved voting code for Student ID '{student_id}' sent to '{email}'")
-                messages.success(request, f"Success! Your voting code has been sent to {email}.")
-        else:
-            messages.error(request, "No voting code found for the provided Student ID.")
+                ActivityLog.objects.create(user=None, event=event, action=f"Voting code reset/resent for Student ID '{student_id}'")
+            elif voting_code:
+                ActivityLog.objects.create(user=None, event=event, action=f"Voting code resend requested for Student ID '{student_id}' with no email on file")
+
+        messages.success(request, "If that Student ID is registered with a valid, unused voting code, a new code has been sent to the email on file.")
     return redirect('event_detail', event_id=event_id)
 
 @login_required(login_url='/login/')
@@ -1230,11 +1383,13 @@ def upload_codes_csv(request, event_id):
         for row in reader:
             if row and row[0].strip():
                 code = row[0].strip().upper()
-                if not VotingCode.objects.filter(event=event, code=code).exists():
+                code_hash = hash_voting_code(event.id, code)
+                if not VotingCode.objects.filter(event=event, code_hash=code_hash).exists():
                     VotingCode.objects.create(event=event, code=code)
                     imported_count += 1
                 else:
                     skipped_count += 1
+        ActivityLog.objects.create(user=request.user, event=event, action=f"Imported {imported_count} pre-made voting codes for '{event.title}'")
         msg = f'{imported_count} codes imported successfully from CSV.'
         if skipped_count > 0:
             msg += f' ({skipped_count} duplicates skipped)'
@@ -1248,72 +1403,97 @@ def upload_codes_csv(request, event_id):
 def validate_ballot_code(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     if request.method == 'POST':
-        data = json.loads(request.body)
+        if is_rate_limited(request, 'validate_ballot_code', max_attempts=15):
+            return JsonResponse({'status': 'error', 'message': 'Too many attempts. Please wait a minute and try again.'}, status=429)
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)
         code_input = data.get('code', '').strip().upper()
         identifier_input = data.get('identifier', '').strip()
-        
-        if timezone.now() > event.end_date:
-            return JsonResponse({'status': 'error', 'message': 'Voting for this event has ended.'}, status=400)
-            
-        try:
-            voting_code = VotingCode.objects.get(event=event, code=code_input)
-            if voting_code.voter_identifier:
-                if voting_code.voter_identifier.upper() != identifier_input.upper():
-                    return JsonResponse({'status': 'error', 'message': 'The Student ID provided does not match this voting code.'}, status=400)
-            if voting_code.is_used:
-                return JsonResponse({'status': 'error', 'message': 'This code has already been used to vote.'}, status=400)
-                
-            categories_data = []
-            for cat in event.categories.all():
-                candidates_data = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in cat.candidates.all()]
-                categories_data.append({'id': cat.id, 'name': cat.name, 'candidates': candidates_data})
-                
-            uncategorized_candidates = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in event.candidates.filter(category=None)]
-            if uncategorized_candidates:
-                categories_data.append({'id': 'none', 'name': 'General', 'candidates': uncategorized_candidates})
 
-            return JsonResponse({'status': 'success', 'categories': categories_data})
-        except VotingCode.DoesNotExist:
+        if timezone.now() > event.end_date or event.voting_locked:
+            return JsonResponse({'status': 'error', 'message': 'Voting for this event has ended.'}, status=400)
+
+        code_hash = hash_voting_code(event.id, code_input)
+        voting_code = VotingCode.objects.filter(event=event, code_hash=code_hash).first()
+        if not voting_code:
             return JsonResponse({'status': 'error', 'message': 'Invalid voting code. Please check and try again.'}, status=400)
+        if voting_code.voter_identifier:
+            if voting_code.voter_identifier.upper() != identifier_input.upper():
+                return JsonResponse({'status': 'error', 'message': 'The Student ID provided does not match this voting code.'}, status=400)
+        if voting_code.is_used:
+            return JsonResponse({'status': 'error', 'message': 'This code has already been used to vote.'}, status=400)
+
+        categories_data = []
+        for position in ballot_positions_for_event(event):
+            candidates_data = [{'id': c.id, 'name': c.name, 'image_url': c.image.url if c.image else ''} for c in position['candidates']]
+            categories_data.append({
+                'id': position['key'], 'name': position['name'], 'candidates': candidates_data,
+                'min_select': position['min_select'], 'max_select': position['max_select'], 'allow_abstain': position['allow_abstain'],
+            })
+
+        return JsonResponse({
+            'status': 'success',
+            'voter_identifier': voting_code.voter_identifier or '',
+            'voter_email_masked': mask_email(voting_code.voter_email) or '',
+            'categories': categories_data,
+        })
     return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)
 
 def cast_ballot(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     if request.method == 'POST':
-        data = json.loads(request.body)
+        if is_rate_limited(request, 'cast_ballot', max_attempts=15):
+            return JsonResponse({'status': 'error', 'message': 'Too many attempts. Please wait a minute and try again.'}, status=429)
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)
         code_input = data.get('code', '').strip().upper()
         identifier_input = data.get('identifier', '').strip()
         votes = data.get('votes', {})
-        
-        if timezone.now() > event.end_date:
+
+        if timezone.now() > event.end_date or event.voting_locked:
             return JsonResponse({'status': 'error', 'message': 'Voting has ended.'}, status=400)
-            
-        try:
-            voting_code = VotingCode.objects.get(event=event, code=code_input)
+
+        positions = ballot_positions_for_event(event)
+        selections, error = validate_ballot_selections(positions, votes)
+        if error:
+            return JsonResponse({'status': 'error', 'message': error}, status=400)
+
+        code_hash = hash_voting_code(event.id, code_input)
+        with transaction.atomic():
+            # SECURITY: select_for_update + a re-check of is_used INSIDE the
+            # lock is what makes this atomic against concurrent submits,
+            # refreshes, and retries of the same code - the row is locked
+            # for the duration of the transaction, so a second request for
+            # the same code blocks here until the first commits, then sees
+            # is_used=True and is rejected.
+            voting_code = VotingCode.objects.select_for_update().filter(event=event, code_hash=code_hash).first()
+            if not voting_code:
+                return JsonResponse({'status': 'error', 'message': 'Invalid voting code.'}, status=400)
             if voting_code.voter_identifier:
                 if voting_code.voter_identifier.upper() != identifier_input.upper():
                     return JsonResponse({'status': 'error', 'message': 'Student ID mismatch.'}, status=400)
             if voting_code.is_used:
                 return JsonResponse({'status': 'error', 'message': 'This code has already been used.'}, status=400)
-                
-            votes_cast = 0
-            for cat_id, candidate_id in votes.items():
-                if candidate_id:
-                    try:
-                        candidate = Candidate.objects.get(id=candidate_id, event=event)
-                        VoteTransaction.objects.create(
-                            candidate=candidate, voter_email=f"code_{code_input}@FlexyVotes.com", amount=0,
-                            paystack_reference=f"CODE_{code_input}_{cat_id}_{uuid.uuid4().hex[:4].upper()}",
-                            status='Success', vote_type='Main', number_of_votes=1
-                        )
-                        votes_cast += 1
-                    except Candidate.DoesNotExist:
-                        pass
-            if votes_cast > 0:
-                voting_code.is_used = True
-                voting_code.used_at = timezone.now()
-                voting_code.save()
-            return JsonResponse({'status': 'success', 'message': f'Success! Your ballot has been cast. ({votes_cast} votes recorded).'})
-        except VotingCode.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': 'Invalid voting code.'}, status=400)
+
+            # Ballot secrecy: never write the code/identifier into the vote
+            # row - only a fully opaque, per-vote reference.
+            receipt = []
+            for position, candidates in selections:
+                if not candidates:
+                    receipt.append({'position': position['name'], 'choice': 'Abstained'})
+                    continue
+                for candidate in candidates:
+                    VoteTransaction.objects.create(
+                        candidate=candidate, voter_email=f"code-vote@{event.id}.flexyvotes.internal", amount=0,
+                        paystack_reference=opaque_vote_reference(),
+                        status='Success', vote_type='Main', number_of_votes=1
+                    )
+                receipt.append({'position': position['name'], 'choice': ', '.join(c.name for c in candidates)})
+            voting_code.mark_used()
+
+        return JsonResponse({'status': 'success', 'message': 'Success! Your ballot has been cast.', 'receipt': receipt})
     return JsonResponse({'status': 'error', 'message': 'Invalid request.'}, status=400)

@@ -1,14 +1,16 @@
 import hashlib
 import hmac
 import json
+import os
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Candidate, Event, Ticket, TicketPurchase, VoteTransaction, VotingCode
+from .models import Candidate, Category, Event, Ticket, TicketPurchase, VoteTransaction, VotingCode, hash_voting_code
 
 
 def make_event(**kwargs):
@@ -187,3 +189,202 @@ class ProcessScanAuthorizationTests(TestCase):
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 404)
+
+
+class CodeHashingTests(TestCase):
+    def test_code_is_never_stored_in_plaintext_after_use(self):
+        event = make_event()
+        candidate = Candidate.objects.create(event=event, name='Alice')
+        voting_code = VotingCode.objects.create(event=event)
+        raw_code = voting_code.code
+        self.assertEqual(voting_code.code_hash, hash_voting_code(event.id, raw_code))
+
+        url = reverse('cast_vote_with_code', args=[candidate.id])
+        self.client.post(url, {'code': raw_code})
+        voting_code.refresh_from_db()
+
+        self.assertTrue(voting_code.is_used)
+        self.assertEqual(voting_code.code, '')  # scrubbed once spent
+        self.assertEqual(voting_code.code_hash, hash_voting_code(event.id, raw_code))  # hash survives for audit
+
+    def test_lookup_works_purely_via_hash(self):
+        event = make_event()
+        voting_code = VotingCode.objects.create(event=event)
+        found = VotingCode.objects.get(event=event, code_hash=hash_voting_code(event.id, voting_code.code))
+        self.assertEqual(found.id, voting_code.id)
+
+
+class BallotSecrecyTests(TestCase):
+    def test_vote_transaction_never_embeds_code_or_identifier(self):
+        event = make_event()
+        candidate = Candidate.objects.create(event=event, name='Alice')
+        voting_code = VotingCode.objects.create(event=event, voter_identifier='STD-SECRET-007')
+        raw_code = voting_code.code
+
+        url = reverse('cast_vote_with_code', args=[candidate.id])
+        self.client.post(url, {'code': raw_code, 'identifier': 'STD-SECRET-007'})
+
+        transaction = VoteTransaction.objects.get(candidate=candidate)
+        self.assertNotIn(raw_code, transaction.voter_email)
+        self.assertNotIn(raw_code, transaction.paystack_reference)
+        self.assertNotIn('STD-SECRET-007', transaction.voter_email)
+        self.assertNotIn('STD-SECRET-007', transaction.paystack_reference)
+
+
+class BallotConcurrencyTests(TestCase):
+    """Verifies the select_for_update + in-lock is_used re-check makes a
+    voting code single-use against duplicate submissions/retries. True
+    concurrent-lock contention needs a real multi-connection backend
+    (Postgres); SQLite's select_for_update is a no-op, so this exercises the
+    sequential double-submit path the atomic block guards against.
+    """
+
+    def test_same_code_cannot_cast_twice(self):
+        event = make_event()
+        category = Category.objects.create(event=event, name='President')
+        candidate = Candidate.objects.create(event=event, name='Alice', category=category)
+        voting_code = VotingCode.objects.create(event=event)
+        raw_code = voting_code.code
+
+        url = reverse('cast_ballot', args=[event.id])
+        payload = json.dumps({'code': raw_code, 'votes': {str(category.id): [str(candidate.id)]}})
+
+        first = self.client.post(url, data=payload, content_type='application/json')
+        second = self.client.post(url, data=payload, content_type='application/json')
+
+        self.assertEqual(first.json()['status'], 'success')
+        self.assertEqual(second.status_code, 400)
+        self.assertEqual(second.json()['status'], 'error')
+        self.assertEqual(VoteTransaction.objects.filter(candidate=candidate).count(), 1)
+
+
+class BallotRulesTests(TestCase):
+    def setUp(self):
+        self.event = make_event()
+        self.category = Category.objects.create(event=self.event, name='President', max_select=1, allow_abstain=True)
+        self.candidate_a = Candidate.objects.create(event=self.event, name='Alice', category=self.category)
+        self.candidate_b = Candidate.objects.create(event=self.event, name='Bob', category=self.category)
+        self.voting_code = VotingCode.objects.create(event=self.event)
+
+    def cast(self, votes):
+        url = reverse('cast_ballot', args=[self.event.id])
+        return self.client.post(
+            url, data=json.dumps({'code': self.voting_code.code, 'votes': votes}),
+            content_type='application/json',
+        )
+
+    def test_exceeding_max_select_is_rejected(self):
+        response = self.cast({str(self.category.id): [str(self.candidate_a.id), str(self.candidate_b.id)]})
+        self.assertEqual(response.status_code, 400)
+        self.voting_code.refresh_from_db()
+        self.assertFalse(self.voting_code.is_used)
+
+    def test_abstain_allowed_when_enabled(self):
+        response = self.cast({str(self.category.id): []})
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertEqual(VoteTransaction.objects.filter(candidate__category=self.category).count(), 0)
+
+    def test_abstain_rejected_when_disallowed(self):
+        self.category.allow_abstain = False
+        self.category.save()
+        response = self.cast({str(self.category.id): []})
+        self.assertEqual(response.status_code, 400)
+
+
+class RetrieveCodeEmailRedirectTests(TestCase):
+    def test_resend_only_goes_to_email_on_file(self):
+        event = make_event()
+        voting_code = VotingCode.objects.create(
+            event=event, voter_identifier='STD001', voter_email='real-owner@example.com'
+        )
+        old_hash = voting_code.code_hash
+
+        url = reverse('retrieve_voting_code', args=[event.id])
+        # Attacker-supplied "email" field from the old form is no longer
+        # accepted at all - only voter_identifier is read.
+        response = self.client.post(url, {'student_id': 'STD001', 'email': 'attacker@evil.com'})
+        self.assertEqual(response.status_code, 302)
+
+        from django.core import mail
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['real-owner@example.com'])
+
+        voting_code.refresh_from_db()
+        self.assertTrue(voting_code.is_used)  # old code invalidated
+        self.assertEqual(voting_code.code_hash, old_hash)
+        self.assertTrue(VotingCode.objects.filter(event=event, voter_identifier='STD001', is_used=False).exists())
+
+
+class VotingLockTests(TestCase):
+    def test_locked_event_rejects_ballot_even_before_end_date(self):
+        event = make_event(voting_locked=True)
+        candidate = Candidate.objects.create(event=event, name='Alice')
+        voting_code = VotingCode.objects.create(event=event)
+
+        url = reverse('cast_ballot', args=[event.id])
+        response = self.client.post(
+            url, data=json.dumps({'code': voting_code.code, 'votes': {}}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+        voting_code.refresh_from_db()
+        self.assertFalse(voting_code.is_used)
+
+
+class LoginViewCrlfTests(TestCase):
+    # Regression: a password copied out of a CRLF-terminated .env file (the
+    # common case when it's edited on Windows) can carry a trailing \r/\n
+    # onto the clipboard, which used to silently fail to match the stored
+    # hash and look exactly like "wrong password".
+    def setUp(self):
+        User.objects.create_user('admin', password='ChangeMe-Strong-Pw-93')
+
+    def test_trailing_crlf_on_password_is_tolerated(self):
+        response = self.client.post(reverse('login'), {
+            'username': 'admin', 'password': 'ChangeMe-Strong-Pw-93\r\n',
+        })
+        self.assertRedirects(response, reverse('home'))
+
+    def test_whitespace_around_username_is_tolerated(self):
+        response = self.client.post(reverse('login'), {
+            'username': ' admin ', 'password': 'ChangeMe-Strong-Pw-93',
+        })
+        self.assertRedirects(response, reverse('home'))
+
+
+class SeedAdminCommandTests(TestCase):
+    # Regression: seed_admin used to skip existing accounts entirely, so
+    # rotating DJANGO_SUPERUSER_PASSWORD in .env and restarting had no
+    # effect - the account silently kept its original password forever.
+    def test_creates_superuser_from_env(self):
+        os.environ['DJANGO_SUPERUSER_USERNAME'] = 'newadmin'
+        os.environ['DJANGO_SUPERUSER_EMAIL'] = 'newadmin@example.com'
+        os.environ['DJANGO_SUPERUSER_PASSWORD'] = 'first-Password-1'
+        try:
+            call_command('seed_admin')
+        finally:
+            for key in ('DJANGO_SUPERUSER_USERNAME', 'DJANGO_SUPERUSER_EMAIL', 'DJANGO_SUPERUSER_PASSWORD'):
+                os.environ.pop(key, None)
+
+        user = User.objects.get(username='newadmin')
+        self.assertTrue(user.check_password('first-Password-1'))
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)
+
+    def test_rotated_password_is_synced_on_existing_account(self):
+        User.objects.create_user('admin', password='old-Password-1')
+
+        os.environ['DJANGO_SUPERUSER_USERNAME'] = 'admin'
+        os.environ['DJANGO_SUPERUSER_EMAIL'] = 'admin@example.com'
+        os.environ['DJANGO_SUPERUSER_PASSWORD'] = 'rotated-Password-2'
+        try:
+            call_command('seed_admin')
+        finally:
+            for key in ('DJANGO_SUPERUSER_USERNAME', 'DJANGO_SUPERUSER_EMAIL', 'DJANGO_SUPERUSER_PASSWORD'):
+                os.environ.pop(key, None)
+
+        user = User.objects.get(username='admin')
+        self.assertFalse(user.check_password('old-Password-1'))
+        self.assertTrue(user.check_password('rotated-Password-2'))
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)

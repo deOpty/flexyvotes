@@ -188,6 +188,7 @@ Notes on cardinality/on_delete not obvious from the diagram shorthand:
 | `start_date` | `DateTimeField` | required | Voting window start |
 | `end_date` | `DateTimeField` | required | Voting window end |
 | `is_active` | `BooleanField` | `default=True` | Whether the event is currently active/visible |
+| `voting_locked` | `BooleanField` | `default=False` | Organizer/admin kill-switch that closes voting immediately, independent of `start_date`/`end_date` |
 | `primary_color` | `CharField` | `max_length=7`, `default='#800020'` | Theme color (hex) for event's public page |
 | `accent_color` | `CharField` | `max_length=7`, `default='#FFD700'` | Secondary theme color (hex) |
 | `background_image` | `ImageField` | `upload_to='event_backgrounds/'`, `blank=True, null=True`, `validate_file_size` (≤2MB) | Background art for the event page |
@@ -201,6 +202,9 @@ Notes on cardinality/on_delete not obvious from the diagram shorthand:
 |---|---|---|---|
 | `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='categories'` | Parent event this category belongs to |
 | `name` | `CharField` | `max_length=100` | Category label (e.g. "Best Male", "Best Female") |
+| `min_select` | `PositiveSmallIntegerField` | `default=1` | Minimum candidates a voter must pick for this position (ignored if abstaining) |
+| `max_select` | `PositiveSmallIntegerField` | `default=1` | Maximum candidates a voter may pick; `>1` renders as a multi-choice (checkbox) position |
+| `allow_abstain` | `BooleanField` | `default=True` | Whether a voter may skip this position entirely on their ballot |
 
 ### Candidate
 
@@ -259,11 +263,17 @@ Notes on cardinality/on_delete not obvious from the diagram shorthand:
 | Field | Type | Constraints | Purpose |
 |---|---|---|---|
 | `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='voting_codes'` | Event this code is valid for |
-| `code` | `CharField` | `max_length=50`, `unique=True`, `default=generate_voting_code` | The voting code string itself; auto-generated per instance (see §4) |
+| `code` | `CharField` | `max_length=50`, `default=generate_voting_code` | The plaintext voting code; auto-generated per instance (see §4). **Scrubbed to `''` once the code is used or reset** — never used for live lookups. |
+| `code_hash` | `CharField` | `max_length=64`, `db_index=True` | `HMAC-SHA256(SECRET_KEY, "<event_id>:<code>")` — the field every authorization check actually queries; unique together with `event` |
 | `voter_identifier` | `CharField` | `max_length=100`, `blank=True, null=True` | Optional identifier tying the code to a voter (e.g. student ID) |
-| `is_used` | `BooleanField` | `default=False` | Whether the code has been redeemed |
+| `voter_email` | `EmailField` | `blank=True, null=True` | Roster email captured at import time; `retrieve_voting_code()` only ever sends a reset code here, never to a submitted form value |
+| `is_used` | `BooleanField` | `default=False` | Whether the code has been redeemed (or invalidated via `reset()`) |
 | `used_at` | `DateTimeField` | `null=True, blank=True` | Timestamp the code was redeemed |
+| `invalidated_at` | `DateTimeField` | `null=True, blank=True` | Timestamp a still-unused code was invalidated via `reset()` |
 | `created_at` | `DateTimeField` | `auto_now_add=True` | Creation timestamp |
+
+`unique_together = ('event', 'code_hash')` (changed from `('event', 'code')` in migration `0035`, which also
+backfills `code_hash` for every pre-existing row).
 
 ### Ticket
 

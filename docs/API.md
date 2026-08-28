@@ -177,43 +177,73 @@ authorization check of `request.user == event.organizer or request.user.is_staff
 - **Response**: redirect to `event_detail`.
 
 ### `GET /category/<int:category_id>/edit/` and `POST` — Edit category
-- **View**: `edit_category` — `name` (string).
+- **View**: `edit_category` — `name` (string), plus ballot rules for Code Voting events: `min_select`,
+  `max_select` (integers, `max_select` clamped to be ≥ `min_select`), `allow_abstain` (checkbox, `"on"` = true).
 - **Response**: redirect to `event_detail` on POST; HTML render `voting/edit_category.html` on GET.
+
+### `POST /event/<int:event_id>/add-category/` (ballot rules)
+Same `min_select`/`max_select`/`allow_abstain` params as `edit_category` above, defaulting to
+`(1, 1, True)` — i.e. single-choice, no abstain-required, if omitted.
 
 ### `POST /event/<int:event_id>/generate-codes/` — Generate voting codes
 - **View**: `generate_codes`
-- **Params (POST)**: either `identifiers` (newline-delimited student IDs — one `VotingCode` per line, each tied to
-  that identifier) **or**, if `identifiers` is blank, `count` (integer, default 10) generic/anonymous codes. Codes
-  are random 8-char uppercase-alnum strings, guaranteed unique via a `while ... exists()` retry loop.
-- **Response**: redirect to `event_detail` with a success message stating the count generated.
+- **Params (POST)**: either `identifiers` (newline-delimited `identifier` or `identifier,email` — one `VotingCode`
+  per line, `email` optional and used only for future code resets) **or**, if `identifiers` is blank, `count`
+  (integer, default 10) generic/anonymous codes. Codes are random 8-char uppercase-alnum strings (CSPRNG via
+  `secrets`), guaranteed unique per-event by retrying on the rare `(event, code_hash)` collision.
+- **Security**: only `code_hash` (HMAC-SHA256 of the code, keyed by `SECRET_KEY`, scoped to the event) is used for
+  any live lookup; see "Voting code security model" below.
+- **Response**: redirect to `event_detail` with a success message stating the count generated. Logs an
+  `ActivityLog` entry.
 
 ### `GET /event/<int:event_id>/download-codes/` — Download voting codes CSV
 - **View**: `download_codes`
 - **Response**: `Content-Type: text/csv`, `Content-Disposition: attachment; filename="<event.title>_codes.csv"`.
   Columns: `Code, Student ID / Identifier, Status, Used At`. All string cells pass through `sanitize_csv_value`
-  (CSV-macro-injection guard: prefixes a leading `'` if the value starts with `=`, `+`, `-`, or `@`).
+  (CSV-macro-injection guard: prefixes a leading `'` if the value starts with `=`, `+`, `-`, or `@`). **The `Code`
+  column is blank for any already-used or reset/invalidated code** — the plaintext is scrubbed from the database
+  the moment a code is spent or reset, so it can only ever be downloaded once, while still generated/unused.
 
 ### `POST /event/<int:event_id>/clear-codes/` — Clear voting codes
-- **View**: `clear_codes` — deletes all `VotingCode` rows for the event.
+- **View**: `clear_codes` — deletes all `VotingCode` rows for the event. Logs an `ActivityLog` entry.
+- **Response**: redirect to `event_detail`.
+
+### `POST /event/<int:event_id>/toggle-voting-lock/` — Open/close voting
+- **View**: `toggle_voting_lock` — organizer/staff only.
+- **Behavior**: flips `Event.voting_locked`. When `True`, both `cast_vote_with_code` and the Digital Ballot
+  endpoints reject new votes regardless of `start_date`/`end_date` — an explicit kill-switch independent of the
+  scheduled window. Logs an `ActivityLog` entry.
 - **Response**: redirect to `event_detail`.
 
 ### `POST /event/<int:event_id>/upload-csv/` — Bulk-generate codes from CSV
 - **View**: `upload_student_csv`
 - **Params (POST)**: `csv_file` (file, must end in `.csv` — checked via filename only, not content-type; no
-  `None`-check before `.name`, so a request without the file will raise `AttributeError`).
-- **Behavior**: Decodes as UTF-8, reads each row's first column as a student identifier, generates a unique code
-  per non-blank row.
+  `None`-check before `.name`, so a request without the file will raise `AttributeError`). Each row's first column
+  is the student identifier; an optional second column is the voter's email (used only for future code resets).
+- **Behavior**: Decodes as UTF-8, generates a unique code per non-blank row. Logs an `ActivityLog` entry.
 - **Response**: redirect to `event_detail` with success/error message.
 
-### `GET /event/<int:event_id>/retrieve-code/` (not routed as GET-render — see below) — Retrieve a voting code
+### `POST /event/<int:event_id>/upload-codes-csv/` — Import pre-made codes from CSV
+- **View**: `upload_codes_csv` — first column is the literal code to import; duplicate-checked via `code_hash`
+  (not the plaintext column). Logs an `ActivityLog` entry.
+
+### `POST /event/<int:event_id>/retrieve-code/` — Reset/resend a voting code
 - **View**: `retrieve_voting_code`
 - **Auth**: none (public — this is the self-service "forgot my code" flow; GET falls through to the redirect since
   there's no template render branch, it only acts on POST).
-- **Params (POST)**: `student_id` (string), `email` (string).
-- **Behavior**: Looks up `VotingCode` by `event` + `voter_identifier__iexact=student_id`. If found and unused,
-  emails the code to the supplied `email` address (`send_mail`, `fail_silently=True`) and writes an `ActivityLog`
-  entry recording the disclosure (attributed to the requesting user if authenticated, else `None`). If already
-  used or not found, sets an error message instead.
+- **Params (POST)**: `student_id` (string) only. **An `email` field is no longer accepted or read** — see the
+  security note below.
+- **Rate limiting**: 5 requests/minute per IP (same cache-counter idiom as `login_view`).
+- **Behavior**: Looks up an unused `VotingCode` by `event` + `voter_identifier__iexact=student_id`. If found and it
+  has an email on file, calls `VotingCode.reset()` — the **old code is immediately invalidated** and a **brand-new
+  code** is generated and emailed only to the roster's `voter_email` (`send_mail`, `fail_silently=True`). Writes an
+  `ActivityLog` entry (no user attribution — this is an anonymous voter action). Always shows the same generic
+  success message regardless of whether a match was found, to avoid using this form to enumerate valid/used
+  student IDs.
+- **Security note (fixed)**: this endpoint previously accepted a free-text `email` field and sent the existing
+  code to *that* address if the student ID matched — meaning anyone who knew a student ID (rosters are often not
+  secret) could redirect that voter's credential to their own inbox. It now only ever sends to the address
+  captured on the roster at import time, and issues a fresh code rather than re-disclosing the old one.
 - **Response**: redirect to `event_detail` (both GET and POST — there is no dedicated template).
 
 ---
@@ -242,24 +272,93 @@ authorization check of `request.user == event.organizer or request.user.is_staff
   success message.
 - **Response**: redirect to `event_detail` (if reference resolves) or `home`.
 
-### `POST /vote/code/<int:candidate_id>/` — Cast a vote using a code or ticket reference
+### `POST /vote/code/<int:candidate_id>/` — Cast a vote using a code or ticket reference (legacy, single-candidate)
 - **View**: `cast_vote_with_code`
 - **Auth**: none
+- **Rate limiting**: 20 requests/minute per IP.
 - **Params (POST)**: `code` (string, upper-cased/stripped), `identifier` (string, optional — student ID for
   identifier-bound codes).
-- **Behavior** — two flows based on the `code` prefix:
+- **Behavior** — two flows based on the `code` prefix, both wrapped in `transaction.atomic()` with
+  `select_for_update()` on the row being checked, so concurrent submits/refresh/retry of the same code or ticket
+  cannot both succeed:
   1. **Ticket-reference tie-breaker vote** (`code` starts with `TK-`): looks up a `TicketPurchase` by
      `paystack_reference` + `event`. Requires: purchase exists, `status == 'Success'`, `has_voted == False`,
      `event.enable_tie_breaker == True`, and `purchase_method == 'Web'` (USSD-purchased tickets are excluded from
      the free vote). On success, creates a `VoteTransaction` (`vote_type='Tie-Breaker'`, `amount=0`,
-     `number_of_votes = purchase.quantity`, synthetic reference `TIE_<code>_<random4>`), marks the ticket
-     `has_voted=True`.
-  2. **Standard voting code**: looks up `VotingCode` by `event` + `code`. If the code has a bound
-     `voter_identifier`, the supplied `identifier` must case-insensitively match. Rejects already-used codes.
-     Otherwise marks the code used and creates a `VoteTransaction` (`vote_type='Main'`, `amount=0`,
-     `number_of_votes=1`, synthetic reference `TIE_<code>_<random4>`).
-  Also rejects any vote if `timezone.now() > event.end_date` ("Voting for this event has ended").
+     `number_of_votes = purchase.quantity`, opaque reference), marks the ticket `has_voted=True`.
+  2. **Standard voting code**: looks up `VotingCode` by `event` + `code_hash` (never the plaintext `code`). If the
+     code has a bound `voter_identifier`, the supplied `identifier` must case-insensitively match. Rejects
+     already-used codes. Otherwise creates a `VoteTransaction` (`vote_type='Main'`, `amount=0`, `number_of_votes=1`,
+     opaque reference) and calls `voting_code.mark_used()` (sets `is_used`/`used_at`, scrubs the plaintext `code`).
+  Also rejects any vote if `timezone.now() > event.end_date` or `event.voting_locked` is `True`.
+- **Ballot secrecy**: `VoteTransaction.voter_email`/`paystack_reference` are always fully opaque
+  (`code-vote@<event_id>.flexyvotes.internal` / `CODE-<random hex>`) — the submitted code/identifier is never
+  written into the vote row, so a DB read can't join a specific ballot back to a specific voter.
 - **Response**: redirect to `event_detail` in every case, with a success/error message.
+
+### Digital Ballot wizard (multi-position, AJAX/JSON) — the primary code-voting flow
+Two-step flow used by the `#wizard-container` UI in `templates/voting/event_detail.html`. Both endpoints are
+CSRF-protected normally (the page sends `X-CSRFToken` from the rendered `{% csrf_token %}` value) and rate-limited
+at 15 requests/minute per IP.
+
+#### `POST /event/<int:event_id>/validate-ballot/` — Step 1: validate credentials, fetch ballot
+- **View**: `validate_ballot_code`
+- **Body (JSON)**: `{"code": "...", "identifier": "..."}`
+- **Behavior**: rejects if voting has ended/is locked, if the code doesn't exist (looked up by `code_hash`), if the
+  identifier doesn't match, or if the code is already used. On success, returns the voter's identity for
+  confirmation plus every position and its candidates/ballot rules — **no state is mutated by this step**.
+- **Response (200)**:
+  ```json
+  {
+    "status": "success",
+    "voter_identifier": "STD001",
+    "voter_email_masked": "j***@example.com",
+    "categories": [
+      {"id": "3", "name": "President", "min_select": 1, "max_select": 1, "allow_abstain": true,
+       "candidates": [{"id": 12, "name": "Jane Doe", "image_url": ""}]}
+    ]
+  }
+  ```
+  A virtual `{"id": "none", "name": "General", "min_select": 1, "max_select": 1, "allow_abstain": true, ...}`
+  position is appended for any candidates with no `Category`.
+- **Errors**: `400` with `{"status": "error", "message": "..."}"`; `429` if rate-limited.
+
+#### `POST /event/<int:event_id>/cast-ballot/` — Step 2: submit the ballot
+- **View**: `cast_ballot`
+- **Body (JSON)**: `{"code": "...", "identifier": "...", "votes": {"<position id>": ["<candidate id>", ...], ...}}`
+  — an empty array for a position means abstain (only accepted if that position's `allow_abstain` is `true`).
+- **Behavior**: re-validates the whole payload against every position's `min_select`/`max_select`/`allow_abstain`
+  server-side *before* touching the database — a single invalid position rejects the entire ballot, never a
+  partial one. The actual credential check + mutation happens inside one `transaction.atomic()` block:
+  `VotingCode.objects.select_for_update().filter(event=event, code_hash=...)`, re-checking `is_used` **inside**
+  the lock. This is what makes concurrent double-submits, refreshes, and retries of the same code all resolve to
+  exactly one recorded ballot — the second request blocks on the row lock until the first commits, then sees
+  `is_used=True` and is rejected. One `VoteTransaction` is created per selected candidate (opaque
+  `voter_email`/`paystack_reference`, same as the legacy endpoint), then `voting_code.mark_used()` runs.
+- **Response (200)**:
+  ```json
+  {"status": "success", "message": "Success! Your ballot has been cast.",
+   "receipt": [{"position": "President", "choice": "Jane Doe"}, {"position": "Treasurer", "choice": "Abstained"}]}
+  ```
+  The receipt is intentionally anonymous — position names and choice text only, no code/identifier — for the
+  step-4 confirmation screen.
+- **Errors**: `400` with `{"status": "error", "message": "..."}"` for ended/locked voting, invalid/used code,
+  identifier mismatch, or any ballot-rule violation; `429` if rate-limited.
+
+### Voting code security model
+- **Hashing**: `VotingCode.code_hash = HMAC-SHA256(SECRET_KEY, "<event_id>:<CODE>")` (see
+  `voting.models.hash_voting_code`). Every live lookup (`validate_ballot_code`, `cast_ballot`,
+  `cast_vote_with_code`, `retrieve_voting_code`, the CSV-import duplicate check) queries by `code_hash`; the
+  plaintext `code` column is never used for authorization.
+- **One-time reveal**: the plaintext `code` is shown once — in the `generate_codes`/CSV-upload response and in
+  `download_codes` while the code is still unused. `VotingCode.mark_used()` and `VotingCode.reset()` both scrub
+  `code` to `''` the moment a code is spent or replaced, while leaving `code_hash` intact (so "was this code used"
+  remains answerable for audit, without the plaintext ever being recoverable again from the database).
+- **Reset, not resend**: there is no code path that reads a plaintext code back out of storage to re-display or
+  re-email it. "Forgot my code" (`retrieve_voting_code`) and the admin's `reset_selected_codes` action both call
+  `VotingCode.reset()`, which invalidates the old row and creates a brand-new `VotingCode`.
+- No new environment variables are required — the HMAC key reuses `SECRET_KEY`, which every deployment already
+  sets.
 
 ### `GET /event/<int:event_id>/live-counts/` — Live vote counts (JSON API)
 - **View**: `live_vote_counts`
