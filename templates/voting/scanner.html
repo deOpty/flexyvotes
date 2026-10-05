@@ -51,7 +51,7 @@
 </div>
 
 <!-- html5-qrcode Library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js" nonce="{{ csp_nonce }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.4/html5-qrcode.min.js" integrity="sha384-LxBm2/oFd/wfoABz4wsZ4FnGMQVAy5QI1bhf+kHA4YKi0aFe1BJTWosfTWmlMNNY" crossorigin="anonymous" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
     const eventId = "{{ event.id }}";
     const processScanUrl = `/event/${eventId}/process-scan/`;

@@ -56,7 +56,7 @@
 {% endblock %}
 {% block extra_js %}
 {% if chart_data and not lite_mode %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" nonce="{{ csp_nonce }}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous" nonce="{{ csp_nonce }}"></script>
 <script nonce="{{ csp_nonce }}">
     (function () {
         var data = JSON.parse(document.getElementById('chart-data').textContent);

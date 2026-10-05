@@ -129,7 +129,7 @@ python manage.py test                                         # SQLite, fast
 docker compose run --rm web python manage.py test --noinput   # PostgreSQL
 ```
 
-The suite has 203 tests: unit, integration, end-to-end web flows, security, and
+The suite has 204 tests: unit, integration, end-to-end web flows, security, and
 race-condition tests.
 - **SQLite:** the 5 concurrency tests and the trigger test need PostgreSQL and are skipped.
 - **PostgreSQL:** all tests run except 1 SQLite-only tamper test. It edits a ballot row

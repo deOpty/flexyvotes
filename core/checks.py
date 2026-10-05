@@ -29,4 +29,7 @@ def platform_security_checks(app_configs, **kwargs):
     if settings.USSD_CALLBACK_TOKEN is None and not settings.USSD_ALLOWED_IPS:
         issues.append(Warning('USSD callback is unauthenticated (set USSD_CALLBACK_TOKEN or USSD_ALLOWED_IPS).',
                               id='flexyvotes.W006'))
+    if getattr(settings, 'MEDIA_STORAGE_MISCONFIGURED', False):
+        issues.append(Warning('MEDIA_STORAGE=cloudinary but CLOUDINARY_CLOUD_NAME / _API_KEY / _API_SECRET are not all '
+                              'set: uploads are stored on local disk instead.', id='flexyvotes.W007'))
     return issues

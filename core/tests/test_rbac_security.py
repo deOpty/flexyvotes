@@ -220,3 +220,13 @@ class UploadAndOtpHardeningTests(TestCase):
         code = re.search(r'\b(\d{6})\b', mail.outbox[-1].body).group(1)
         with self.assertRaisesMessage(otp.OTPError, 'Too many incorrect attempts'):
             otp.verify(challenge.pk, code, purpose='login', subject_type='user', subject_id='42')
+
+
+class DeployCheckTests(TestCase):
+    def test_half_configured_cloudinary_is_reported(self):
+        from core.checks import platform_security_checks
+
+        with override_settings(MEDIA_STORAGE_MISCONFIGURED=True):
+            self.assertIn('flexyvotes.W007', [i.id for i in platform_security_checks(None)])
+        with override_settings(MEDIA_STORAGE_MISCONFIGURED=False):
+            self.assertNotIn('flexyvotes.W007', [i.id for i in platform_security_checks(None)])

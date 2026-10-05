@@ -11,8 +11,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # libpq5: PostgreSQL client library; gettext: compile translations;
-# curl: container health checks.
+# curl: container health checks. `upgrade` applies Debian security fixes
+# published after the base image was built (the Trivy scan in CI fails on
+# fixable HIGH/CRITICAL CVEs).
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends libpq5 gettext curl \
     && rm -rf /var/lib/apt/lists/*
 

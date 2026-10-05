@@ -15,6 +15,14 @@ class PrivateStorage(LazyObject):
 private_storage = PrivateStorage()
 
 
+def get_private_storage():
+    """Use as ``FileField(storage=get_private_storage)``. A callable is
+    serialized into migrations by import path; passing the instance would bake
+    this machine's PRIVATE_MEDIA_ROOT into the migration, so every other
+    environment (CI, Docker) would see a phantom model change."""
+    return private_storage
+
+
 def file_sha256(uploaded):
     digest = hashlib.sha256()
     for chunk in uploaded.chunks():

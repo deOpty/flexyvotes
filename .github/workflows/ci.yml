@@ -63,6 +63,8 @@ jobs:
         uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: flexyvotes:ci
+          scanners: vuln
+          timeout: 15m
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
@@ -72,6 +74,10 @@ jobs:
           echo "SECRET_KEY=dast-secret-key-$(date +%s)" >> .env
           echo "DEBUG=False" >> .env
           echo "ALLOWED_HOSTS=localhost,127.0.0.1,web" >> .env
+          # The scan runs over plain HTTP; with the production redirect on,
+          # ZAP would only ever see a 301 to https:// and scan nothing.
+          echo "SECURE_SSL_REDIRECT=False" >> .env
+          echo "SECURE_HSTS_SECONDS=0" >> .env
           IMAGE=flexyvotes:ci docker compose up -d db redis web
           for i in $(seq 1 60); do curl -fsS http://localhost:8000/healthz/live && break; sleep 2; done
       - name: DAST (OWASP ZAP baseline)

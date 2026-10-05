@@ -36,12 +36,12 @@ mocked with `responses`.
 
 ## 2. What is covered
 
-**203 tests** in 16 modules.
+**204 tests** in 16 modules.
 
 | Module | Tests | Covers |
 |---|---|---|
 | `core/tests/test_crypto_audit.py` | 18 | Envelope encryption and AAD binding; data-key rotation; KEK rotation; upgrade from the derived KEK to a configured KEK and to KMS; `verify_integrity` fails when keys can't decrypt; encrypted columns stored as ciphertext; Ed25519 signatures; ballot sealing; Shamir thresholds; Merkle proofs; passphrase backups; audit chain linking, ORM refusal, tamper and delete detection, PostgreSQL triggers |
-| `core/tests/test_rbac_security.py` | 24 | Organization-admin tenant scoping; event-scoped roles; read-only auditor; platform admin; role sync on migrate; CSP nonce and headers; correlation id; no-cache on sensitive pages; health endpoints, including load-balancer `Host` headers; metrics token; `security.txt` (contact, RFC 9116 expiry); API CORS; POST-only logout; open-redirect guard; SSRF allow-list and public-IP resolution; circuit breaker; rate-limit window; idempotency records; trusted-proxy client IP; CSV formula injection; spoofed uploads; OTP brute force |
+| `core/tests/test_rbac_security.py` | 25 | Organization-admin tenant scoping; event-scoped roles; read-only auditor; platform admin; role sync on migrate; CSP nonce and headers; correlation id; no-cache on sensitive pages; health endpoints, including load-balancer `Host` headers; metrics token; `security.txt` (contact, RFC 9116 expiry); API CORS; POST-only logout; open-redirect guard; SSRF allow-list and public-IP resolution; circuit breaker; rate-limit window; idempotency records; trusted-proxy client IP; CSV formula injection; spoofed uploads; OTP brute force; half-configured Cloudinary deploy warning |
 | `core/tests/test_auth_sso.py` | 11 | Lockout; TOTP enrolment, second step and replay protection; new-device alert and email step-up; session listing and remote revocation; enforced staff MFA; API token lifecycle; weak passwords and bots rejected at registration; staff SSO login; OIDC `nonce` / audience / `state` checks; voter SSO matched to the roll by verified email |
 | `core/tests/test_i18n.py` | 4 | French catalog compiled; public pages and the ballot flow render in French; English remains the default |
 | `elections/tests/test_ballot.py` | 9 | Normalizing every ballot type; too many selections; duplicate or foreign candidates; abstention rules; score range; positions outside the voter's ballot style; withdrawn candidates; form parsing and rank gaps; configuration problems |

@@ -9,7 +9,7 @@ from django.utils import timezone
 from core.crypto import access_code, blind_index
 from core.fields import EncryptedTextField
 from core.models import AppendOnlyQuerySet
-from core.storage import private_storage
+from core.storage import get_private_storage
 
 
 def _reference(prefix):
@@ -529,7 +529,7 @@ class EvidenceItem(models.Model):
     incident = models.ForeignKey(Incident, on_delete=models.PROTECT, null=True, blank=True, related_name='evidence')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    file = models.FileField(storage=private_storage, upload_to='evidence/%Y/%m/')
+    file = models.FileField(storage=get_private_storage, upload_to='evidence/%Y/%m/')
     sha256 = models.CharField(max_length=64)
     size = models.PositiveBigIntegerField()
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')

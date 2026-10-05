@@ -301,6 +301,9 @@ SUPPORTED_CURRENCIES = ['GHS', 'NGN', 'KES', 'ZAR', 'USD']
 # ---------------------------------------------------------------------------
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+# WhiteNoise sends "Access-Control-Allow-Origin: *" on static files by default;
+# nothing here needs cross-origin access to them.
+WHITENOISE_ALLOW_ALL_ORIGINS = False
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Private files (evidence, manifestos awaiting review, exports) never get a
@@ -313,6 +316,12 @@ CLOUDINARY_STORAGE = {
     'API_SECRET': env('CLOUDINARY_API_SECRET'),
 }
 MEDIA_STORAGE = env('MEDIA_STORAGE', 'cloudinary' if (CLOUDINARY_STORAGE['CLOUD_NAME'] and not DEBUG) else 'local')
+# Cloudinary without credentials makes every image URL raise (pages 500), so
+# fall back to local storage; core.checks reports it as flexyvotes.W007.
+CLOUDINARY_CONFIGURED = all(CLOUDINARY_STORAGE.values())
+MEDIA_STORAGE_MISCONFIGURED = MEDIA_STORAGE == 'cloudinary' and not CLOUDINARY_CONFIGURED
+if MEDIA_STORAGE_MISCONFIGURED:
+    MEDIA_STORAGE = 'local'
 STORAGES = {
     'default': {
         'BACKEND': (

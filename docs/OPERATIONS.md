@@ -121,7 +121,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 
 | Command | Use |
 |---|---|
-| `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W006`) |
+| `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W007`) |
 | `seed_admin` | Create or sync the superuser from `DJANGO_SUPERUSER_*` |
 | `verify_integrity [--skip-evidence]` | Verify audit chains, signed config snapshots, result certifications (signature, result hash, bulletin root), evidence checksums, and that the configured keys unwrap every data key and decrypt the encrypted columns. Non-zero exit on any failure. |
 | `keys status` | KEK provider, data keys (and any not on the active KEK), signing-key source and fingerprint |
