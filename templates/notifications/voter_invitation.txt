@@ -1,0 +1,11 @@
+{% autoescape off %}Hello{% if name %} {{ name }}{% endif %},
+
+You are on the voter roll for "{{ election }}".
+{% if identifier %}Voter ID: {{ identifier }}
+{% endif %}{% if code %}Your access code: {{ code }}
+{% endif %}
+Voting opens {{ starts }} and closes {{ ends }}.
+Vote here: {{ link }}
+
+Keep your access code private. Officials will never ask you for it.
+{% endautoescape %}

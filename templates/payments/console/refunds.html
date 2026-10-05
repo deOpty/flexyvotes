@@ -1,0 +1,9 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Refunds" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Refunds" %}</h1>
+<div class="panel"><table class="table table-sm align-middle"><thead><tr><th>{% translate "Payment" %}</th><th>{% translate "Amount" %}</th><th>{% translate "Reason" %}</th><th>{% translate "Requested / approved" %}</th><th>{% translate "Status" %}</th></tr></thead>
+<tbody>{% for r in refunds %}<tr><td><a class="mono" href="{% url 'payments:console_detail' r.payment.reference %}">{{ r.payment.reference }}</a></td><td>{{ r.amount|money:r.payment.currency }}</td><td class="small">{{ r.reason }}</td><td class="small">{{ r.requested_by.username }} · {{ r.requested_at|date:"d M H:i" }}{% if r.approved_by %}<div>{{ r.approved_by.username }}</div>{% endif %}</td><td>{{ r.get_status_display }}{% if r.error %}<div class="small text-danger">{{ r.error|truncatechars:60 }}</div>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted">{% translate "No refunds." %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

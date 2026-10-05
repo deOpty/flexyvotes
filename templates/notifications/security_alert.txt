@@ -1,0 +1,7 @@
+{% autoescape off %}Security alert: {{ title }}
+
+{{ detail }}
+
+If this wasn't you, change your password and review your active sessions:
+{{ site_url }}/account/security/
+{% endautoescape %}

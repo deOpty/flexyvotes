@@ -1,0 +1,12 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block footer %}{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width: 760px;">
+    <header class="mb-3">
+        <a href="{% url 'event_detail' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+        {% block steps %}{% endblock %}
+    </header>
+    {% block vote %}{% endblock %}
+</div>
+{% endblock %}

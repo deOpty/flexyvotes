@@ -1,0 +1,1 @@
+{% autoescape off %}Results for {{ election }} are published: {{ link }}{% endautoescape %}

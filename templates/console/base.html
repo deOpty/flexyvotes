@@ -1,0 +1,46 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block body_class %}console{% endblock %}
+{% block footer %}{% endblock %}
+{% block content %}
+{% with url_name=request.resolver_match.url_name ns=request.resolver_match.namespace %}
+<div class="console-shell">
+    <aside class="console-sidebar p-3" aria-label="{% translate 'Console navigation' %}">
+        <nav class="nav flex-column">
+            <a class="nav-link {% if url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-2" aria-hidden="true"></i>{% translate "Dashboard" %}</a>
+            <a class="nav-link {% if ns == 'elections' %}active{% endif %}" href="{% url 'elections:console_list' %}"><i class="bi bi-ballot me-2" aria-hidden="true"></i>{% translate "Elections" %}</a>
+            <a class="nav-link" href="{% url 'create_event' %}"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>{% translate "New election" %}</a>
+            <a class="nav-link {% if url_name == 'approvals' %}active{% endif %}" href="{% url 'console:approvals' %}"><i class="bi bi-check2-square me-2" aria-hidden="true"></i>{% translate "Approvals" %}</a>
+            <div class="sidebar-heading">{% translate "Money" %}</div>
+            <a class="nav-link {% if ns == 'payments' and url_name == 'console_list' %}active{% endif %}" href="{% url 'payments:console_list' %}"><i class="bi bi-credit-card me-2" aria-hidden="true"></i>{% translate "Payments" %}</a>
+            <a class="nav-link {% if url_name == 'revenue' %}active{% endif %}" href="{% url 'payments:revenue' %}"><i class="bi bi-graph-up me-2" aria-hidden="true"></i>{% translate "Revenue" %}</a>
+            <a class="nav-link {% if url_name == 'reconciliation' %}active{% endif %}" href="{% url 'payments:reconciliation' %}"><i class="bi bi-arrow-left-right me-2" aria-hidden="true"></i>{% translate "Reconciliation" %}</a>
+            <a class="nav-link {% if url_name == 'refunds' %}active{% endif %}" href="{% url 'payments:refunds' %}"><i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>{% translate "Refunds" %}</a>
+            <div class="sidebar-heading">{% translate "Integrity" %}</div>
+            <a class="nav-link {% if ns == 'fraud' %}active{% endif %}" href="{% url 'fraud:alerts' %}"><i class="bi bi-shield-exclamation me-2" aria-hidden="true"></i>{% translate "Fraud monitoring" %}</a>
+            <a class="nav-link {% if url_name == 'audit' %}active{% endif %}" href="{% url 'console:audit' %}"><i class="bi bi-journal-check me-2" aria-hidden="true"></i>{% translate "Audit log" %}</a>
+            <a class="nav-link {% if url_name == 'reports' %}active{% endif %}" href="{% url 'console:reports' %}"><i class="bi bi-file-earmark-bar-graph me-2" aria-hidden="true"></i>{% translate "Reports" %}</a>
+            <div class="sidebar-heading">{% translate "Organization" %}</div>
+            <a class="nav-link {% if url_name == 'team' or url_name == 'team_org' %}active{% endif %}" href="{% url 'console:team' %}"><i class="bi bi-people me-2" aria-hidden="true"></i>{% translate "Team & roles" %}</a>
+            <a class="nav-link {% if ns == 'billing' %}active{% endif %}" href="{% url 'billing:home' %}"><i class="bi bi-receipt me-2" aria-hidden="true"></i>{% translate "Billing" %}</a>
+            <a class="nav-link {% if url_name == 'support' or url_name == 'support_ticket' %}active{% endif %}" href="{% url 'console:support' %}"><i class="bi bi-life-preserver me-2" aria-hidden="true"></i>{% translate "Support tickets" %}</a>
+            <a class="nav-link {% if url_name == 'notifications' %}active{% endif %}" href="{% url 'console:notifications' %}"><i class="bi bi-bell me-2" aria-hidden="true"></i>{% translate "Notifications" %}</a>
+            {% if is_platform_admin %}
+            <div class="sidebar-heading">{% translate "Platform" %}</div>
+            <a class="nav-link {% if url_name == 'organizations' %}active{% endif %}" href="{% url 'console:organizations' %}"><i class="bi bi-buildings me-2" aria-hidden="true"></i>{% translate "Organizations" %}</a>
+            <a class="nav-link {% if url_name == 'organizers' %}active{% endif %}" href="{% url 'console:organizers' %}"><i class="bi bi-person-check me-2" aria-hidden="true"></i>{% translate "Organizer approvals" %}</a>
+            <a class="nav-link {% if url_name == 'health' %}active{% endif %}" href="{% url 'console:health' %}"><i class="bi bi-heart-pulse me-2" aria-hidden="true"></i>{% translate "System health" %}</a>
+            <a class="nav-link" href="{% url 'fraud:blocklist' %}"><i class="bi bi-slash-circle me-2" aria-hidden="true"></i>{% translate "Blocklist" %}</a>
+            <a class="nav-link" href="{% url 'manage_store' %}"><i class="bi bi-bag me-2" aria-hidden="true"></i>{% translate "Store" %}</a>
+            <a class="nav-link" href="/api/v1/docs"><i class="bi bi-braces me-2" aria-hidden="true"></i>{% translate "API docs" %}</a>
+            {% endif %}
+            <div class="sidebar-heading">{% translate "You" %}</div>
+            <a class="nav-link {% if ns == 'account' %}active{% endif %}" href="{% url 'account:security' %}"><i class="bi bi-shield-lock me-2" aria-hidden="true"></i>{% translate "Account security" %}</a>
+        </nav>
+    </aside>
+    <div class="console-main">
+        {% block console %}{% endblock %}
+    </div>
+</div>
+{% endwith %}
+{% endblock %}

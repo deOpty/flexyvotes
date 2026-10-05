@@ -1,0 +1,78 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Integrity" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<div class="row g-3">
+    <div class="col-xl-6">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Freezes" %}</h2>
+            <p class="small text-muted">{% translate "Freezing is immediate. Lifting a freeze outside draft requires a second official when dual approval is on." %}</p>
+            <table class="table table-sm align-middle">
+                {% for scope, flag in freeze_scopes.items %}
+                <tr><td class="text-capitalize">{{ scope }}</td>
+                    <td>{% if scope == 'config' and event.config_frozen or scope == 'ballot' and event.ballot_frozen or scope == 'candidates' and event.candidates_frozen or scope == 'voters' and event.voter_list_frozen %}<span class="badge bg-secondary">{% translate "Frozen" %}</span>
+                        {% if 'election.freeze' in perms %}<form method="post" action="{% url 'elections:console_integrity_action' event.pk %}" class="d-inline-flex gap-1 ms-2">{% csrf_token %}<input type="hidden" name="action" value="unfreeze"><input type="hidden" name="scope" value="{{ scope }}"><input name="reason" class="form-control form-control-sm" placeholder="{% translate 'Reason' %}" required aria-label="{% translate 'Reason' %}"><button class="btn btn-sm btn-outline-danger">{% translate "Unfreeze" %}</button></form>{% endif %}
+                    {% else %}<span class="badge bg-light text-dark border">{% translate "Editable" %}</span>
+                        {% if 'election.freeze' in perms %}<form method="post" action="{% url 'elections:console_integrity_action' event.pk %}" class="d-inline ms-2">{% csrf_token %}<input type="hidden" name="action" value="freeze"><input type="hidden" name="scope" value="{{ scope }}"><button class="btn btn-sm btn-outline-secondary">{% translate "Freeze" %}</button></form>{% endif %}
+                    {% endif %}</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+        {% if 'election.close' in perms %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Extend or re-open voting" %}</h2>
+            <form method="post" action="{% url 'elections:console_integrity_action' event.pk %}" class="row g-2">{% csrf_token %}
+                <div class="col-sm-6"><label class="form-label small" for="ne">{% translate "New end (ISO, election time zone)" %}</label><input id="ne" type="datetime-local" name="new_end" class="form-control" required></div>
+                <div class="col-sm-6"><label class="form-label small" for="nr">{% translate "Reason" %}</label><input id="nr" name="reason" class="form-control" required></div>
+                <div class="col-12 d-flex gap-2"><button name="action" value="extend" class="btn btn-sm btn-outline-wine">{% translate "Extend voting" %}</button>{% if event.status == 'CLOSED' %}<button name="action" value="reopen" class="btn btn-sm btn-outline-danger">{% translate "Re-open voting" %}</button>{% endif %}</div>
+            </form>
+        </div>
+        {% endif %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Signed configuration snapshots" %}</h2>
+            <table class="table table-sm"><thead><tr><th>v</th><th>{% translate "Reason" %}</th><th>{% translate "When" %}</th><th>{% translate "Hash" %}</th><th>{% translate "Signature" %}</th></tr></thead>
+            <tbody>{% for s in snapshots %}<tr><td>{{ s.version }}</td><td>{{ s.reason }}</td><td class="small">{{ s.created_at|date:"d M H:i" }}</td><td class="mono small">{{ s.config_hash|slice:":16" }}…</td><td>{% if s.valid %}<span class="badge bg-success">{% translate "valid" %}</span>{% else %}<span class="badge bg-danger">{% translate "INVALID" %}</span>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="5" class="text-muted">{% translate "Created automatically when the configuration is approved." %}</td></tr>{% endfor %}</tbody></table>
+            <form method="post" action="{% url 'elections:console_integrity_action' event.pk %}">{% csrf_token %}<input type="hidden" name="action" value="snapshot"><button class="btn btn-sm btn-outline-secondary">{% translate "Sign a snapshot now" %}</button></form>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Evidence preservation" %}</h2>
+            {% if event.legal_hold %}<p><span class="badge bg-danger">{% translate "Legal hold active" %}</span> {% translate "The election cannot be archived." %}</p>
+            <form method="post" action="{% url 'elections:console_integrity_action' event.pk %}" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="legal_hold_off"><input name="reason" class="form-control form-control-sm" placeholder="{% translate 'Reason' %}" required aria-label="{% translate 'Reason' %}"><button class="btn btn-sm btn-outline-danger">{% translate "Request release" %}</button></form>
+            {% else %}
+            <form method="post" action="{% url 'elections:console_integrity_action' event.pk %}" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="legal_hold_on"><input name="reason" class="form-control form-control-sm" placeholder="{% translate 'Reason' %}" required aria-label="{% translate 'Reason' %}"><button class="btn btn-sm btn-outline-danger">{% translate "Place legal hold" %}</button></form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Dual-approval requests" %}</h2>
+            <ul class="list-group list-group-flush small">{% for a in approvals %}<li class="list-group-item px-0"><strong>{{ a.get_action_display }}</strong> — {{ a.get_status_display }}<div class="text-muted">{{ a.requested_by.username }} · {{ a.requested_at|date:"d M H:i" }} · {{ a.reason }}{% if a.decided_by %} · {% translate "decided by" %} {{ a.decided_by.username }}{% endif %}</div></li>
+            {% empty %}<li class="list-group-item px-0 text-muted">{% translate "None." %}</li>{% endfor %}</ul>
+            <a href="{% url 'console:approvals' %}" class="small">{% translate "Approvals queue" %}</a>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Disputes" %}</h2>
+            <ul class="list-group list-group-flush small">{% for d in disputes %}<li class="list-group-item px-0 d-flex justify-content-between"><a href="{% url 'elections:console_dispute' event.pk d.pk %}">{{ d.reference }} · {{ d.subject }}</a>{{ d.status|status_badge:d.get_status_display }}</li>
+            {% empty %}<li class="list-group-item px-0 text-muted">{% translate "No disputes." %} <a href="{% url 'elections:file_dispute' event.pk %}">{% translate "Public dispute form" %}</a></li>{% endfor %}</ul>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Incidents" %}</h2>
+            <ul class="list-group list-group-flush small mb-3">{% for i in incidents %}<li class="list-group-item px-0 d-flex justify-content-between"><a href="{% url 'elections:console_incident' event.pk i.pk %}">{{ i.reference }} · {{ i.title }}</a><span><span class="badge bg-{% if i.severity == 'CRITICAL' or i.severity == 'HIGH' %}danger{% else %}secondary{% endif %}">{{ i.severity }}</span> {{ i.get_status_display }}</span></li>
+            {% empty %}<li class="list-group-item px-0 text-muted">{% translate "No incidents." %}</li>{% endfor %}</ul>
+            {% if 'incident.manage' in perms %}
+            <form method="post" action="{% url 'elections:console_integrity_action' event.pk %}">{% csrf_token %}<input type="hidden" name="action" value="incident">
+                <input name="title" class="form-control form-control-sm mb-1" placeholder="{% translate 'Incident title' %}" required aria-label="{% translate 'Incident title' %}">
+                <textarea name="description" class="form-control form-control-sm mb-1" rows="2" placeholder="{% translate 'What happened?' %}" required aria-label="{% translate 'Description' %}"></textarea>
+                <div class="d-flex gap-1"><select name="severity" class="form-select form-select-sm" aria-label="{% translate 'Severity' %}">{% for v, l in severities %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select><button class="btn btn-sm btn-outline-danger">{% translate "Open incident" %}</button></div>
+            </form>
+            {% endif %}
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Configuration change history" %}</h2>
+            <ul class="list-unstyled small mb-0">{% for h in history %}<li class="border-bottom py-1"><span class="text-muted">{{ h.created_at|date:"d M H:i" }}</span> · {{ h.actor_label|default:"system" }} · {{ h.summary }}{% if h.changes %}<details><summary class="text-muted">{% translate "changes" %}</summary><pre class="mono small mb-0">{{ h.changes|pprint }}</pre></details>{% endif %}</li>{% empty %}<li class="text-muted">—</li>{% endfor %}</ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Voter roll" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "On the roll" %}</div><div class="kpi-value">{{ turnout.total|number }}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Eligible" %}</div><div class="kpi-value">{{ turnout.eligible|number }}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Voted" %}</div><div class="kpi-value">{{ turnout.voted|number }}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Turnout" %}</div><div class="kpi-value">{{ turnout.turnout_percentage|pct }}</div></div></div>
+</div>
+{% if not voter_policy.0 %}<div class="alert alert-secondary">{{ voter_policy.2 }}</div>{% endif %}
+<div class="row g-3">
+    <div class="col-xl-8">
+        <form method="get" class="panel row g-2 align-items-end">
+            <div class="col-md-6"><label class="form-label small" for="vq">{% translate "Voter ID or exact email" %}</label><input id="vq" name="q" value="{{ query }}" class="form-control"></div>
+            <div class="col-md-4"><label class="form-label small" for="vs">{% translate "Status" %}</label><select id="vs" name="status" class="form-select"><option value="">{% translate "Any" %}</option>{% for v, l in statuses %}<option value="{{ v }}" {% if v == status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+            <div class="col-md-2"><button class="btn btn-wine w-100">{% translate "Search" %}</button></div>
+        </form>
+        <div class="panel">
+            <div class="table-responsive"><table class="table table-sm align-middle">
+                <thead><tr><th>{% translate "Voter ID" %}</th><th>{% translate "Name" %}</th><th>{% translate "Unit" %}</th><th>{% translate "Status" %}</th><th>{% translate "Voted" %}</th><th class="text-end">{% translate "Actions" %}</th></tr></thead>
+                <tbody>{% for v in page %}
+                <tr>
+                    <td class="mono">{{ v.identifier|default:"(code only)" }}</td>
+                    <td>{{ v.full_name|default:"—" }}<div class="small text-muted">{{ v.email|default:""|slice:":1" }}{% if v.email %}***{% endif %}</div></td>
+                    <td class="small">{{ v.constituency.name|default:"—" }}</td>
+                    <td>{{ v.status|status_badge:v.get_status_display }}</td>
+                    <td class="small">{{ v.voted_at|date:"d M H:i"|default:"—" }}</td>
+                    <td class="text-end">
+                        {% if v.status != 'VOTED' %}
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">{% translate "Manage" %}</button>
+                            <div class="dropdown-menu dropdown-menu-end p-2" style="min-width: 260px;">
+                                <form method="post" action="{% url 'elections:console_voter_action' event.pk v.pk %}" class="mb-1" data-confirm="{% translate 'Issue a new code? The old one stops working.' %}">{% csrf_token %}<input type="hidden" name="action" value="reset"><div class="form-check small"><input class="form-check-input" type="checkbox" name="notify" id="n{{ v.pk }}"><label class="form-check-label" for="n{{ v.pk }}">{% translate "email it to the voter" %}</label></div><button class="dropdown-item">{% translate "Reset access code" %}</button></form>
+                                <form method="post" action="{% url 'elections:console_voter_action' event.pk v.pk %}">{% csrf_token %}<input type="hidden" name="action" value="invite"><button class="dropdown-item">{% translate "Send invitation" %}</button></form>
+                                {% if v.status == 'ELIGIBLE' %}<form method="post" action="{% url 'elections:console_voter_action' event.pk v.pk %}">{% csrf_token %}<input type="hidden" name="action" value="verify"><button class="dropdown-item">{% translate "Mark verified" %}</button></form>{% endif %}
+                                {% if v.status == 'SUSPENDED' or v.status == 'INELIGIBLE' %}
+                                <form method="post" action="{% url 'elections:console_voter_action' event.pk v.pk %}">{% csrf_token %}<input type="hidden" name="action" value="reinstate"><button class="dropdown-item">{% translate "Reinstate" %}</button></form>
+                                {% else %}
+                                <form method="post" action="{% url 'elections:console_voter_action' event.pk v.pk %}" data-confirm="{% translate 'Suspend this voter?' %}">{% csrf_token %}<input type="hidden" name="action" value="suspend"><input name="reason" class="form-control form-control-sm my-1" placeholder="{% translate 'Reason' %}"><button class="dropdown-item text-danger">{% translate "Suspend" %}</button></form>
+                                {% endif %}
+                                <form method="post" action="{% url 'elections:console_voter_action' event.pk v.pk %}" data-confirm="{% translate 'Remove this voter from the roll?' %}">{% csrf_token %}<input type="hidden" name="action" value="remove"><button class="dropdown-item text-danger">{% translate "Remove from roll" %}</button></form>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="6" class="text-center text-muted p-4">{% translate "No voters yet." %}</td></tr>{% endfor %}</tbody>
+            </table></div>
+            {% include 'console/includes/pagination.html' %}
+        </div>
+        {% if turnout.by_constituency %}
+        <div class="panel"><h2 class="h5 fw-bold">{% translate "Turnout by unit" %}</h2>
+            <table class="table table-sm"><thead><tr><th>{% translate "Unit" %}</th><th>{% translate "Voters" %}</th><th>{% translate "Voted" %}</th><th>{% translate "Turnout" %}</th></tr></thead>
+            <tbody>{% for row in turnout.by_constituency %}<tr><td>{{ row.name }}</td><td>{{ row.total }}</td><td>{{ row.voted }}</td><td>{{ row.turnout|pct }}</td></tr>{% endfor %}</tbody></table></div>
+        {% endif %}
+    </div>
+    <div class="col-xl-4">
+        {% if voter_policy.0 %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Import voters" %}</h2>
+            <form method="post" action="{% url 'upload_csv' event.pk %}" enctype="multipart/form-data">{% csrf_token %}
+                <label class="form-label small" for="imp">{% translate "CSV or Excel (.xlsx)" %}</label>
+                <input id="imp" type="file" name="csv_file" accept=".csv,.xlsx" class="form-control mb-2" required>
+                <div class="form-text mb-2">{% translate "Columns: identifier (student/staff/member ID), name, email, phone, constituency (unit code). Extra columns become attributes for eligibility rules." %}</div>
+                <button class="btn btn-wine w-100">{% translate "Import" %}</button>
+            </form>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Add one voter" %}</h2>
+            <form method="post" action="{% url 'elections:console_voter_add' event.pk %}">{% csrf_token %}
+                <input name="identifier" class="form-control mb-2" placeholder="{% translate 'Voter ID' %}" aria-label="{% translate 'Voter ID' %}">
+                <input name="full_name" class="form-control mb-2" placeholder="{% translate 'Full name' %}" aria-label="{% translate 'Full name' %}">
+                <input name="email" type="email" class="form-control mb-2" placeholder="{% translate 'Email' %}" aria-label="{% translate 'Email' %}">
+                <input name="phone" class="form-control mb-2" placeholder="{% translate 'Phone' %}" aria-label="{% translate 'Phone' %}">
+                {% if constituencies %}<select name="constituency" class="form-select mb-2" aria-label="{% translate 'Unit' %}"><option value="">{% translate "No unit" %}</option>{% for c in constituencies %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}</select>{% endif %}
+                <button class="btn btn-outline-wine w-100">{% translate "Add voter" %}</button>
+            </form>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Anonymous access codes" %}</h2>
+            <form method="post" action="{% url 'elections:console_voters_bulk' event.pk %}" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="generate_codes"><label class="visually-hidden" for="gc">{% translate "How many" %}</label><input id="gc" type="number" name="count" min="1" max="5000" value="50" class="form-control"><button class="btn btn-outline-wine">{% translate "Generate" %}</button></form>
+            <form method="post" action="{% url 'upload_codes_csv' event.pk %}" enctype="multipart/form-data" class="mt-2">{% csrf_token %}<label class="form-label small" for="pre">{% translate "Or import pre-printed codes (CSV)" %}</label><input id="pre" type="file" name="csv_file" accept=".csv" class="form-control mb-2"><button class="btn btn-sm btn-outline-secondary">{% translate "Import codes" %}</button></form>
+        </div>
+        {% endif %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Credentials" %}</h2>
+            <a href="{% url 'elections:console_voters_export' event.pk %}" class="btn btn-outline-secondary w-100 mb-2">{% translate "Export roll with unused codes (CSV)" %}</a>
+            <form method="post" action="{% url 'elections:console_voters_bulk' event.pk %}" class="mb-2" data-confirm="{% translate 'Email/SMS every voter who has not voted?' %}">{% csrf_token %}<input type="hidden" name="action" value="invite_all"><button class="btn btn-outline-secondary w-100">{% translate "Send invitations to all" %}</button></form>
+            <form method="post" action="{% url 'elections:console_voters_bulk' event.pk %}" data-confirm="{% translate 'Reset every unused credential? Existing codes stop working.' %}">{% csrf_token %}<input type="hidden" name="action" value="reset_all"><input name="reason" class="form-control form-control-sm mb-1" placeholder="{% translate 'Reason (required)' %}" required aria-label="{% translate 'Reason' %}"><button class="btn btn-outline-danger w-100">{% translate "Reset all unused codes (dual approval)" %}</button></form>
+            {% if voter_policy.0 %}<form method="post" action="{% url 'clear_codes' event.pk %}" class="mt-2" data-confirm="{% translate 'Remove every voter who has not voted?' %}">{% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0">{% translate "Remove all unvoted voters" %}</button></form>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+-r requirements.txt
+bandit==1.9.4
+pip-audit==2.10.1
+polib==1.2.0
+responses==0.26.2

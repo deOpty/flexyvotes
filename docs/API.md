@@ -1,627 +1,326 @@
-# FlexyVotes — Endpoint Reference
-
-This document describes every URL registered in `vote_fund/urls.py` and `voting/urls.py`, grounded in the actual
-implementation in `voting/views.py`. FlexyVotes is primarily a server-rendered Django app: most endpoints accept
-HTML form POSTs and respond with a redirect (following the `messages` framework for user feedback) or a rendered
-template. A small number of endpoints are true JSON/API or machine-callable protocol endpoints — those are called
-out explicitly.
-
-Base URL used in examples: `https://flexyvotes.example.com` (replace with the real `SITE_URL`).
-
-Unless otherwise noted:
-- "Auth: none" means the view has no `@login_required` and does no manual authentication check.
-- "Organizer/staff of event" means: `request.user == event.organizer or request.user.is_staff`.
-- All HTML-rendering views accept `GET` unless stated; POST-only actions redirect back to a referring page for any
-  non-POST request that isn't otherwise handled.
-- CSRF: standard Django CSRF protection applies to all form-POST and template-rendered views (they rely on
-  `{% csrf_token %}` in the templates). Only endpoints explicitly marked `@csrf_exempt` skip this.
-
----
-
-## 1. Public Pages
-
-### `GET /`  — Home
-- **View**: `home`
-- **Auth**: none
-- **Params (GET)**: `q` (string, optional) — free-text filter on event title (`icontains`).
-- **Behavior**: Lists active events (`is_active=True`), ordered by `-start_date`; pops a one-shot
-  `show_registration_popup` flag out of the session to drive a UI popup.
-- **Response**: HTML render of `voting/home.html` with `events`, `show_popup`.
-
-### `GET /event/<int:event_id>/` — Event detail
-- **View**: `event_detail`
-- **Auth**: none (organizer/admin get an extra UI flag)
-- **Params**: none
-- **Behavior**: 404s if event doesn't exist. Computes `is_expired` (now > end_date). Annotates each candidate with
-  `vote_count` (sum of `Main` vote-type successful transactions) and `tie_breaker_count` (sum of `Tie-Breaker`
-  successful transactions), sorted by vote count desc, then tie-breaker desc, then name. Computes each candidate's
-  `percentage` of total **main** votes. Sets `is_organizer_or_admin` if the logged-in user is staff or an approved
-  organizer (used by the template to show management controls — note this is not scoped to *this* event's organizer).
-- **Response**: HTML render of `voting/event_detail.html`.
-
-### `GET /contact/` and `POST /contact/` — Contact page
-- **View**: `contact_view`
-- **Auth**: none
-- **Params (POST)**: none read server-side (message body is not actually persisted/emailed — the view just shows a
-  success message).
-- **Response**: GET → render `voting/contact.html`. POST → success message + redirect to `contact`.
-
-### `GET /store/` — Store front
-- **View**: `store_view`
-- **Auth**: none
-- **Params (GET)**: `category` (string, optional) — filters `Product` by `category__name`.
-- **Response**: HTML render `voting/store.html` with `products` (active only), `categories`, `selected_category`.
-
-### `GET /tickets/` and `POST /tickets/` — Ticket lookup landing page
-- **View**: `tickets_view`
-- **Auth**: none
-- **Params (POST)**: `action` = `"verify"` | `"retrieve"`.
-  - `verify`: `reference` (string) — looked up against `TicketPurchase.paystack_reference` (case-insensitive via
-    `.upper()`).
-  - `retrieve`: `phone_or_ref` (string) — if it starts with `TK-`, treated as a reference; otherwise treated as a
-    phone number and matched against the synthetic USSD buyer email `<phone>@ussd.vote`.
-- **Behavior**: `verify` sets `ticket_found`/`error_message` in context. `retrieve`, on a successful match, redirects
-  to `ticket_success` with the reference as a query param; otherwise sets `error_message`.
-- **Response**: HTML render `voting/tickets.html`, or a redirect for a successful `retrieve`.
-
-### `GET /event/<int:event_id>/tickets/` — Event's ticket types
-- **View**: `event_tickets_view`
-- **Auth**: none
-- **Response**: HTML render `voting/event_tickets.html` with the event and its `is_active=True` tickets.
-
-### `GET /verify-ticket/` and `POST /verify-ticket/` — Standalone ticket verification
-- **View**: `verify_ticket_view`
-- **Auth**: none
-- **Params (POST)**: `reference` (string, upper-cased) matched against `TicketPurchase.paystack_reference`.
-- **Response**: HTML render `voting/verify_ticket.html` with `ticket_found` or `error_message`.
-
-### `GET /retrieve-ticket/` and `POST /retrieve-ticket/` — Standalone ticket retrieval
-- **View**: `retrieve_ticket_view`
-- **Auth**: none
-- **Params (POST)**: `phone_or_ref` (string) — same `TK-` prefix vs. phone-number heuristic as `tickets_view`.
-- **Behavior**: On success, redirects to `/ticket/success/?reference=<ref>`; otherwise renders with `error_message`.
-- **Response**: HTML render `voting/retrieve_ticket.html`, or redirect.
-
----
-
-## 2. Auth
-
-### `GET /login/` and `POST /login/`
-- **View**: `login_view`
-- **Auth**: none (this *is* the login endpoint)
-- **Rate limiting**: per-IP cache counter `login_attempts_<ip>`; blocks with an error message (still HTTP 200,
-  renders the login page) once 5 attempts are recorded within a 60-second cache window.
-- **Params (POST)**: `username` (string), `password` (string).
-- **Behavior**: `authenticate()` + `login()` on success (clears the attempt counter), redirect to `home`. On
-  failure, increments the attempt counter (60s TTL) and re-renders with an error message.
-- **Response**: redirect to `home` on success; HTML render `voting/login.html` otherwise.
-
-### `GET /register/` and `POST /register/`
-- **View**: `register_view`
-- **Auth**: none
-- **Rate limiting**: per-IP cache counter `register_attempts_<ip>`, capped at 3 attempts / 60s.
-- **Params (POST)**: `username`, `email`, `password` (all strings, all read via `request.POST.get`, no explicit
-  validation beyond the username-uniqueness check).
-- **Behavior**: Rejects if username taken. Otherwise creates a `User` + `Profile` (organizer awaiting approval),
-  logs the new user in, and best-effort emails all superusers with an HTML notification (`fail_silently=True`,
-  wrapped in `try/except`, so email failures never break registration).
-- **Response**: HTML render `voting/register.html` (success or error message; no redirect on success — user stays
-  on the page, now authenticated).
-
-### `GET /logout/`
-- **View**: `logout_view`
-- **Auth**: none (safe regardless of session state)
-- **Behavior**: `logout(request)`.
-- **Response**: redirect to `home`.
-
----
-
-## 3. Organizer Dashboard & Event Management
-
-All endpoints in this section require `@login_required` (redirect to `/login/` if anonymous) and, unless noted, an
-authorization check of `request.user == event.organizer or request.user.is_staff` — failing that check redirects to
-`event_detail` (i.e. it fails "soft," not with a 403).
-
-### `GET /dashboard/` — Dashboard
-- **View**: `dashboard`
-- **Auth**: login required. Non-staff users must have `profile.is_approved_organizer`, else redirected to `home`
-  with an error message.
-- **Behavior**: Staff see every `Event` and the 5 most recent platform-wide `ActivityLog` entries; organizers see
-  only their own events and their own activity log entries.
-- **Response**: HTML render `voting/dashboard.html`.
-
-### `GET /dashboard/create/` and `POST /dashboard/create/` — Create event
-- **View**: `create_event`
-- **Auth**: login required + (`is_approved_organizer` or staff), else redirect to `home`.
-- **Params (POST)**: `title`, `description`, `voting_mode`, `code_voting_mode` (default `'Standard'`),
-  `enable_tie_breaker` (checkbox, `'on'`), `start_date_date` + `start_date_time` (combined into a datetime string
-  and parsed), `end_date_date` + `end_date_time` (same), `platform_fee_percentage`, `primary_color`, `accent_color`,
-  `background_image` (file), `event_image` (file).
-- **Behavior**: Creates the `Event` with `organizer=request.user`, logs an `ActivityLog` entry.
-- **Response**: redirect to `dashboard`. GET → HTML render `voting/create_event.html`.
-
-### `GET /event/<int:event_id>/edit/` and `POST` — Edit event
-- **View**: `edit_event` — same field set as `create_event`, applied to the existing `Event`. `background_image`/
-  `event_image` only overwritten if present in `request.FILES`.
-- **Response**: redirect to `dashboard` on POST; HTML render `voting/edit_event.html` on GET.
-
-### `GET /event/<int:event_id>/analytics/` — Event analytics
-- **View**: `event_analytics`
-- **Auth**: organizer/staff of event only.
-- **Behavior**: Per-category chart data (candidate names, main-vote counts, tie-breaker counts) plus a flat
-  candidate list annotated with `main_votes`, `tie_breaker_votes`, and `revenue` (sum of successful transaction
-  amounts).
-- **Response**: HTML render `voting/analytics.html`.
-
-### `POST /event/<int:event_id>/add-candidate/` — Add candidate
-- **View**: `add_candidate`
-- **Params (POST)**: `name`, `bio`, `image` (file), `category` (Category id, optional), `nominee_code`.
-- **Behavior**: Creates `Candidate`, logs activity. No output/error surfaced if creation fails partway (no
-  try/except); `category` lookup uses `Category.objects.get` which raises `DoesNotExist` uncaught if an invalid id
-  is supplied.
-- **Response**: redirect to `event_detail`.
-
-### `GET /candidate/<int:candidate_id>/edit/` and `POST` — Edit candidate
-- **View**: `edit_candidate` — same fields as add, image only replaced if supplied.
-- **Response**: redirect to `event_detail` on POST; HTML render `voting/edit_candidate.html` on GET.
-
-### `POST /event/<int:event_id>/bulk-add/` — Bulk add candidates
-- **View**: `bulk_add_candidates`
-- **Params (POST)**: `bulk_names` (newline-delimited names), `bulk_category` (Category id, optional).
-- **Behavior**: Creates one `Candidate` per non-blank line (nominee_code auto-generated by the model). Logs
-  activity and success/error message.
-- **Response**: redirect to `event_detail`.
-
-### `POST /event/<int:event_id>/add-category/` — Add category
-- **View**: `add_category` — `name` (string, required to actually create anything; silently no-ops if blank).
-- **Response**: redirect to `event_detail`.
-
-### `GET /category/<int:category_id>/edit/` and `POST` — Edit category
-- **View**: `edit_category` — `name` (string), plus ballot rules for Code Voting events: `min_select`,
-  `max_select` (integers, `max_select` clamped to be ≥ `min_select`), `allow_abstain` (checkbox, `"on"` = true).
-- **Response**: redirect to `event_detail` on POST; HTML render `voting/edit_category.html` on GET.
-
-### `POST /event/<int:event_id>/add-category/` (ballot rules)
-Same `min_select`/`max_select`/`allow_abstain` params as `edit_category` above, defaulting to
-`(1, 1, True)` — i.e. single-choice, no abstain-required, if omitted.
-
-### `POST /event/<int:event_id>/generate-codes/` — Generate voting codes
-- **View**: `generate_codes`
-- **Params (POST)**: either `identifiers` (newline-delimited `identifier` or `identifier,email` — one `VotingCode`
-  per line, `email` optional and used only for future code resets) **or**, if `identifiers` is blank, `count`
-  (integer, default 10) generic/anonymous codes. Codes are random 8-char uppercase-alnum strings (CSPRNG via
-  `secrets`), guaranteed unique per-event by retrying on the rare `(event, code_hash)` collision.
-- **Security**: only `code_hash` (HMAC-SHA256 of the code, keyed by `SECRET_KEY`, scoped to the event) is used for
-  any live lookup; see "Voting code security model" below.
-- **Response**: redirect to `event_detail` with a success message stating the count generated. Logs an
-  `ActivityLog` entry.
-
-### `GET /event/<int:event_id>/download-codes/` — Download voting codes CSV
-- **View**: `download_codes`
-- **Response**: `Content-Type: text/csv`, `Content-Disposition: attachment; filename="<event.title>_codes.csv"`.
-  Columns: `Code, Student ID / Identifier, Status, Used At`. All string cells pass through `sanitize_csv_value`
-  (CSV-macro-injection guard: prefixes a leading `'` if the value starts with `=`, `+`, `-`, or `@`). **The `Code`
-  column is blank for any already-used or reset/invalidated code** — the plaintext is scrubbed from the database
-  the moment a code is spent or reset, so it can only ever be downloaded once, while still generated/unused.
-
-### `POST /event/<int:event_id>/clear-codes/` — Clear voting codes
-- **View**: `clear_codes` — deletes all `VotingCode` rows for the event. Logs an `ActivityLog` entry.
-- **Response**: redirect to `event_detail`.
-
-### `POST /event/<int:event_id>/toggle-voting-lock/` — Open/close voting
-- **View**: `toggle_voting_lock` — organizer/staff only.
-- **Behavior**: flips `Event.voting_locked`. When `True`, both `cast_vote_with_code` and the Digital Ballot
-  endpoints reject new votes regardless of `start_date`/`end_date` — an explicit kill-switch independent of the
-  scheduled window. Logs an `ActivityLog` entry.
-- **Response**: redirect to `event_detail`.
-
-### `POST /event/<int:event_id>/upload-csv/` — Bulk-generate codes from CSV
-- **View**: `upload_student_csv`
-- **Params (POST)**: `csv_file` (file, must end in `.csv` — checked via filename only, not content-type; no
-  `None`-check before `.name`, so a request without the file will raise `AttributeError`). Each row's first column
-  is the student identifier; an optional second column is the voter's email (used only for future code resets).
-- **Behavior**: Decodes as UTF-8, generates a unique code per non-blank row. Logs an `ActivityLog` entry.
-- **Response**: redirect to `event_detail` with success/error message.
-
-### `POST /event/<int:event_id>/upload-codes-csv/` — Import pre-made codes from CSV
-- **View**: `upload_codes_csv` — first column is the literal code to import; duplicate-checked via `code_hash`
-  (not the plaintext column). Logs an `ActivityLog` entry.
-
-### `POST /event/<int:event_id>/retrieve-code/` — Reset/resend a voting code
-- **View**: `retrieve_voting_code`
-- **Auth**: none (public — this is the self-service "forgot my code" flow; GET falls through to the redirect since
-  there's no template render branch, it only acts on POST).
-- **Params (POST)**: `student_id` (string) only. **An `email` field is no longer accepted or read** — see the
-  security note below.
-- **Rate limiting**: 5 requests/minute per IP (same cache-counter idiom as `login_view`).
-- **Behavior**: Looks up an unused `VotingCode` by `event` + `voter_identifier__iexact=student_id`. If found and it
-  has an email on file, calls `VotingCode.reset()` — the **old code is immediately invalidated** and a **brand-new
-  code** is generated and emailed only to the roster's `voter_email` (`send_mail`, `fail_silently=True`). Writes an
-  `ActivityLog` entry (no user attribution — this is an anonymous voter action). Always shows the same generic
-  success message regardless of whether a match was found, to avoid using this form to enumerate valid/used
-  student IDs.
-- **Security note (fixed)**: this endpoint previously accepted a free-text `email` field and sent the existing
-  code to *that* address if the student ID matched — meaning anyone who knew a student ID (rosters are often not
-  secret) could redirect that voter's credential to their own inbox. It now only ever sends to the address
-  captured on the roster at import time, and issues a fresh code rather than re-disclosing the old one.
-- **Response**: redirect to `event_detail` (both GET and POST — there is no dedicated template).
-
----
-
-## 4. Voting (pay-to-vote, code voting, tie-breaker)
-
-### `POST /vote/<int:candidate_id>/` — Initiate a paid vote
-- **View**: `initiate_vote`
-- **Auth**: none for voters; explicitly **blocks** staff/approved-organizer accounts from voting (redirects to
-  `event_detail` with an error).
-- **Params (POST)**: `amount` (integer, number of votes = number of GHS to pay; must parse as int and be ≥ 1, else
-  redirect back with an error/no-op).
-- **Behavior**: Calls `initialize_paystack_payment(voter_email="anonymous@FlexyVotes.com", amount, candidate_id)`
-  (see `voting/services.py`) which POSTs to Paystack's `/transaction/initialize` with a UUID reference and
-  `callback_url = {SITE_URL}/vote/success/`. On success, creates a `VoteTransaction` (`status='Pending'`,
-  `vote_type` defaults to `'Main'`) and redirects the browser to Paystack's `authorization_url`. On failure,
-  redirects back to `event_detail`.
-- **Response**: redirect (to Paystack checkout, or back to `event_detail` on error). Non-POST → redirect to `home`.
-
-### `GET /vote/success/` — Paystack return URL for votes
-- **View**: `vote_success`
-- **Auth**: none
-- **Params (GET)**: `reference` (string) — the Paystack transaction reference.
-- **Behavior**: If a matching `VoteTransaction` is `Pending`, marks it `Success` (a client-side fallback in case the
-  webhook hasn't landed yet — this is a trust-the-browser confirmation path, not authoritative). Always shows a
-  success message.
-- **Response**: redirect to `event_detail` (if reference resolves) or `home`.
-
-### `POST /vote/code/<int:candidate_id>/` — Cast a vote using a code or ticket reference (legacy, single-candidate)
-- **View**: `cast_vote_with_code`
-- **Auth**: none
-- **Rate limiting**: 20 requests/minute per IP.
-- **Params (POST)**: `code` (string, upper-cased/stripped), `identifier` (string, optional — student ID for
-  identifier-bound codes).
-- **Behavior** — two flows based on the `code` prefix, both wrapped in `transaction.atomic()` with
-  `select_for_update()` on the row being checked, so concurrent submits/refresh/retry of the same code or ticket
-  cannot both succeed:
-  1. **Ticket-reference tie-breaker vote** (`code` starts with `TK-`): looks up a `TicketPurchase` by
-     `paystack_reference` + `event`. Requires: purchase exists, `status == 'Success'`, `has_voted == False`,
-     `event.enable_tie_breaker == True`, and `purchase_method == 'Web'` (USSD-purchased tickets are excluded from
-     the free vote). On success, creates a `VoteTransaction` (`vote_type='Tie-Breaker'`, `amount=0`,
-     `number_of_votes = purchase.quantity`, opaque reference), marks the ticket `has_voted=True`.
-  2. **Standard voting code**: looks up `VotingCode` by `event` + `code_hash` (never the plaintext `code`). If the
-     code has a bound `voter_identifier`, the supplied `identifier` must case-insensitively match. Rejects
-     already-used codes. Otherwise creates a `VoteTransaction` (`vote_type='Main'`, `amount=0`, `number_of_votes=1`,
-     opaque reference) and calls `voting_code.mark_used()` (sets `is_used`/`used_at`, scrubs the plaintext `code`).
-  Also rejects any vote if `timezone.now() > event.end_date` or `event.voting_locked` is `True`.
-- **Ballot secrecy**: `VoteTransaction.voter_email`/`paystack_reference` are always fully opaque
-  (`code-vote@<event_id>.flexyvotes.internal` / `CODE-<random hex>`) — the submitted code/identifier is never
-  written into the vote row, so a DB read can't join a specific ballot back to a specific voter.
-- **Response**: redirect to `event_detail` in every case, with a success/error message.
-
-### Digital Ballot wizard (multi-position, AJAX/JSON) — the primary code-voting flow
-Two-step flow used by the `#wizard-container` UI in `templates/voting/event_detail.html`. Both endpoints are
-CSRF-protected normally (the page sends `X-CSRFToken` from the rendered `{% csrf_token %}` value) and rate-limited
-at 15 requests/minute per IP.
-
-#### `POST /event/<int:event_id>/validate-ballot/` — Step 1: validate credentials, fetch ballot
-- **View**: `validate_ballot_code`
-- **Body (JSON)**: `{"code": "...", "identifier": "..."}`
-- **Behavior**: rejects if voting has ended/is locked, if the code doesn't exist (looked up by `code_hash`), if the
-  identifier doesn't match, or if the code is already used. On success, returns the voter's identity for
-  confirmation plus every position and its candidates/ballot rules — **no state is mutated by this step**.
-- **Response (200)**:
-  ```json
-  {
-    "status": "success",
-    "voter_identifier": "STD001",
-    "voter_email_masked": "j***@example.com",
-    "categories": [
-      {"id": "3", "name": "President", "min_select": 1, "max_select": 1, "allow_abstain": true,
-       "candidates": [{"id": 12, "name": "Jane Doe", "image_url": ""}]}
-    ]
-  }
-  ```
-  A virtual `{"id": "none", "name": "General", "min_select": 1, "max_select": 1, "allow_abstain": true, ...}`
-  position is appended for any candidates with no `Category`.
-- **Errors**: `400` with `{"status": "error", "message": "..."}"`; `429` if rate-limited.
-
-#### `POST /event/<int:event_id>/cast-ballot/` — Step 2: submit the ballot
-- **View**: `cast_ballot`
-- **Body (JSON)**: `{"code": "...", "identifier": "...", "votes": {"<position id>": ["<candidate id>", ...], ...}}`
-  — an empty array for a position means abstain (only accepted if that position's `allow_abstain` is `true`).
-- **Behavior**: re-validates the whole payload against every position's `min_select`/`max_select`/`allow_abstain`
-  server-side *before* touching the database — a single invalid position rejects the entire ballot, never a
-  partial one. The actual credential check + mutation happens inside one `transaction.atomic()` block:
-  `VotingCode.objects.select_for_update().filter(event=event, code_hash=...)`, re-checking `is_used` **inside**
-  the lock. This is what makes concurrent double-submits, refreshes, and retries of the same code all resolve to
-  exactly one recorded ballot — the second request blocks on the row lock until the first commits, then sees
-  `is_used=True` and is rejected. One `VoteTransaction` is created per selected candidate (opaque
-  `voter_email`/`paystack_reference`, same as the legacy endpoint), then `voting_code.mark_used()` runs.
-- **Response (200)**:
-  ```json
-  {"status": "success", "message": "Success! Your ballot has been cast.",
-   "receipt": [{"position": "President", "choice": "Jane Doe"}, {"position": "Treasurer", "choice": "Abstained"}]}
-  ```
-  The receipt is intentionally anonymous — position names and choice text only, no code/identifier — for the
-  step-4 confirmation screen.
-- **Errors**: `400` with `{"status": "error", "message": "..."}"` for ended/locked voting, invalid/used code,
-  identifier mismatch, or any ballot-rule violation; `429` if rate-limited.
-
-### Voting code security model
-- **Hashing**: `VotingCode.code_hash = HMAC-SHA256(SECRET_KEY, "<event_id>:<CODE>")` (see
-  `voting.models.hash_voting_code`). Every live lookup (`validate_ballot_code`, `cast_ballot`,
-  `cast_vote_with_code`, `retrieve_voting_code`, the CSV-import duplicate check) queries by `code_hash`; the
-  plaintext `code` column is never used for authorization.
-- **One-time reveal**: the plaintext `code` is shown once — in the `generate_codes`/CSV-upload response and in
-  `download_codes` while the code is still unused. `VotingCode.mark_used()` and `VotingCode.reset()` both scrub
-  `code` to `''` the moment a code is spent or replaced, while leaving `code_hash` intact (so "was this code used"
-  remains answerable for audit, without the plaintext ever being recoverable again from the database).
-- **Reset, not resend**: there is no code path that reads a plaintext code back out of storage to re-display or
-  re-email it. "Forgot my code" (`retrieve_voting_code`) and the admin's `reset_selected_codes` action both call
-  `VotingCode.reset()`, which invalidates the old row and creates a brand-new `VotingCode`.
-- No new environment variables are required — the HMAC key reuses `SECRET_KEY`, which every deployment already
-  sets.
-
-### `GET /event/<int:event_id>/live-counts/` — Live vote counts (JSON API)
-- **View**: `live_vote_counts`
-- **Auth**: none
-- **Method**: GET
-- **Response**: `application/json`
-  ```json
-  {
-    "candidates": [
-      {"id": 12, "name": "Jane Doe", "votes": 340, "tie_breakers": 5, "percentage": 62}
-    ],
-    "total_votes": 548
-  }
-  ```
-  `votes` = summed `Main` successful transactions, `tie_breakers` = summed `Tie-Breaker` successful transactions,
-  `percentage` computed against `total_votes` (which itself is the sum of `votes` only, matching `event_detail`'s
-  fairness rule). Candidates ordered by `votes` desc, `tie_breakers` desc, `name`.
-- **Errors**: 404 if `event_id` doesn't exist.
-
----
-
-## 5. USSD (Africa's Talking)
-
-### `POST /ussd/callback/`
-- **View**: `ussd_callback` — `@csrf_exempt` (external caller: Africa's Talking's gateway posts here directly).
-- **Auth**: none — this is a public machine-callable protocol endpoint. Note it is registered **twice**: once in
-  `vote_fund/urls.py` (top-level, evaluated first) and again in `voting/urls.py`; the top-level route wins.
-- **Params (POST, form-encoded, per Africa's Talking's USSD spec)**: `sessionId`, `serviceCode`, `phoneNumber`,
-  `text` (the accumulated `*`-delimited input string for the whole session — AT's gateway resends the full history
-  each request, and the view derives the current step purely from `len(text.split('*'))`; there is no server-side
-  session object).
-- **Response content-type**: `text/plain`. Response body always starts with `CON` (continue — show another menu
-  and wait for more input) or `END` (terminate the session).
-- **Behavior — two flows selected by the first `*`-token**:
-  - **`1` — Vote for a candidate**: step 1 asks for a nominee code → looked up via `Candidate.nominee_code`; step 2
-    asks for vote quantity (1 GHS = 1 vote, no payment gateway involved — USSD votes are recorded as immediately
-    `status='Success'`, `paystack_reference = "USSD_<random8>"`, no real Paystack charge is initiated); step 3 asks
-    to confirm; step 4 creates the `VoteTransaction` and ends with a confirmation message, or "Transaction
-    cancelled" if the user chose Cancel.
-  - **`2` — Buy an event ticket**: a 6-step wizard — pick event (only `is_active=True` events with ≥1 ticket type)
-    → pick ticket type → enter quantity → enter buyer name → confirm → on confirm, creates a `TicketPurchase` with
-    `status='Success'` directly (again, no real payment gateway call), `purchase_method='USSD'`, and a synthetic
-    reference `TK-<2 letters><4 digits>`. All the list/selection steps are re-derived from scratch each request by
-    re-slicing `Event`/`Ticket` querysets by numeric index from `inputs[]` — if the underlying event/ticket list
-    changes between USSD screens (e.g., another purchase or an admin edit shifts ordering) the selected index can
-    resolve to the wrong record.
-  - Any unrecognized `first_input`, or a level not handled, ends with `"END Invalid request."`.
-- **Example — voting session** (4 round trips as the USSD gateway would send them):
-  ```
-  1) POST text=""            -> "CON Welcome to FlexyVotes.\n1. Vote for Candidate\n2. Buy Event Ticket"
-  2) POST text="1"           -> "CON Enter Nominee Code:"
-  3) POST text="1*NOM123"    -> "CON You selected Jane Doe.\nEnter number of votes (1 GHS = 1 vote):"
-  4) POST text="1*NOM123*5"  -> "CON Pay GHS 5 for 5 votes for Jane Doe?\n1. Confirm\n2. Cancel"
-  5) POST text="1*NOM123*5*1"-> "END Payment successful! You have cast 5 votes for Jane Doe."
-  ```
-  Example request body for step 5 (form-encoded, as Africa's Talking sends it):
-  ```
-  sessionId=ATUid_abc123&serviceCode=*384*1234%23&phoneNumber=%2B233241234567&text=1*NOM123*5*1
-  ```
-  Example response: `HTTP 200`, `Content-Type: text/plain`, body `END Payment successful! You have cast 5 votes for Jane Doe.`
-
----
-
-## 6. Ticketing
-
-### `GET /event/<int:event_id>/create-ticket/` and `POST` — Create ticket type
-- **View**: `create_ticket`
-- **Auth**: login required + organizer/staff of event.
-- **Params (POST)**: `name`, `price`, `quantity_available`, `image` (file), `old_price` (optional).
-- **Response**: redirect to `event_detail` on POST (success message); HTML render `voting/create_ticket.html` on GET.
-
-### `POST /buy-ticket/<int:ticket_id>/` — Buy a ticket (initiates payment)
-- **View**: `buy_ticket`
-- **Auth**: none
-- **Params (POST)**: `name` (buyer name), `email` (buyer email), `quantity` (integer, default 1, must be ≥ 1).
-- **Behavior**: Validates quantity against remaining stock (`ticket.quantity_available` minus already-`Success`
-  purchases). Calls `initialize_ticket_payment` (generates a `TK-XXNNNN` reference, Paystack metadata
-  `type: "ticket_purchase"`), creates a `TicketPurchase` with `status='Pending'`, redirects to Paystack checkout.
-- **Response**: redirect to Paystack auth URL, or back to `event_tickets`/`tickets` with an error message.
-  Non-POST → redirect to `tickets`.
-
-### `GET /ticket/success/` — Paystack return URL for ticket purchases
-- **View**: `ticket_success`
-- **Auth**: none
-- **Params (GET)**: `reference` (string).
-- **Behavior**: If `Pending`, marks the purchase `Success` (client-confirmation fallback, same pattern as
-  `vote_success`) and sets `just_paid=True`. Generates a QR code (PNG, base64-inlined) encoding event/buyer/ticket
-  info and the reference — used by the template for the e-ticket display and later re-sent by
-  `send_ticket_email`.
-- **Response**: HTML render `voting/ticket_success.html` with `purchase`, `qr_code_base64`, `just_paid`. Redirects
-  to `home` if no reference given or no matching purchase.
-
-### `POST /ticket/send-email/` — Resend e-ticket via email (JSON body)
-- **View**: `send_ticket_email` — `@csrf_exempt` (public, unauthenticated; called from the ticket-success page's
-  JS with the client-rendered QR image, so it cannot carry a session CSRF token reliably).
-- **Auth**: none.
-- **Rate limiting**: per-IP cache counter `send_ticket_email_<ip>`, max 10 requests/60s → `HTTP 429` once exceeded.
-- **Request body**: JSON, `Content-Type: application/json` expected:
-  ```json
-  {"reference": "TK-AB1234", "image": "data:image/png;base64,iVBORw0K..."}
-  ```
-  - `reference` (string, required) — must resolve to an existing `TicketPurchase`.
-  - `image` (string, required) — a data URI; parsed as `<header>;base64,<data>`. `header` must end in a MIME
-    subtype found in `ALLOWED_TICKET_EMAIL_IMAGE_TYPES = {png, jpeg, jpg}` (case-insensitive). Decoded bytes must
-    be ≤ `MAX_TICKET_EMAIL_IMAGE_BYTES = 5 MiB`.
-- **Behavior**: If the purchase's buyer email is a synthetic `...@ussd.vote` address (i.e. purchased via USSD, no
-  real email on file), returns `200` without sending anything ("pretend success" to avoid client-side errors).
-  Otherwise sends an `EmailMessage` with the decoded image attached as `ticket_<reference>.<ext>`,
-  `fail_silently=True`.
-- **Responses**:
-  - `200` — accepted (email sent, or silently skipped for USSD buyers). Body is empty (`HttpResponse(status=200)`).
-  - `400` — non-POST method; unparseable JSON; missing `reference`/`image`/matching purchase; malformed data URI;
-    disallowed image type; oversized image.
-  - `429` — rate limit exceeded.
-- **Note**: send failures inside `email.send(fail_silently=True)` are swallowed — a `200` does not guarantee actual
-  delivery.
-
-### `GET /event/<int:event_id>/guestlist/` — View guest list
-- **View**: `event_guestlist`
-- **Auth**: login required + organizer/staff of event.
-- **Response**: HTML render `voting/guestlist.html` listing all `Success` `TicketPurchase` rows for the event.
-
-### `GET /event/<int:event_id>/download-guestlist/` — Download guest list CSV
-- **View**: `download_guestlist`
-- **Auth**: login required + organizer/staff of event.
-- **Response**: `text/csv`, `Content-Disposition: attachment; filename="<event.title>_guestlist.csv"`. Columns:
-  `Buyer Name, Buyer Email, Ticket Type, Quantity, Reference, Purchased At`. String fields pass through
-  `sanitize_csv_value`.
-
-### `GET /ticket/<int:ticket_id>/edit/` and `POST` — Edit ticket type
-- **View**: `edit_ticket` — `name`, `price`, `old_price`, `quantity_available`, `is_active` (checkbox), `image`
-  (optional file replace).
-- **Response**: redirect to `event_detail` on POST; HTML render `voting/edit_ticket.html` on GET.
-
-### `POST /ticket/<int:ticket_id>/delete/` — Delete ticket type
-- **View**: `delete_ticket` — auth: organizer/staff of event; deletes the `Ticket` row outright.
-- **Response**: redirect to `event_detail`.
-
----
-
-## 7. Store
-
-### `GET /dashboard/store/` — Manage store (admin)
-- **View**: `manage_store`
-- **Auth**: login required + `request.user.is_staff` (not organizer — staff-only), else redirect to `home`.
-- **Response**: HTML render `voting/manage_store.html` listing all `Product`s and `ProductCategory`s.
-
-### `GET /dashboard/store/add/` and `POST` — Add product
-- **View**: `add_product`
-- **Auth**: staff only.
-- **Params (POST)**: `name`, `description`, `price`, `old_price` (optional), `image` (file), `category`
-  (ProductCategory id, optional), `is_active` (checkbox).
-- **Response**: redirect to `manage_store` on POST; HTML render `voting/add_product.html` on GET.
-
-### `GET /dashboard/store/edit/<int:product_id>/` and `POST` — Edit product
-- **View**: `edit_product` — staff only; same fields as add, image replaced only if supplied.
-- **Response**: redirect to `manage_store` on POST; HTML render `voting/edit_product.html` on GET.
-
----
-
-## 8. Scanner / Check-in (JSON API)
-
-### `GET /event/<int:event_id>/scanner/` — Scanner UI page
-- **View**: `event_scanner`
-- **Auth**: login required + organizer/staff of event.
-- **Response**: HTML render `voting/scanner.html` (the page hosting the camera/QR-scan JS that calls
-  `process-scan` below).
-
-### `POST /event/<int:event_id>/process-scan/` — Process a scanned ticket QR (JSON API)
-- **View**: `process_scan`
-- **Auth**: `@login_required`, **and** organizer/staff-of-that-event check — unauthorized requests get
-  `HTTP 403` JSON (not a redirect, since this is an API endpoint consumed by JS). This authorization check was
-  recently added/fixed.
-- **CSRF**: **not** `@csrf_exempt` — the calling JS must send the standard Django CSRF token (e.g. via the
-  `X-CSRFToken` header sourced from the `csrftoken` cookie or a page-embedded token).
-- **Request body**: JSON, `Content-Type: application/json`:
-  ```json
-  {"text": "EVENT: Prom Night\nNAME: John Smith\nTICKET: VIP\nQTY: 2\nREF: TK-AB1234"}
-  ```
-  `text` is the raw multi-line string decoded from the ticket's QR code (as produced by `ticket_success`'s QR
-  generator). The view scans line-by-line for a line starting with `REF:` and extracts everything after it as the
-  reference.
-- **Behavior**: Looks up `TicketPurchase` scoped to `event_id` + the extracted reference. Rejects if not found for
-  this event, if payment isn't `Success`, or if already checked in. On a valid, un-used, paid ticket: sets
-  `is_checked_in=True` and `checked_in_at=now()`.
-- **Responses** (all `application/json`):
-  - `403` — `{"status": "error", "message": "Not authorized for this event."}`
-  - `400` (invalid JSON body) — `{"status": "error", "message": "Invalid request body."}`
-  - `400` (no `REF:` line found) — `{"status": "error", "message": "Invalid QR Code (No reference found)."}`
-  - `404` (no matching ticket for this event) — `{"status": "error", "message": "Ticket not found for this event."}`
-  - `400` (payment not successful) — `{"status": "error", "message": "Payment pending or failed."}`
-  - `409` (already checked in) — `{"status": "error", "message": "ALREADY USED! Checked in at <time> by <name>."}`
-  - `200` (success) — `{"status": "success", "message": "Welcome, <name>! <qty> <ticket type> ticket(s)."}`
-  - `400` (non-POST method) — `{"status": "error", "message": "Invalid request."}`
-
----
-
-## 9. Webhooks / Callbacks
-
-### `POST /webhook/paystack/` — Paystack payment webhook
-- **View**: `paystack_webhook` — `@csrf_exempt` (external caller: Paystack's servers).
-- **Auth**: none via Django auth — authenticity is instead verified via HMAC signature.
-- **Signature verification**: header `X-Paystack-Signature` must equal `HMAC-SHA512(PAYSTACK_SECRET_KEY,
-  raw_request_body)` (hex digest), compared with `hmac.compare_digest`. Mismatch → `HTTP 400` immediately, no body
-  is parsed.
-- **Request body**: JSON, Paystack's standard webhook envelope. The view only acts on `event == "charge.success"`:
-  ```json
-  {
-    "event": "charge.success",
-    "data": {
-      "reference": "TK-AB1234",
-      "metadata": {"type": "ticket_purchase", "ticket_id": 7, "quantity": 2}
-    }
-  }
-  ```
-- **Behavior**:
-  - If `data.metadata.type == "ticket_purchase"`: looks up `TicketPurchase` by `paystack_reference`; if `Pending`,
-    marks `Success`. `DoesNotExist` is swallowed silently.
-  - Otherwise: looks up `VoteTransaction` by `paystack_reference`; if `Pending`, marks `Success`. `DoesNotExist`
-    swallowed silently.
-  - Any other `event` value: no-op, but still returns `200` (so Paystack doesn't retry).
-- **Responses**:
-  - `400` — bad/missing signature; unparseable JSON body; non-POST method.
-  - `200` — signature verified and body processed (regardless of whether a matching record was found — this is
-    Paystack's expected "ack" response so it doesn't retry the webhook).
-- **Example request** (illustrative — actual signature must be computed over the exact raw body bytes):
-  ```
-  POST /webhook/paystack/ HTTP/1.1
-  Content-Type: application/json
-  X-Paystack-Signature: 6f1f7c2c9c...  (hex SHA-512 HMAC of the body below)
-
-  {"event":"charge.success","data":{"reference":"TK-AB1234","metadata":{"type":"ticket_purchase","ticket_id":7,"quantity":2}}}
-  ```
-  **Example response**: `HTTP/1.1 200 OK` (empty body).
-
-### `POST /ussd/callback/` — Africa's Talking USSD callback
-- See section 5 above for full details, params, and a worked example. Reiterated here because it is, functionally,
-  a webhook/callback endpoint from an external telco aggregator: `@csrf_exempt`, plain-text CON/END protocol
-  (not JSON), driven entirely by the accumulated `text` field with no server-side session storage.
-
----
-
-## Appendix: Endpoints not covered above (grouped for completeness)
-
-| Method | Path | View | Section |
-|---|---|---|---|
-| GET | `/admin/` | Django admin site | out of scope (framework-provided) |
-
-All other paths in `voting/urls.py` / `vote_fund/urls.py` are documented in the sections above.
-
-## Appendix: Cross-cutting notes
-
-- **CSV export sanitization**: `download_codes` and `download_guestlist` both pass every string cell through
-  `sanitize_csv_value`, which prefixes a leading single-quote if the value starts with `=`, `+`, `-`, or `@`,
-  mitigating CSV/Excel formula-injection when the exports are opened in spreadsheet software.
-- **"Success via redirect" pattern**: `vote_success` and `ticket_success` both optimistically flip a `Pending`
-  transaction/purchase to `Success` when the user's browser lands back on the success page with a `reference`
-  query param — this is a fallback for local/dev environments or race conditions where Paystack's webhook hasn't
-  arrived yet. The webhook (`paystack_webhook`) remains the authoritative confirmation path in production.
-- **Synthetic email addresses**: USSD-originated votes and ticket purchases store `<phone>@ussd.vote` as the
-  "email" so the same `VoteTransaction`/`TicketPurchase` models work for both channels. `send_ticket_email`
-  explicitly detects and no-ops on these addresses rather than attempting delivery.
-- **Authorization failure style is inconsistent by design**: HTML views generally fail authorization by silently
-  redirecting to `event_detail` (no 403), whereas the two JSON API endpoints (`process_scan`, and implicitly
-  `send_ticket_email`/`live_vote_counts` which have no auth at all) return proper HTTP status codes since they're
-  consumed by JavaScript, not a browser navigation.
+# API Reference
+
+FlexyVotes has three integration surfaces:
+
+1. **REST API v1** at `/api/v1/`, with interactive docs at `/api/v1/docs` and the schema at
+   `/api/v1/openapi.json`.
+2. **Inbound callbacks** from Paystack (webhooks) and Africa's Talking (USSD).
+3. **Public machine-readable endpoints:** results JSON, the verification bundle and the
+   signing key.
+
+The HTML page routes are listed at the end for reference.
+
+## 1. Conventions
+
+| Topic | Rule |
+|---|---|
+| Base URL | `https://<host>/api/v1` |
+| Format | JSON request and response bodies; times in ISO 8601 UTC |
+| Pagination | List endpoints take `?page=N` and return `{"items": [...], "count": N}` |
+| Correlation | Send `X-Request-ID` or let the server create one; it is echoed back and quoted in errors |
+| Idempotency | `POST /elections/{id}/vote` and `POST /elections/{id}/payments` accept `Idempotency-Key` (8–128 characters from `[A-Za-z0-9_-:.]`) |
+| Rate limits | Per principal (token, ballot or IP); exceeding a limit returns `429` with `Retry-After` |
+| CORS | Off unless the origin is in `API_CORS_ALLOWED_ORIGINS` |
+
+### Idempotency behaviour
+
+| Situation | Result |
+|---|---|
+| First request with a key | Processed; response stored for 24 h |
+| Same key, same body | Stored response replayed, with header `Idempotent-Replay: true` |
+| Same key, different body | `422 idempotency_conflict` |
+| Same key while the first request is still running | `409 idempotency_in_progress` |
+
+### Errors
+
+Every error uses one envelope:
+
+```json
+{"error": {"code": "forbidden", "message": "You do not have permission to perform this action.",
+           "details": {}, "correlation_id": "4f0c…"}}
+```
+
+| Status | Typical `code` |
+|---|---|
+| 400 | `invalid_idempotency_key`, `invalid_request` |
+| 401 | `unauthenticated`, `invalid_credentials`, `mfa_required`, `locked`, voter sign-in errors |
+| 403 | `forbidden`, `not_public` |
+| 404 | `not_found`, `not_available` |
+| 409 | `not_editable`, `invalid_transition`, `already_voted`, `expired`, `closed`, `unsupported_method`, `idempotency_in_progress` |
+| 422 | `validation_error`, `invalid_ballot`, `invalid_dates`, `idempotency_conflict` |
+| 429 | `rate_limited` |
+
+## 2. Authentication
+
+| Scheme | Header | Used by |
+|---|---|---|
+| **API token** | `Authorization: Bearer fv_…` | Staff and organizer integrations |
+| **Session** | Session cookie + `X-CSRFToken` on unsafe methods | The web console |
+| **Ballot token** | `Authorization: Bearer <ballot_token>` | `GET /ballot`, `POST /vote` only |
+
+Permission checks are the same as in the web console: they depend on the caller's roles for
+that organization or election ([SECURITY.md §3](SECURITY.md#3-access-control)).
+
+### `POST /auth/token`: create an API token
+
+No authentication. Limited to 10 per minute.
+
+```json
+// request
+{"username": "officer1", "password": "…", "otp": "123456", "name": "Results dashboard"}
+// 200
+{"token": "fv_Q2…", "expires_at": "2027-01-03T10:00:00Z"}
+```
+
+- `otp` is required when the user has TOTP enabled.
+- Only the SHA-256 of the token is stored. Copy the token when it is returned; it can't be
+  shown again.
+- Failed attempts count towards account lockout.
+
+| Method & path | Auth | Description |
+|---|---|---|
+| `DELETE /auth/token` | Token | Revoke the token used for this call (`204`) |
+| `GET /auth/me`, `GET /users/me` | Token / session | `{id, username, email, is_platform_admin, organizations}` |
+
+## 3. Organizations
+
+| Method & path | Permission | Description |
+|---|---|---|
+| `GET /organizations` | any member | Organizations the caller belongs to (page size 50) |
+| `GET /organizations/{org_id}` | member | `{id, name, slug, kind, default_timezone, default_currency}` |
+
+## 4. Elections
+
+| Method & path | Auth / permission | Description |
+|---|---|---|
+| `GET /elections` | optional | Anonymous callers, or `?public=true`: active elections in a public state (Scheduled → Published). Authenticated callers: elections they hold `election.view` on. `?status=OPEN` filters. |
+| `POST /elections` | `election.create` | Create a draft election |
+| `GET /elections/{id}` | optional | Public if in a public state; otherwise needs `election.view` |
+| `PATCH /elections/{id}` | `election.edit` | Change title, description, dates or vote price; obeys the edit policy (`409 not_editable`) |
+| `POST /elections/{id}/transitions` | depends on the action | `{"action": "submit", "reason": ""}`; actions in [TRD §2.1](TRD.md#21-lifecycle-electionslifecyclepy) |
+| `GET /elections/{id}/positions` | optional | Positions with ballot rules |
+| `POST /elections/{id}/positions` | `election.edit` | Add a position |
+| `GET /elections/{id}/candidates` | optional | Candidates |
+| `POST /elections/{id}/candidates` | `candidate.create` | Add a candidate |
+| `GET /elections/{id}/voters` | `voter.view` | Voter roll with masked emails; `?status=VOTED` (page size 100) |
+| `POST /elections/{id}/voters` | `voter.import` | Bulk upsert: a list of `{identifier, full_name, email, phone, constituency, attributes}` |
+| `GET /elections/{id}/turnout` | `vote.view`, or public after close | Aggregate turnout; the constituency breakdown is shown only with permission |
+| `GET /elections/{id}/results` | public per visibility, or `results.view` | Certified results with signature, or the latest unofficial tally for officials |
+| `GET /elections/{id}/verification` | optional | The verification bundle (same as `/verify/{id}/bundle.json`) |
+
+### Create an election
+
+```json
+// POST /elections
+{"title": "SRC General Election 2027", "mode": "INSTITUTIONAL",
+ "start_date": "2027-03-10T08:00:00Z", "end_date": "2027-03-10T18:00:00Z",
+ "timezone": "Africa/Accra", "currency": "GHS", "organization_id": 3}
+// 201
+{"id": 42, "title": "SRC General Election 2027", "mode": "Code Voting", "status": "DRAFT",
+ "start_date": "…", "end_date": "…", "timezone": "Africa/Accra", "currency": "GHS",
+ "organization_id": 3, "results_visibility": "AFTER_PUBLISH", "accepting_votes": false}
+```
+
+- `mode` is `INSTITUTIONAL` or `PAID`.
+- `vote_price` applies only to `PAID`.
+- `end_date` must be after `start_date` (`422 invalid_dates`).
+- Plan limits apply: `403` when the organization has hit its active-election limit.
+
+### Add a position
+
+```json
+// POST /elections/42/positions
+{"name": "Senate", "ballot_type": "MULTIPLE", "min_select": 1, "max_select": 3, "seats": 3,
+ "allow_abstain": true}
+```
+
+`ballot_type` is one of `SINGLE`, `FPTP`, `MULTIPLE`, `APPROVAL`, `RANKED`, `SCORE`,
+`REFERENDUM`. `max_score` (1–100) applies to `SCORE`.
+
+### Import voters
+
+```json
+// POST /elections/42/voters
+[{"identifier": "UG2023001", "full_name": "Ama Mensah", "email": "ama@st.ug.edu.gh",
+  "constituency": "ENG", "attributes": {"level": "300"}}]
+// 200
+{"created": 1, "updated": 0, "skipped": 0, "codes_issued": 1, "error_count": 0, "errors": []}
+```
+
+Access codes are generated but never returned by this endpoint. Send them with the
+invitation flow in the console, or export them there with `voter.credentials`.
+
+## 5. Voting through the API (institutional)
+
+The API supports the **access-code** sign-in method, for elections whose `auth_methods`
+include `CODE` and that don't require a second factor. Other methods (OTP, SSO, LDAP) use
+the web flow at `/e/{id}/vote/` (`409 unsupported_method`).
+
+| Step | Call |
+|---|---|
+| 1. Sign in | `POST /elections/{id}/ballot/session` with `{"identifier": "UG2023001", "code": "K7QH-…"}`; limited to 15/min |
+| 2. Ballot | `GET /elections/{id}/ballot` with `Authorization: Bearer <ballot_token>` |
+| 3. Cast | `POST /elections/{id}/vote` with the ballot token and `Idempotency-Key`; limited to 10/min |
+
+```json
+// 1 → 200
+{"ballot_token": "…", "expires_at": "2027-03-10T09:12:00Z",
+ "ballot": [{"id": 7, "name": "President", "ballot_type": "SINGLE", "min_select": 1, "max_select": 1,
+             "allow_abstain": true, "candidates": [{"id": 31, "name": "Kofi Asante"}, …]}, …]}
+
+// 3: selections are keyed by position id
+{"selections": {
+   "7":  31,                        // SINGLE / FPTP
+   "8":  [40, 41],                  // MULTIPLE / APPROVAL
+   "9":  [52, 51],                  // RANKED: candidate ids, most preferred first
+   "10": {"60": 7, "61": 3},        // SCORE: candidate → score
+   "11": "YES",                     // REFERENDUM
+   "12": null                       // abstain (where allowed)
+}}
+// 200
+{"tracker": "9f2c…64 hex…", "cast_at": "2027-03-10T09:03:41Z", "election": "SRC General Election 2027",
+ "positions": 5, "verify_url": "https://vote.example.com/verify/42/?tracker=9f2c…"}
+```
+
+- A ballot session lasts 30 minutes, capped at the election's end. Signing in again revokes
+  any earlier unused session.
+- `409 already_voted` is returned if the voter's ballot is already in. That includes a race
+  with another device: exactly one cast succeeds.
+- `422 invalid_ballot` comes with a message that names the broken rule.
+- The tracker proves inclusion. It doesn't reveal the choices.
+
+## 6. Paid voting
+
+| Method & path | Auth | Description |
+|---|---|---|
+| `POST /elections/{id}/payments/quote` | none | `{candidate_id, votes \| package_id, discount_code}` returns the price breakdown and limits |
+| `POST /elections/{id}/payments` | none | Same fields plus `email`, `phone`, `name`. Returns `201 {reference, status, amount, currency, votes, bonus_votes, authorization_url, votes_credited, held}`. Send `Idempotency-Key`. Limited to 20/min. |
+| `GET /payments/{reference}` | none | Payment status. The reference is a random 14-character secret, and the response has no payer details. |
+| `GET /payments` | `payment.view` | Payments for elections the caller can see; `?event_id=`, `?status=SUCCESS` |
+
+To pay, send the payer to `authorization_url` (Paystack Checkout). Votes are credited only
+after the webhook or a server-side verify confirms the payment. Poll `GET
+/payments/{reference}` until `votes_credited` is `true`, or `held` is `true` (under fraud
+review).
+
+## 7. Audit
+
+| Method & path | Permission | Description |
+|---|---|---|
+| `GET /audit` | `audit.view` | Audit events for the caller's organizations and elections; `?election_id=`, `?event_type=PAYMENT` (prefix match); page size 100 |
+| `GET /audit/verify` | `audit.view` | `{chain: {ok, checked, first_bad_seq, message}}` for every chain the caller can see |
+
+## 8. Webhooks and callbacks
+
+### Paystack webhook
+
+Paystack can call any of three URLs, which behave identically:
+- `POST /api/v1/webhooks/paystack`
+- `POST /payments/webhook/` (the one to configure in the Paystack dashboard)
+- `POST /webhook/paystack/` (legacy URL, kept for existing configurations)
+
+Processing:
+
+1. `x-paystack-signature` must equal `HMAC-SHA512(raw body, PAYSTACK_SECRET_KEY)`.
+   Otherwise the response is `401 {"outcome": "invalid signature"}` and an audit event is
+   written.
+2. The payload is de-duplicated by SHA-256. A replay returns `200 {"outcome": "duplicate"}`.
+3. Events handled:
+   - `charge.success` and `charge.failed`, for vote payments, invoice payments and tickets;
+   - `refund.processed` and `refund.failed`;
+   - `charge.dispute.create`: the payment becomes DISPUTED, its votes are reversed and a
+     fraud event is raised;
+   - `charge.dispute.resolve`: REVERSED if the dispute is lost. If the merchant wins, the
+     payment returns to SUCCESS, but the votes stay reversed until a person reviews it.
+
+   Anything else returns `200 {"outcome": "ignored"}`.
+4. Processing errors return `500`, so Paystack retries. Reconciliation also catches anything
+   missed.
+
+The browser return URL is `GET /payments/callback/?reference=…`. It always re-verifies the
+payment with Paystack server to server and never trusts the query string.
+
+### Africa's Talking USSD: `POST /ussd/callback/`
+
+Form fields `sessionId`, `phoneNumber`, `text`. The callback must carry
+`?token=$USSD_CALLBACK_TOKEN` and/or come from `USSD_ALLOWED_IPS`; otherwise it gets 403.
+Menu:
+
+```
+1  Vote for candidate → nominee code → number of votes → confirm → mobile-money prompt (Paystack charge)
+2  Buy event ticket   → event → ticket → quantity → confirm → mobile-money prompt
+```
+
+Nothing is credited until Paystack confirms the mobile-money charge.
+
+## 9. Public machine-readable endpoints
+
+| Path | Description |
+|---|---|
+| `/results/{id}/results.json` | Public results, respecting the visibility setting |
+| `/verify/{id}/bundle.json` | Verification bundle: certification payload and signature, public key, config snapshots, trackers, Merkle root |
+| `/verify/{id}/?tracker=<hex>` | HTML inclusion check with Merkle proof |
+| `/.well-known/flexyvotes-signing-key.json` | `{"algorithm": "Ed25519", "current": {public_key, key_id}, "previous": [...]}` |
+| `/.well-known/security.txt` | Security contact (RFC 9116) |
+| `/healthz/live`, `/healthz/ready` | Liveness and readiness probes |
+| `/metrics` | Prometheus; needs `Authorization: Bearer $METRICS_TOKEN` or a platform-admin session |
+
+Verifying offline:
+
+```bash
+curl -s https://vote.example.com/verify/42/bundle.json -o bundle.json
+python tools/verify_election.py bundle.json [--tracker <your tracker>] [--trusted-key <key from .well-known>]...
+```
+
+## 10. Web routes (HTML)
+
+**Public and voter pages**
+
+| Path | Page |
+|---|---|
+| `/`, `/event/{id}/` | Home, event page (contestants, live counts, how to vote) |
+| `/e/{id}/vote/` → `verify/` → `ballot/` → `review/` → `receipt/`, `signout/` | Institutional voting flow |
+| `/e/{id}/register/` | Voter self-registration |
+| `/e/{id}/candidates/`, `/e/{id}/candidates/{cid}/` | Candidate profiles |
+| `/e/{id}/dispute/` | File a dispute |
+| `/results/`, `/results/{id}/`, `/verify/{id}/` | Published results and verification |
+| `/e/{id}/pay/{candidate}/` | Paid-vote checkout |
+| `/payments/receipt/{ref}/` | Payment receipt |
+| `/tickets/`, `/buy-ticket/{id}/`, `/retrieve-ticket/`, `/verify-ticket/` | Ticketing |
+| `/store/` | Merchandise store |
+| `/contact/` | Support contact form |
+| `/accessibility/` | Accessibility settings |
+
+**Accounts**
+
+| Path | Page |
+|---|---|
+| `/login/`, `/logout/` (POST), `/register/` | Sign in, sign out, register |
+| `/password_reset/…`, `/account/password/` | Password reset and change |
+| `/account/security/`, `/account/mfa/` | 2FA, passkeys, sessions, devices, API tokens |
+| `/auth/sso/{provider}/start/`, `/callback/` | Single sign-on |
+| `/portal/…` | Candidate portal |
+
+**Staff console**
+
+| Path | Page |
+|---|---|
+| `/console/` | Dashboard |
+| `/console/elections/{id}/…` | Overview, settings, ballot and preview, voters, eligibility, results, trustees, integrity, audit, monitor |
+| `/console/approvals/`, `/console/audit/`, `/console/team/` | Approvals, audit log, team |
+| `/console/organizations/…`, `/console/organizers/` | Organizations, organizers |
+| `/console/payments/…`, `/console/fraud/…`, `/console/billing/…` | Payments, fraud, billing |
+| `/console/support/…`, `/console/notifications/`, `/console/reports/`, `/console/health/` | Support, notifications, reports, system health |
+
+**Organizer pages carried over from the original app**
+
+| Path | Page |
+|---|---|
+| `/dashboard/`, `/dashboard/create/` | Organizer dashboard, create event |
+| `/event/{id}/edit/`, `add-category/`, `add-candidate/`, `bulk-add/` | Event setup |
+| `/event/{id}/analytics/`, `scanner/`, `guestlist/` | Analytics, ticket scanner, guest list |
+
+The old code-voting URLs (`/event/{id}/generate-codes/` and similar) redirect to the
+matching voter pages in the new election console.
+
+The Django admin lives at `/${ADMIN_URL}`, which defaults to `admin/`.

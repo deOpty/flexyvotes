@@ -1,3 +1,32 @@
+# Full local stack: PostgreSQL, Redis, web (gunicorn), Celery worker + beat, pgAdmin.
+#   docker compose up --build
+#   docker compose run --rm web python manage.py test        (tests on PostgreSQL)
+x-app: &app
+  build:
+    context: .
+    args:
+      INSTALL_DEV: "true"
+      APP_VERSION: ${APP_VERSION:-dev}
+  image: ${IMAGE:-flexyvotes:local}
+  env_file:
+    - .env
+  environment: &app-env
+    DATABASE_URL: postgres://flexyvotes:flexyvotes@db:5432/flexyvotes
+    DATABASE_SSL_REQUIRE: "False"
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    PORT: ${PORT:-8000}
+    PRIVATE_MEDIA_ROOT: /app/private_media
+  volumes:
+    - media_data:/app/media
+    - private_media:/app/private_media
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
 services:
   db:
     image: postgres:16-alpine
@@ -12,50 +41,57 @@ services:
       test: ["CMD-SHELL", "pg_isready -U flexyvotes"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   web:
-    build: .
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgres://flexyvotes:flexyvotes@db:5432/flexyvotes
-      DATABASE_SSL_REQUIRE: "False"
-      PORT: ${PORT:-8000}
-    volumes:
-      - media_data:/app/media
+    <<: *app
+    command: ["web"]
     ports:
       - "${PORT:-8000}:${PORT:-8000}"
-    depends_on:
-      db:
-        condition: service_healthy
 
-  # Web UI for administering the `db` Postgres instance directly.
-  # SECURITY: restrict access at the network level (security group /
-  # firewall allow-list of admin IPs only) - this serves a database login
-  # over plain HTTP unless you put TLS in front of it. See DEPLOYMENT.md.
+  worker:
+    <<: *app
+    command: ["worker"]
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A vote_fund inspect ping -t 5 >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+
+  beat:
+    <<: *app
+    command: ["beat"]
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    healthcheck:
+      disable: true
+
+  # Web UI for the database. Restrict PGADMIN_PORT to admin IPs (security
+  # group / firewall) - see docs/DEPLOYMENT.md.
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-      # Explicit (this image's own default already resolves to unlimited -
-      # config.py reads CSRF_TIME_LIMIT, which isn't set, so
-      # WTF_CSRF_TIME_LIMIT is already None). Kept here defensively in case a
-      # future image version changes that default.
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-change-me-now}
       PGADMIN_CONFIG_WTF_CSRF_TIME_LIMIT: "None"
-      # Every pgAdmin image defaults to the SAME session cookie name
-      # ('pga4_session', Path=/, no Domain attribute). Browser cookies are
-      # scoped by host only - NOT port - so a second, unrelated pgAdmin
-      # instance on the same host/IP (even on a different port) will
-      # silently clobber this one's session cookie in any browser that has
-      # visited both, producing exactly the "session works, then suddenly
-      # 401 / CSRF token missing" symptom. Giving this instance its own
-      # cookie name avoids the collision. Value must be a quoted Python
-      # string literal (pgAdmin evaluates PGADMIN_CONFIG_* values via
-      # ast.literal_eval).
+      # Unique cookie name so another pgAdmin on the same host can't clobber the session.
       PGADMIN_CONFIG_SESSION_COOKIE_NAME: "'flexyvotes_pga_session'"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
@@ -64,8 +100,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    profiles: ["admin"]
 
 volumes:
   postgres_data:
+  redis_data:
   media_data:
+  private_media:
   pgadmin_data:

@@ -1,0 +1,31 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Team & roles" %}{% endblock %}
+{% block console %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h1 class="h3 fw-bold text-wine mb-0">{% translate "Team & roles" %} · {{ organization.name }}</h1>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'console:organization' organization.pk %}">{% translate "Organization settings" %}</a>
+</div>
+<div class="row g-3">
+    <div class="col-xl-8"><div class="panel">
+        <table class="table table-sm align-middle"><thead><tr><th>{% translate "Person" %}</th><th>{% translate "Role" %}</th><th>{% translate "Scope" %}</th><th>{% translate "Granted" %}</th><th></th></tr></thead>
+        <tbody>{% for a in assignments %}<tr><td><strong>{{ a.user.username }}</strong><div class="small text-muted">{{ a.user.email }}</div></td><td>{{ a.role.name }}</td><td class="small">{% if a.event %}{{ a.event.title }}{% else %}{% translate "Whole organization" %}{% endif %}</td><td class="small">{{ a.created_at|date:"d M Y" }}</td>
+            <td><form method="post" data-confirm="{% translate 'Revoke this role?' %}">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="assignment" value="{{ a.pk }}"><button class="btn btn-sm btn-outline-danger">{% translate "Revoke" %}</button></form></td></tr>{% endfor %}</tbody></table>
+    </div></div>
+    <div class="col-xl-4">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Grant a role" %}</h2>
+            <form method="post">{% csrf_token %}<input type="hidden" name="action" value="grant">
+                <label class="form-label small" for="gu">{% translate "Username or email (must already have an account)" %}</label><input id="gu" name="user" class="form-control mb-2" required>
+                <label class="form-label small" for="gr">{% translate "Role" %}</label><select id="gr" name="role" class="form-select mb-2">{% for r in roles %}<option value="{{ r.code }}">{{ r.name }}</option>{% endfor %}</select>
+                <label class="form-label small" for="ge">{% translate "Limit to one election (optional)" %}</label><select id="ge" name="event" class="form-select mb-3"><option value="">{% translate "Whole organization" %}</option>{% for e in events %}<option value="{{ e.pk }}">{{ e.title }}</option>{% endfor %}</select>
+                <button class="btn btn-wine w-100">{% translate "Grant" %}</button>
+            </form>
+        </div>
+        <div class="panel small">
+            <h2 class="h6 fw-bold">{% translate "What each role can do" %}</h2>
+            {% for r in roles %}<details class="mb-1"><summary><strong>{{ r.name }}</strong></summary><div class="text-muted">{{ r.description }}</div><div class="mono">{{ r.permissions|join:", " }}</div></details>{% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

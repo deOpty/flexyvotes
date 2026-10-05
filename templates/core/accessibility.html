@@ -1,0 +1,36 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Accessibility settings" %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 720px;">
+    <h1 class="fw-bold text-wine mb-2">{% translate "Accessibility & low-bandwidth" %}</h1>
+    <p class="text-muted">{% translate "These preferences are saved in this browser only. Every page, including the ballot, works with a keyboard, a screen reader, and without JavaScript." %}</p>
+    <form method="post" action="{% url 'set_preferences' %}" class="card border-0 shadow-sm rounded-4 p-4 mt-3">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <fieldset>
+            <legend class="h5">{% translate "Display" %}</legend>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" role="switch" id="pref-hc" name="hc" {% if 'hc' in prefs %}checked{% endif %}>
+                <label class="form-check-label" for="pref-hc">{% translate "High contrast" %}</label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" role="switch" id="pref-lg" name="lg" {% if 'lg' in prefs %}checked{% endif %}>
+                <label class="form-check-label" for="pref-lg">{% translate "Large text" %}</label>
+            </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" role="switch" id="pref-lite" name="lite" {% if 'lite' in prefs %}checked{% endif %} aria-describedby="lite-help">
+                <label class="form-check-label" for="pref-lite">{% translate "Low-bandwidth mode" %}</label>
+                <div id="lite-help" class="form-text">{% translate "Skips web fonts, icons, photos and animations to save data on slow connections." %}</div>
+            </div>
+        </fieldset>
+        <button type="submit" class="btn btn-wine">{% translate "Save preferences" %}</button>
+    </form>
+    <h2 class="h5 fw-bold mt-5">{% translate "Our commitment" %}</h2>
+    <ul class="text-muted">
+        <li>{% translate "We target WCAG 2.1 level AA: labelled form controls, visible focus, sufficient contrast and clear error messages." %}</li>
+        <li>{% translate "The voting flow is plain HTML forms and works without JavaScript." %}</li>
+        <li>{% translate "Problems? Contact the support desk and we will help you vote." %}</li>
+    </ul>
+</div>
+{% endblock %}

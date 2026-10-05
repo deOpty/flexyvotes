@@ -1,0 +1,91 @@
+{% extends 'vote/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Sign in to vote" %} | {{ event.title }}{% endblock %}
+{% block steps %}{% include 'vote/_steps.html' with step=1 %}{% endblock %}
+{% block vote %}
+<h1 class="h3 fw-bold text-wine">{% translate "Sign in to vote" %}</h1>
+{% if receipt %}<div class="alert alert-success">{% translate "You have already voted in this election." %} <a href="{% url 'elections:vote_receipt' event.pk %}">{% translate "View your receipt" %}</a></div>{% endif %}
+{% if not event.accepting_votes %}
+<div class="alert alert-secondary">
+    {% if event.status == 'PAUSED' %}{% translate "Voting is temporarily paused. Please check back shortly." %}
+    {% elif event.status == 'SCHEDULED' %}{% translate "Voting has not opened yet. It opens on" %} {{ event.start_date|in_tz:event.timezone|date:"l d F Y, H:i" }} ({{ event.timezone }}).
+    {% else %}{% translate "Voting is closed." %} <a href="{% url 'elections:results' event.pk %}">{% translate "Results" %}</a>{% endif %}
+</div>
+{% endif %}
+<p class="text-muted">{% translate "Your identity is checked against the voter roll. Your ballot is encrypted and stored separately - nobody, including election officials, can link your choices to you." %}</p>
+
+{% if 'CODE' in methods %}
+<section class="card border-0 shadow-sm rounded-4 p-4 mb-3" aria-labelledby="code-h">
+    <h2 id="code-h" class="h5 fw-bold">{% if student_id_mode %}{% translate "Voter ID and access code" %}{% else %}{% translate "Access code" %}{% endif %}</h2>
+    <form method="post" novalidate>{% csrf_token %}{% bot_protection %}
+        <input type="hidden" name="action" value="code">
+        {% if student_id_mode %}
+        <label class="form-label" for="identifier">{% translate "Voter / student / staff ID" %}</label>
+        <input id="identifier" name="identifier" class="form-control form-control-lg mb-3" autocomplete="username" required autocapitalize="characters" spellcheck="false">
+        {% endif %}
+        <label class="form-label" for="code">{% translate "Access code" %}</label>
+        <input id="code" name="code" class="form-control form-control-lg mb-3 mono" autocomplete="one-time-code" required autocapitalize="characters" spellcheck="false" aria-describedby="code-help">
+        <div id="code-help" class="form-text mb-3">{% translate "The code from your invitation email, SMS or slip. It is not case-sensitive." %}</div>
+        <button type="submit" class="btn btn-wine btn-lg w-100">{% translate "Continue" %}</button>
+    </form>
+    {% if student_id_mode %}
+    <details class="mt-3"><summary class="small">{% translate "Lost your access code?" %}</summary>
+        <form method="post" action="{% url 'retrieve_voting_code' event.pk %}" class="mt-2 d-flex gap-2">{% csrf_token %}
+            <label for="lost-id" class="visually-hidden">{% translate "Voter ID" %}</label>
+            <input id="lost-id" name="student_id" class="form-control" placeholder="{% translate 'Your voter ID' %}" required>
+            <button class="btn btn-outline-secondary">{% translate "Send a new code" %}</button>
+        </form>
+        <p class="small text-muted mt-1 mb-0">{% translate "A new code is sent only to the email address on the voter roll." %}</p>
+    </details>
+    {% endif %}
+</section>
+{% endif %}
+
+{% if 'EMAIL_OTP' in methods or 'SMS_OTP' in methods %}
+<section class="card border-0 shadow-sm rounded-4 p-4 mb-3" aria-labelledby="otp-h">
+    <h2 id="otp-h" class="h5 fw-bold">{% translate "One-time code" %}</h2>
+    <form method="post">{% csrf_token %}{% bot_protection %}
+        <input type="hidden" name="action" value="otp">
+        <label class="form-label" for="otp-id">{% translate "Voter ID or email address" %}</label>
+        <input id="otp-id" name="identifier" class="form-control form-control-lg mb-3" required>
+        {% if 'EMAIL_OTP' in methods and 'SMS_OTP' in methods %}
+        <fieldset class="mb-3"><legend class="form-label">{% translate "Send the code by" %}</legend>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="channel" value="EMAIL" id="ch-e" checked><label class="form-check-label" for="ch-e">{% translate "Email" %}</label></div>
+            <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="channel" value="SMS" id="ch-s"><label class="form-check-label" for="ch-s">SMS</label></div>
+        </fieldset>
+        {% elif 'SMS_OTP' in methods %}<input type="hidden" name="channel" value="SMS">{% endif %}
+        <button type="submit" class="btn btn-outline-wine btn-lg w-100">{% translate "Send me a code" %}</button>
+    </form>
+</section>
+{% endif %}
+
+{% if sso_options %}
+<section class="card border-0 shadow-sm rounded-4 p-4 mb-3" aria-labelledby="sso-h">
+    <h2 id="sso-h" class="h5 fw-bold">{% translate "Institutional sign-in" %}</h2>
+    {% for key, name in sso_options %}<a href="{% url 'sso_start' key %}?event={{ event.pk }}" class="btn btn-outline-dark btn-lg w-100 mb-2">{% blocktranslate %}Continue with {{ name }}{% endblocktranslate %}</a>{% endfor %}
+</section>
+{% endif %}
+
+{% if 'LDAP' in methods %}
+<section class="card border-0 shadow-sm rounded-4 p-4 mb-3" aria-labelledby="ldap-h">
+    <h2 id="ldap-h" class="h5 fw-bold">{% translate "Directory account" %}</h2>
+    <form method="post">{% csrf_token %}{% bot_protection %}<input type="hidden" name="action" value="ldap">
+        <label class="form-label" for="lu">{% translate "Username" %}</label><input id="lu" name="username" class="form-control mb-2" autocomplete="username" required>
+        <label class="form-label" for="lp">{% translate "Password" %}</label><input id="lp" type="password" name="password" class="form-control mb-3" autocomplete="current-password" required>
+        <button class="btn btn-outline-wine w-100">{% translate "Sign in" %}</button>
+    </form>
+</section>
+{% endif %}
+
+{% if 'ACCOUNT' in methods %}
+<section class="card border-0 shadow-sm rounded-4 p-4 mb-3" aria-labelledby="acct-h">
+    <h2 id="acct-h" class="h5 fw-bold">{% translate "Platform account" %}</h2>
+    {% if request.user.is_authenticated %}
+    <form method="post">{% csrf_token %}{% bot_protection %}<input type="hidden" name="action" value="account"><button class="btn btn-outline-wine w-100">{% blocktranslate with u=request.user.username %}Continue as {{ u }}{% endblocktranslate %}</button></form>
+    {% else %}<a href="{% url 'login' %}?next={{ request.path|urlencode }}" class="btn btn-outline-wine w-100">{% translate "Sign in to your account" %}</a>{% endif %}
+</section>
+{% endif %}
+
+{% if event.allow_self_registration %}<p class="text-center"><a href="{% url 'elections:vote_register' event.pk %}">{% translate "Not on the roll yet? Register with your institutional email" %}</a></p>{% endif %}
+<p class="small text-muted text-center"><a href="{% url 'elections:candidates' event.pk %}">{% translate "Read about the candidates" %}</a> · <a href="{% url 'accessibility' %}?next={{ request.path|urlencode }}">{% translate "Accessibility options" %}</a></p>
+{% endblock %}

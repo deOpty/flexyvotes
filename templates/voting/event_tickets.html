@@ -62,7 +62,7 @@
                             <button type="button" class="btn btn-outline-wine w-100 fw-bold mt-auto" 
                                     data-bs-toggle="modal" 
                                     data-bs-target="#ticketModal" 
-                                    onclick="setupTicketModal('{{ ticket.id }}', '{{ ticket.name }}', '{{ ticket.price }}', '{{ ticket.remaining }}')"
+                                    data-ticket-id="{{ ticket.id }}" data-ticket-name="{{ ticket.name }}" data-ticket-price="{{ ticket.price }}" data-ticket-max="{{ ticket.remaining }}" data-ticket-currency="{{ event.currency }}"
                                     style="color: #800020; border: 1px solid #800020;">
                                 Select Ticket
                             </button>
@@ -123,20 +123,16 @@
     </div>
 </div>
 
-<script>
-    // Setup Modal with the correct ticket data when clicked
-    function setupTicketModal(ticketId, ticketName, ticketPrice, maxQty) {
-        document.getElementById('modalTicketName').innerText = ticketName;
-        document.getElementById('modalTicketPrice').innerText = '₵' + ticketPrice;
-        
-        // Set the max quantity allowed based on remaining tickets
-        const qtyInput = document.getElementById('modalTicketQty');
-        qtyInput.max = maxQty;
-        qtyInput.value = 1; // Reset to 1 when opened
-        
-        // Set the form action to the correct buy URL
-        const form = document.getElementById('ticketForm');
-        form.action = `/buy-ticket/${ticketId}/`;
-    }
+<script nonce="{{ csp_nonce }}">
+    document.querySelectorAll('[data-ticket-id]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            document.getElementById('modalTicketName').textContent = button.dataset.ticketName;
+            document.getElementById('modalTicketPrice').textContent = button.dataset.ticketCurrency + ' ' + button.dataset.ticketPrice;
+            var qty = document.getElementById('modalTicketQty');
+            qty.max = button.dataset.ticketMax;
+            qty.value = 1;
+            document.getElementById('ticketForm').action = '/buy-ticket/' + encodeURIComponent(button.dataset.ticketId) + '/';
+        });
+    });
 </script>
 {% endblock %}

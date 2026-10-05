@@ -1,0 +1,1 @@
+{% autoescape off %}{{ election }} closes {{ ends }}. Vote now: {{ link }}{% endautoescape %}

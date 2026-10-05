@@ -1,134 +1,129 @@
 <!DOCTYPE html>
-{% load static %}
-<html lang="en">
+{% load static i18n %}{% get_current_language as LANGUAGE_CODE %}{% get_available_languages as LANGUAGES %}
+<html lang="{{ LANGUAGE_CODE }}" class="no-js">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlexyVotes | Turn every vote into a contribution</title>
-    <!-- Bootstrap CSS -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="color-scheme" content="light">
+    <title>{% block title %}{{ PLATFORM_NAME }} | {% translate "Secure voting for awards, shows and institutions" %}{% endblock %}</title>
+    <script nonce="{{ csp_nonce }}">document.documentElement.className = 'js';</script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
+    {% if not lite_mode %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <!-- Google Fonts: Poppins (display) + Inter (body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- FlexyVotes design system -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {% endif %}
     <link rel="stylesheet" href="{% static 'voting/css/theme.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/platform.css' %}">
+    {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% if 'hc' in prefs %}a11y-hc {% endif %}{% if 'lg' in prefs %}a11y-lg {% endif %}{% if lite_mode %}lite {% endif %}{% block body_class %}{% endblock %}">
 
-    <a class="visually-hidden-focusable btn btn-gold position-absolute top-0 start-0 m-2" style="z-index: 2000;" href="#main-content">Skip to content</a>
+    <a class="visually-hidden-focusable btn btn-gold position-absolute top-0 start-0 m-2" style="z-index: 2000;" href="#main-content">{% translate "Skip to content" %}</a>
 
-    <!-- Advanced Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-wine shadow-sm sticky-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-wine shadow-sm sticky-top" aria-label="{% translate 'Main navigation' %}">
         <div class="container">
             <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
-                <i class="bi bi-box-seam-fill text-gold me-2"></i>
+                <i class="bi bi-box-seam-fill text-gold me-2" aria-hidden="true"></i>
                 <span class="text-gold">Flexy</span><span class="text-white">Votes</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="{% translate 'Toggle navigation' %}">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-lg-center">
-                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'home' %}active{% endif %}" href="{% url 'home' %}">Home</a></li>
-                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'tickets' %}active{% endif %}" href="{% url 'tickets' %}">Tickets</a></li>
-                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'store' %}active{% endif %}" href="{% url 'store' %}">Store</a></li>
-                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'contact' %}active{% endif %}" href="{% url 'contact' %}">Contact</a></li>
-                    
-                    {% if request.user.is_authenticated and request.user.is_staff or request.user.profile.is_approved_organizer %}
-                        <li class="nav-item ms-lg-3">
-                            <a href="{% url 'dashboard' %}" class="btn btn-sm btn-gold px-3">Dashboard</a>
-                        </li>
+                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'home' %}active{% endif %}" href="{% url 'home' %}">{% translate "Home" %}</a></li>
+                    <li class="nav-item"><a class="nav-link text-white" href="{% url 'elections:results_index' %}">{% translate "Results" %}</a></li>
+                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'tickets' %}active{% endif %}" href="{% url 'tickets' %}">{% translate "Tickets" %}</a></li>
+                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'store' %}active{% endif %}" href="{% url 'store' %}">{% translate "Store" %}</a></li>
+                    <li class="nav-item"><a class="nav-link text-white {% if request.resolver_match.url_name == 'contact' %}active{% endif %}" href="{% url 'contact' %}">{% translate "Contact" %}</a></li>
+                    {% if request.user.is_authenticated %}
+                        {% if is_console_user %}
+                        <li class="nav-item ms-lg-3"><a href="{% url 'dashboard' %}" class="btn btn-sm btn-gold px-3">{% translate "Dashboard" %}</a></li>
+                        {% endif %}
+                        {% if request.user.candidacies.exists %}
+                        <li class="nav-item ms-lg-2"><a href="{% url 'portal:home' %}" class="nav-link text-white">{% translate "Candidate portal" %}</a></li>
+                        {% endif %}
+                        <li class="nav-item ms-lg-2"><a href="{% url 'account:security' %}" class="nav-link text-white" title="{% translate 'Account security' %}"><i class="bi bi-shield-lock" aria-hidden="true"></i><span class="d-lg-none"> {% translate "Security" %}</span></a></li>
                         <li class="nav-item ms-lg-2">
-                            <a href="{% url 'logout' %}" class="btn btn-sm btn-outline-light px-3">Logout</a>
+                            <form action="{% url 'logout' %}" method="post" class="d-inline">{% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-light px-3">{% translate "Logout" %}</button>
+                            </form>
                         </li>
                     {% else %}
-                        <li class="nav-item ms-lg-3">
-                            <a href="{% url 'login' %}" class="btn btn-sm btn-outline-light px-3">Organizer Login</a>
-                        </li>
+                        <li class="nav-item ms-lg-3"><a href="{% url 'login' %}" class="btn btn-sm btn-outline-light px-3">{% translate "Organizer Login" %}</a></li>
                     {% endif %}
+                    <li class="nav-item ms-lg-2">
+                        <form action="{% url 'set_language' %}" method="post" class="d-flex" data-autosubmit>{% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <label class="visually-hidden" for="lang-select">{% translate "Language" %}</label>
+                            <select id="lang-select" name="language" class="form-select form-select-sm bg-transparent text-white border-light">
+                                {% for code, name in LANGUAGES %}<option value="{{ code }}" class="text-dark" {% if code == LANGUAGE_CODE %}selected{% endif %}>{{ code|upper }}</option>{% endfor %}
+                            </select>
+                            <noscript><button class="btn btn-sm btn-light ms-1">OK</button></noscript>
+                        </form>
+                    </li>
                 </ul>
             </div>
         </div>
     </nav>
-    
-    <div class="content" id="main-content">
+
+    <main class="content" id="main-content" tabindex="-1">
         {% if messages %}
-            <div class="container mt-4">
+            <div class="container mt-4" aria-live="polite">
                 {% for message in messages %}
-                    <div class="alert alert-dismissible fade show shadow-soft d-flex align-items-center gap-2 {% if message.tags == 'error' %}text-white{% else %}alert-{{ message.tags }}{% endif %}"
-                         role="alert"
-                         {% if message.tags == 'error' %}style="background-color: #800020; color: #FFD700;"{% endif %}>
-                        <i class="bi {% if message.tags == 'error' %}bi-exclamation-triangle-fill{% elif message.tags == 'success' %}bi-check-circle-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+                    <div class="alert alert-dismissible fade show shadow-soft d-flex align-items-center gap-2 {% if message.tags == 'error' %}alert-brand-error{% else %}alert-{{ message.tags }}{% endif %}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}">
+                        <i class="bi {% if message.tags == 'error' %}bi-exclamation-triangle-fill{% elif message.tags == 'success' %}bi-check-circle-fill{% else %}bi-info-circle-fill{% endif %}" aria-hidden="true"></i>
                         <span>{{ message }}</span>
-                        <button type="button" class="btn-close {% if message.tags == 'error' %}btn-close-white{% endif %}" data-bs-dismiss="alert" aria-label="Close"></button>
+                        <button type="button" class="btn-close {% if message.tags == 'error' %}btn-close-white{% endif %}" data-bs-dismiss="alert" aria-label="{% translate 'Close' %}"></button>
                     </div>
                 {% endfor %}
             </div>
         {% endif %}
-        
-        {% block content %}
-        {% endblock %}
-    </div>
+        {% block content %}{% endblock %}
+    </main>
 
     {% block footer %}
-    <!-- Advanced Rich Footer -->
-    <footer class="mt-5 pt-5 pb-3" style="background-color: #1E1E1E; color: #F5F5F5;">
+    <footer class="mt-5 pt-5 pb-3 site-footer">
         <div class="container">
             <div class="row gy-4">
-                <!-- Brand Column -->
                 <div class="col-lg-4 col-md-6">
-                    <h4 class="fw-bold mb-3"><span class="text-gold">Flexy</span>Votes</h4>
-                    <p style="font-size: 0.9rem; color: #aaa;">Turn every vote into a contribution. The premium platform for hosting transparent, donation-based competitions and awards.</p>
-                    <div class="d-flex gap-3 mt-3">
-                        <a href="#" class="text-white fs-5"><i class="bi bi-facebook"></i></a>
-                        <a href="#" class="text-white fs-5"><i class="bi bi-twitter"></i></a>
-                        <a href="#" class="text-white fs-5"><i class="bi bi-instagram"></i></a>
-                        <a href="#" class="text-white fs-5"><i class="bi bi-linkedin"></i></a>
-                    </div>
+                    <h2 class="h4 fw-bold mb-3"><span class="text-gold">Flexy</span>Votes</h2>
+                    <p class="small footer-muted">{% translate "Secure, auditable voting for reality shows, awards, universities, associations and companies." %}</p>
                 </div>
-
-                <!-- Links Column -->
                 <div class="col-lg-2 col-md-6">
-                    <h6 class="text-uppercase fw-bold mb-3" style="font-size: 0.85rem; letter-spacing: 1px;">Platform</h6>
-                    <ul class="list-unstyled" style="font-size: 0.9rem; color: #aaa;">
-                        <li class="mb-2"><a href="/" class="text-decoration-none text-reset">Home</a></li>
-                        <li class="mb-2"><a href="/#events-section" class="text-decoration-none text-reset">Browse Events</a></li>
-                        <li class="mb-2"><a href="/#how-it-works" class="text-decoration-none text-reset">How it Works</a></li>
+                    <h3 class="text-uppercase fw-bold mb-3 footer-heading">{% translate "Platform" %}</h3>
+                    <ul class="list-unstyled small footer-muted">
+                        <li class="mb-2"><a href="/" class="text-reset">{% translate "Browse elections" %}</a></li>
+                        <li class="mb-2"><a href="{% url 'elections:results_index' %}" class="text-reset">{% translate "Results & verification" %}</a></li>
+                        <li class="mb-2"><a href="{% url 'tickets' %}" class="text-reset">{% translate "Tickets" %}</a></li>
                     </ul>
                 </div>
-
-                <!-- Legal Column -->
                 <div class="col-lg-2 col-md-6">
-                    <h6 class="text-uppercase fw-bold mb-3" style="font-size: 0.85rem; letter-spacing: 1px;">Legal</h6>
-                    <ul class="list-unstyled" style="font-size: 0.9rem; color: #aaa;">
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-reset">Terms of Service</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-reset">Privacy Policy</a></li>
-                        <li class="mb-2"><a href="#" class="text-decoration-none text-reset">Fee Structure</a></li>
+                    <h3 class="text-uppercase fw-bold mb-3 footer-heading">{% translate "Trust" %}</h3>
+                    <ul class="list-unstyled small footer-muted">
+                        <li class="mb-2"><a href="{% url 'accessibility' %}?next={{ request.get_full_path|urlencode }}" class="text-reset">{% translate "Accessibility & low-bandwidth" %}</a></li>
+                        <li class="mb-2"><a href="{% url 'signing_key' %}" class="text-reset">{% translate "Public signing key" %}</a></li>
+                        <li class="mb-2"><a href="{% url 'security_txt' %}" class="text-reset">{% translate "Report a vulnerability" %}</a></li>
                     </ul>
                 </div>
-
-                <!-- Contact Column -->
                 <div class="col-lg-4 col-md-6">
-                    <h6 class="text-uppercase fw-bold mb-3" style="font-size: 0.85rem; letter-spacing: 1px;">Contact Us</h6>
-                    <p style="font-size: 0.9rem; color: #aaa;"><i class="bi bi-geo-fill me-2"></i> Accra, Ghana</p>
-                    <p style="font-size: 0.9rem; color: #aaa;"><i class="bi bi-envelope-fill me-2"></i> support@flexyvotes.com</p>
+                    <h3 class="text-uppercase fw-bold mb-3 footer-heading">{% translate "Contact us" %}</h3>
+                    <p class="small footer-muted mb-1">Accra, Ghana</p>
+                    <p class="small footer-muted"><a class="text-reset" href="{% url 'contact' %}">{% translate "Support desk" %}</a></p>
                 </div>
             </div>
-
-            <hr class="my-4" style="border-color: #333;">
-            <div class="text-center" style="font-size: 0.85rem; color: #666;">
-                &copy; {% now "Y" %} FlexyVotes. All rights reserved.
-            </div>
+            <hr class="my-4 footer-rule">
+            <div class="text-center small footer-muted">&copy; {% now "Y" %} FlexyVotes. {% translate "All rights reserved." %}</div>
         </div>
     </footer>
     {% endblock %}
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- FlexyVotes interaction layer (scroll reveal, ripple, loading states) -->
-    <script src="{% static 'voting/js/site.js' %}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" nonce="{{ csp_nonce }}"></script>
+    {% if not lite_mode %}<script src="{% static 'voting/js/site.js' %}" nonce="{{ csp_nonce }}"></script>{% endif %}
+    <script src="{% static 'core/js/app.js' %}" nonce="{{ csp_nonce }}"></script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

@@ -1,172 +1,275 @@
 # Operations Runbook
 
-Day-2 operations reference for running FlexyVotes in production. Pairs with
-`DEPLOYMENT.md` (how it gets deployed) and `SECURITY.md` (what to watch for).
+This runbook covers day-to-day operation of FlexyVotes: configuration, election-day
+procedures, payments, key management, monitoring and incidents. Deployment is in
+[DEPLOYMENT.md](DEPLOYMENT.md); backups and recovery are in
+[DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
-## Environment variables reference
+Commands are written as `python manage.py …`. Run them inside a web container:
+- **ECS:** `aws ecs execute-command --cluster flexyvotes --task <id> --interactive --command "…"`
+- **Compose:** `docker compose -f docker-compose.prod.yml exec web …`
 
-| Variable | Required | Notes |
+## Environment variables
+
+Everything is read from the environment, or from `.env` in development. Values marked
+**secret** belong in Secrets Manager.
+
+### Core
+
+| Variable | Default | Purpose |
 |---|---|---|
-| `SECRET_KEY` | Yes | Unique per environment. Never reuse across dev/staging/prod. |
-| `DEBUG` | No (default `False`) | Must be `False` in production. |
-| `ALLOWED_HOSTS` | Yes in prod | Comma-separated. Must match the domain(s) users hit. |
-| `CSRF_TRUSTED_ORIGINS` | Yes in prod | Comma-separated, must include the scheme (`https://...`). |
-| `SITE_URL` | Yes | Used to build PayStack callback URLs and links inside notification emails. Must be the real public HTTPS URL. |
-| `PORT` | No (default `8000`) | Port gunicorn/the container listens on. Change if `8000` conflicts with another service; `docker-compose.yml` and the ECS task definition must use the same value for port mapping/health checks. |
-| `DATABASE_URL` | Yes in prod | Postgres connection string. Omit to fall back to local SQLite (dev only). |
-| `DATABASE_SSL_REQUIRE` | No (default `True`) | Only set to `False` for a local, non-TLS Postgres (e.g. docker-compose). Never set `False` in production. |
-| `SECURE_SSL_REDIRECT` | No (default `False`) | Set `True` once HTTPS termination in front of the app is confirmed working. |
-| `SECURE_HSTS_SECONDS` | No (default `0`) | Set a real value (e.g. `31536000`) only after `SECURE_SSL_REDIRECT` is confirmed safe. |
-| `PAYSTACK_SECRET_KEY` | Yes | Live key in production, test key in dev/staging. |
-| `AT_USERNAME` / `AT_API_KEY` | Yes for USSD | Africa's Talking sandbox or production credentials. |
-| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Yes | Gmail account + app password (see `DEPLOYMENT.md` note on migrating to SES). |
-| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Yes | All media storage in every environment. |
-| `DJANGO_LOG_LEVEL` | No (default `INFO`) | Root logger level. |
-| `DJANGO_SUPERUSER_USERNAME` / `_EMAIL` / `_PASSWORD` | No | If username+password are both set, the container entrypoint auto-creates this admin superuser on start. **Idempotent — only runs on the account's first-ever creation.** Changing `DJANGO_SUPERUSER_PASSWORD` later and redeploying does **not** update an already-existing account's password (`seed_admin` sees the username exists and skips) — see the incident-response entry below for the fix. Leave unset to create one manually instead. |
-| `PGADMIN_DEFAULT_EMAIL` / `PGADMIN_DEFAULT_PASSWORD` | Yes, if using the `pgadmin` compose service | pgAdmin's own login (unrelated to Django/Postgres credentials). Use a strong, unique value — never expose this service's port to the public internet (see `DEPLOYMENT.md`). |
-| `PGADMIN_PORT` | No (default `5050`) | Host port pgAdmin is published on via `docker-compose.yml`. |
+| `DEBUG` | `False` | Never `True` in production; also enables the payment simulator |
+| `SECRET_KEY` | — (**secret**, required when `DEBUG=False`) | Django signing, plus the HMAC key for access codes, OTPs, ballot tokens and recovery codes. See [Key management](#key-management). |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1,0.0.0.0` | Comma-separated hostnames. Health probes bypass this check. |
+| `CSRF_TRUSTED_ORIGINS` | — | e.g. `https://vote.example.com` |
+| `SITE_URL` | `http://localhost:8000` | Absolute links in emails, callbacks and SSO |
+| `PLATFORM_NAME` | `FlexyVotes` | Branding |
+| `ADMIN_URL` | `admin/` | Django admin path; move it off the default |
+| `PORT` | `8000` | Port Gunicorn binds to inside the container; compose publishes the same port |
+| `ENVIRONMENT` | `production` (or `development` when `DEBUG`) | Tag for logs and Sentry |
+| `TIME_ZONE`, `LANGUAGE_CODE`, `DEFAULT_CURRENCY` | `Africa/Accra`, `en`, `GHS` | Platform defaults; each election has its own timezone and currency |
+| `APP_VERSION` | `dev` | Shown in `/healthz/live` and in logs; set to the git SHA |
+
+### Database, cache, jobs
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | SQLite file | `postgres://user:pass@host:5432/db` (**secret**) |
+| `DATABASE_SSL_REQUIRE` | `True` | TLS to PostgreSQL; set `False` only for the local compose database |
+| `DATABASE_REPLICA_URL` | — | Read replica for reporting queries |
+| `DB_CONN_MAX_AGE` | `600` | Persistent connections; `0` behind PgBouncer or RDS Proxy |
+| `DB_STATEMENT_TIMEOUT_MS` | `30000` | PostgreSQL `statement_timeout` |
+| `DB_DISABLE_SERVER_SIDE_CURSORS` | `False` | `True` with transaction pooling |
+| `TEST_DATABASE_NAME` | `test_flexyvotes` | Test database name |
+| `REDIS_URL` | — (in-process cache) | Cache and rate limits; **required with more than one process** |
+| `CELERY_BROKER_URL` | `REDIS_URL` | Without a broker, tasks run inline (eager) |
+| `QUEUE_BACKPRESSURE_THRESHOLD` | `50000` | Queue depth at which non-webhook POSTs get 503 |
+| `CELERY_CONCURRENCY`, `CELERY_LOG_LEVEL` | `4`, `info` | Worker options (entrypoint) |
+| `RUN_MIGRATIONS` | `true` | Web runs `migrate` on start; set `false` when a separate migrate task does it |
+| `GUNICORN_WORKERS`, `GUNICORN_THREADS`, `GUNICORN_TIMEOUT`, `GUNICORN_MAX_REQUESTS` | 2×CPU+1, `4`, `60`, `2000` | Gunicorn tuning |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies Gunicorn trusts for the forwarded scheme |
+
+### Security
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SECURE_SSL_REDIRECT` | `False` | Redirect HTTP to HTTPS (health probes exempt) |
+| `SECURE_HSTS_SECONDS` | `0` | e.g. `31536000` once HTTPS works |
+| `TRUSTED_PROXY_COUNT` | `0` | Number of proxies in front of the app: `1` for ALB or nginx, `2` for ALB + nginx. Decides the client IP used for rate limits and fraud scoring. |
+| `SESSION_COOKIE_AGE` | `28800` | Session lifetime in seconds |
+| `ENFORCE_STAFF_MFA` | `False` | Console users must enroll TOTP or a passkey |
+| `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_SECONDS` | `5`, `900` | Account lockout |
+| `VOTER_LOGIN_PER_IP_PER_MIN` | `120` | Voter sign-in attempts per IP per minute (web and API) |
+| `VOTER_OTP_PER_IP_PER_5MIN` | `100` | OTP submissions per IP per 5 minutes |
+| `VOTER_REGISTER_PER_IP_PER_10MIN` | `30` | Self-registrations per IP per 10 minutes |
+| `CSP_REPORT_ONLY` | `False` | Send CSP in report-only mode (for debugging) |
+| `CSP_EXTRA_SCRIPT_SRC`, `CSP_EXTRA_CONNECT_SRC` | — | Extra CSP sources |
+| `API_CORS_ALLOWED_ORIGINS` | — | Origins allowed to call `/api/` from a browser |
+| `OUTBOUND_HTTP_ALLOWED_HOSTS` | Paystack, Google, Microsoft, Meta Graph, Africa's Talking, CAPTCHA hosts | SSRF allow-list for every outbound call |
+| `CAPTCHA_PROVIDER` | empty (honeypot only) | `turnstile`, `hcaptcha` or `recaptcha` |
+| `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` | — | Provider keys (the secret key is **secret**) |
+| `FORM_MIN_FILL_SECONDS` | `2` | Forms submitted faster than this are treated as bots |
+| `WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME`, `WEBAUTHN_ORIGIN` | `localhost`, platform name, `SITE_URL` | Passkeys; the RP ID must be the site's domain |
+| `SECURITY_CONTACT` | `DEFAULT_FROM_EMAIL` | Published in `/.well-known/security.txt` |
+| `METRICS_TOKEN` | — (**secret**) | Bearer token for `/metrics` and detailed `/healthz/ready` |
+
+### Keys
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FIELD_ENCRYPTION_KEYS` | derived from `SECRET_KEY` (dev only) | `kid:base64key[,kid2:key2…]`; the first is active (**secret**) |
+| `KMS_KEY_ID`, `AWS_REGION` | —, `eu-north-1` | Use AWS KMS as the KEK instead (takes precedence) |
+| `SIGNING_PRIVATE_KEY` | derived (dev only) | Ed25519 key for signed configs and results (**secret**) |
+| `SIGNING_PREVIOUS_PUBLIC_KEYS` | — | Comma-separated public keys of retired signing keys, still trusted for verification |
+| `BLIND_INDEX_KEY` | derived (dev only) | HMAC key for email and phone lookups (**secret**) |
+
+### Payments, messaging, SSO, media
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY` | — | **secret** / public |
+| `PAYSTACK_BASE_URL` | `https://api.paystack.co` | |
+| `PAYMENTS_FAKE_GATEWAY` | `DEBUG and no Paystack key` | Simulator; refused when `DEBUG=False` |
+| `PAYMENT_ABANDON_AFTER_MINUTES` | `30` | When an unfinished checkout is marked abandoned |
+| `REFUND_DUAL_APPROVAL_THRESHOLD` | `500` | Refunds above this amount need a second approver |
+| `AT_USERNAME`, `AT_API_KEY`, `AT_SENDER_ID` | `sandbox`, —, — | Africa's Talking SMS (the API key is **secret**) |
+| `USSD_CALLBACK_TOKEN`, `USSD_ALLOWED_IPS` | — | USSD callback authentication; set at least one |
+| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | — | WhatsApp Cloud API |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS` | `smtp.gmail.com`, `587`, `True` | SMTP |
+| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | — | SMTP credentials (**secret**) |
+| `DEFAULT_FROM_EMAIL` | `EMAIL_HOST_USER` | Sender address |
+| `GOOGLE_OIDC_CLIENT_ID` / `_SECRET` | — | Google SSO |
+| `MICROSOFT_OIDC_TENANT` / `_CLIENT_ID` / `_CLIENT_SECRET` | `common`, —, — | Microsoft Entra SSO |
+| `MEDIA_STORAGE` | `cloudinary` when configured and not `DEBUG`, else `local` | Public image storage |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | — | Cloudinary (the API secret is **secret**) |
+| `PRIVATE_MEDIA_ROOT` | `./private_media` | Evidence and manifestos; must be persistent storage |
+
+### Fraud, billing, observability, bootstrap
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FRAUD_MONITOR_THRESHOLD`, `FRAUD_CHALLENGE_THRESHOLD`, `FRAUD_HOLD_THRESHOLD` | `31`, `61`, `81` | Risk-score bands |
+| `FRAUD_FLAG_PROXIES` | `True` | Score anonymizer and proxy traffic |
+| `BILLING_VAT_RATE`, `BILLING_LEVY_RATE`, `BILLING_TRIAL_DAYS` | `15.0`, `6.0`, `14` | Invoice taxes and trial length |
+| `LOG_FORMAT` | `text` | `json` in production |
+| `DJANGO_LOG_LEVEL` | `INFO` | |
+| `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Error tracking and tracing |
+| `DJANGO_SUPERUSER_USERNAME`, `_EMAIL`, `_PASSWORD` | — | `seed_admin` creates or syncs this admin on every web start |
+| `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT` | —, —, `5050` | pgAdmin (compose `admin` profile only) |
+
+## Management commands
+
+| Command | Use |
+|---|---|
+| `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W006`) |
+| `seed_admin` | Create or sync the superuser from `DJANGO_SUPERUSER_*` |
+| `verify_integrity [--skip-evidence]` | Verify audit chains, signed config snapshots, result certifications (signature, result hash, bulletin root), evidence checksums, and that the configured keys unwrap every data key and decrypt the encrypted columns. Non-zero exit on any failure. |
+| `keys status` | KEK provider, data keys (and any not on the active KEK), signing-key source and fingerprint |
+| `keys generate-kek` / `generate-signing-key` / `generate-blind-index` | Create new key material |
+| `keys rotate` | New data key, then re-encrypt every encrypted column |
+| `keys rewrap` | Re-wrap all data keys with the active KEK (after adding a KEK or switching to KMS) |
+| `keys reindex` | Recompute blind indexes (after setting or changing `BLIND_INDEX_KEY`) |
+| `keys backup --out F` / `keys restore-check --in F` | Passphrase-encrypted key backup, and verifying it |
+| `compilemessages` | Rebuild translations after editing `locale/*/django.po` |
+
+## Key management
+
+### Moving a deployment from derived keys to dedicated keys
+
+A deployment that started without dedicated keys has data keys wrapped by the KEK derived
+from `SECRET_KEY`. The derived key also signs results and builds the blind indexes. To
+move it onto dedicated keys:
+
+1. **Prepare.** Back up the database. Then run `python manage.py keys status`; it shows
+   the KEK as `dev` and the signing key as *derived*.
+2. **Keep old signatures verifiable.** Copy the current public key, from `keys status` or
+   `/.well-known/flexyvotes-signing-key.json`, into `SIGNING_PREVIOUS_PUBLIC_KEYS`.
+3. **Set the new keys.** Set `FIELD_ENCRYPTION_KEYS` (or `KMS_KEY_ID`),
+   `SIGNING_PRIVATE_KEY` and `BLIND_INDEX_KEY`, then deploy.
+   - Existing data stays readable. The derived KEK remains available for unwrapping only.
+4. **Migrate the data.** Run `python manage.py keys rewrap`, which moves every data key onto
+   the new KEK, and then `python manage.py keys reindex` for the blind indexes.
+5. **Verify.** Run `python manage.py keys status` and confirm there are no warnings. Then
+   run `python manage.py verify_integrity`.
+
+### Routine rotation
+
+| What | How | Effect |
+|---|---|---|
+| Data key (yearly) | `keys rotate` | New encryptions use the new key; old values are re-encrypted |
+| KEK (yearly, or on suspected exposure) | Prepend a new `kid:key` to `FIELD_ENCRYPTION_KEYS`, deploy, run `keys rewrap`, then remove the old entry | No downtime |
+| KMS key | Enable KMS automatic rotation; KMS keeps old versions | Nothing to do |
+| Signing key | New `SIGNING_PRIVATE_KEY`; add the old public key to `SIGNING_PREVIOUS_PUBLIC_KEYS` | Old certifications still verify |
+| Blind-index key | Change `BLIND_INDEX_KEY`, then `keys reindex` immediately | Lookups fail until the reindex finishes; do it outside elections |
+| `SECRET_KEY` | **Only between elections.** Change it, then reissue voter credentials for any upcoming election | Invalidates sessions, access codes, OTPs, ballot sessions and recovery codes |
+| Paystack and other API keys | Rotate in the provider dashboard, update the secret, redeploy | — |
+
+## Election-day runbook
+
+**Before opening (T−1 day)**
+
+1. Check the election overview: status SCHEDULED, configuration snapshot signed, ballot
+   preview correct, voter count correct.
+2. Make sure invitations have been sent: use **Send invitations to all** in the voter list,
+   or **Send invitation** on individual voters.
+3. Check the network and service limits:
+   - campus NAT IPs are added to `trusted_nat.conf` or the WAF ([DEPLOYMENT.md §5](DEPLOYMENT.md#5-elections-behind-a-campus-nat));
+   - the SMS and email providers have enough credit and sending quota;
+   - web and worker capacity is scaled up.
+4. Confirm on-call staff and their roles. The **Election Officer** helps voters, and the
+   **Reviewer** handles dual approvals.
+
+**During voting**
+
+- **Monitoring.**
+  - `/console/elections/<id>/monitor/` shows turnout, the voting rate and errors.
+  - Watch the `VoteSubmissionFailures`, `VoteLatencyHigh` and `QueueBacklog` alerts.
+- **Voter support.**
+
+  | Problem | Action |
+  |---|---|
+  | Lost code | The voter uses "Lost your access code?". It goes only to the email on the roll. |
+  | Wrong email on the roll | An officer edits the voter, then resets the credential. Bulk resets need dual approval. |
+  | "Already voted" but the voter says they didn't | Don't reset anything. Open an incident, record a dispute, and preserve evidence. The ballot can't be removed (append-only), by design. |
+  | Many "too many attempts" errors from one site | Shared NAT; see election-day step 3. |
+
+- **Problems with the election itself.**
+  - Pause voting from the overview if there is a systemic problem, and record an incident.
+  - Extending the end time needs dual approval (`EXTEND_VOTING`).
+
+**After closing**
+
+1. **Tally.** Start the tally as a Results Officer. Check the invalid-ballot count, and
+   any reported ties.
+2. **Certify.** A different Results Officer certifies.
+3. **Publish.** Then confirm `/verify/<id>/` shows "all passed".
+4. **Disputes.** Resolve them before archiving. Apply a legal hold if a challenge is
+   expected.
+
+## Payments runbook
+
+| Situation | Action |
+|---|---|
+| Fan says they paid but no votes | `/console/payments/` → search by reference or email (blind index). If PENDING, use "Re-verify with Paystack". If held, see the next row. |
+| Payment held by fraud | `/console/fraud/` → review the signals → approve (credits votes) or reject (refund). |
+| Reconciliation discrepancy | `/console/payments/reconciliation/` → each item says what differs. "Missing success" items are fixed automatically; resolve the rest and add a note. |
+| Reconciliation run FAILED "IP address is not allowed" | Add the egress IPs (NAT gateway or EC2) to the Paystack key's IP allow-list. |
+| Refund | Payment detail → request refund. Above `REFUND_DUAL_APPROVAL_THRESHOLD` a second Finance Officer approves it in `/console/approvals/`. |
+| Chargeback | Automatic: votes reversed, fraud alert raised. Review the payer and blocklist them if needed. |
+| Webhook failures alert | `/console/payments/` webhook list. Paystack retries on 500, and reconciliation covers any gaps. |
+
+## Monitoring
+
+| Signal | Where |
+|---|---|
+| Liveness / readiness | `/healthz/live`, `/healthz/ready` (detailed checks with `Authorization: Bearer $METRICS_TOKEN`) |
+| Metrics | `/metrics`, scraped with the token. Series: `fv_http_requests_total`, `fv_http_request_duration_seconds`, `fv_db_query_duration_seconds`, `fv_vote_submissions_total{outcome}`, `fv_vote_latency_seconds`, `fv_votes_total`, `fv_open_elections`, `fv_payments_total{status}`, `fv_webhooks_total{outcome}`, `fv_failed_webhooks_last_hour`, `fv_reconciliation_discrepancies_total`, `fv_fraud_alerts_total`, `fv_open_fraud_alerts`, `fv_logins_total`, `fv_rate_limited_total`, `fv_notifications_total`, `fv_queue_depth` |
+| Alerts | `deploy/monitoring/alert_rules.yml`: `AppDown`, `HighServerErrorRate`, `VoteSubmissionFailures`, `VoteLatencyHigh`, `PaymentSuccessRateLow`, `WebhookFailures`, `QueueBacklog`, `DatabaseSlow`, `FraudAlertSpike`, `RateLimitingSpike` |
+| System health page | `/console/health/`: database, cache and broker checks, pending migrations, queue depths, business signals (payments and success rate in the last hour, webhook failures, ballots per hour, open fraud alerts, notifications queued and failed), integrations, circuit breakers, audit-chain verification |
+| Logs | JSON on stdout. Search by `request_id`, which equals the `X-Request-ID` response header and the error envelope's `correlation_id`. |
+
+## Incident response
+
+1. **Declare.** Record an incident in `/console/elections/<id>/integrity/` (or at
+   platform level), with its severity. The record is audited and timestamped.
+2. **Contain.**
+   - Pause affected elections.
+   - Blocklist abusive IPs, devices or cards in `/console/fraud/blocklist/`.
+   - Revoke sessions (`/account/security/` for your own account; deactivate other users
+     in the admin).
+   - Revoke API tokens.
+3. **Preserve.** Upload evidence; each file gets a SHA-256 when it is uploaded. Apply a
+   legal hold. Run `python manage.py verify_integrity` and keep the output.
+4. **Audit-chain break alert** (CRITICAL log + admin email). Treat it as tampering:
+   - Find the first bad sequence number with `GET /api/v1/audit/verify`.
+   - Compare against the latest backup.
+   - Check PostgreSQL logs for DDL, trigger drops or superuser sessions.
+5. **Credential exposure.** Rotate the affected keys ([Key management](#key-management)).
+   If `SECRET_KEY` leaked during an election, pause the election, rotate the key, reissue
+   credentials, and record the incident.
+6. **Communicate and review.** Notify the organization's admins. Write a post-incident
+   review within 5 working days.
 
 ## Routine tasks
 
-### Approve a new organizer
-Organizers self-register but cannot create events until approved:
-1. Log in to `/admin/` as a superuser.
-2. Go to Users, select the pending account(s).
-3. Use the **"Approve selected as Organizers"** admin action. This sets `Profile.is_approved_organizer=True` and emails the user.
+| Task | How |
+|---|---|
+| Approve a new organizer | `/console/organizers/` → approve. Creates their personal organization and Organization Admin role. |
+| Add staff to an organization | `/console/organizations/<id>/team/` → grant a role, scoped to the organization or one election |
+| Support tickets | `/console/support/` → reply. Internal notes aren't sent to the requester. |
+| Database access | pgAdmin (compose `--profile admin`) behind VPN or IP allow-list only, or `psql` through a bastion or SSM. Use a read-only role for browsing. |
+| Translations | Edit `locale/fr/LC_MESSAGES/django.po`, run `compilemessages`, and commit both `.po` and `.mo` |
+| Monthly | Restore test ([DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#4-restore-testing)), `pip-audit`, review the fraud blocklist and expired API tokens |
+| Quarterly | Access review (role assignments per organization), key backup check (`keys restore-check`) |
 
-### Access the database directly (pgAdmin)
-For anything the Django admin doesn't cover (ad-hoc queries, inspecting raw
-table data, checking indexes):
-1. `docker compose up -d pgadmin` (starts alongside `db`/`web` if not already running).
-2. Browse to `http://<host>:${PGADMIN_PORT:-5050}/` and log in with `PGADMIN_DEFAULT_EMAIL`/`PGADMIN_DEFAULT_PASSWORD`.
-3. Add a server: host `db`, port `5432`, and the `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` values from `docker-compose.yml`'s `db` service.
-4. Only do this over a network path restricted to admins (SSH tunnel, VPN, or a security-group rule) — see the security warning in `DEPLOYMENT.md`. Do not leave `PGADMIN_PORT` open to the public internet.
+## Troubleshooting
 
-**"The CSRF token is missing" / "CSRF tokens do not match" on pgAdmin — ROOT CAUSE FOUND AND FIXED.**
-pgAdmin's CSRF token is embedded in the login page (via Flask-WTF's
-`csrf_token()`) and its own login route is CSRF-exempt server-side, so a
-first failed login attempt is far more likely a typo'd password than a real
-CSRF issue. A properly issued token was also verified (scripted, header-level
-test) to stay valid for a continuous 3+ minutes with no time-based expiry —
-`WTF_CSRF_TIME_LIMIT` already defaults to unlimited here.
-
-The actual cause on this deployment: **the host also runs a second, unrelated
-pgAdmin instance** (`tradingbot-pgadmin`, confirmed via `docker stats`/`docker
-ps` showing an entirely separate `tradingbot-*` stack on the same box). Every
-pgAdmin image defaults to the same session cookie name (`pga4_session`,
-`Path=/`, no `Domain` attribute). Browser cookies are scoped by **host only —
-not port** (RFC 6265), so visiting both pgAdmin UIs from the same browser
-(same IP, different ports) causes whichever one you visited most recently to
-silently overwrite the other's session cookie. The next request to the other
-instance then carries a cookie it doesn't recognize, which surfaces as
-"unauthenticated" / "CSRF token is missing or does not match" — not because
-either app is broken, but because they were fighting over the same cookie
-name on the same host.
-
-**Fix applied:** `docker-compose.yml` now sets
-`PGADMIN_CONFIG_SESSION_COOKIE_NAME: "'flexyvotes_pga_session'"` on the
-`pgadmin` service, giving this project's instance its own cookie name.
-Verified directly: `Set-Cookie` now reads `flexyvotes_pga_session=...`
-instead of `pga4_session=...`, and a full login → authenticated-API-call
-flow succeeds end-to-end with it. **Apply the same fix to `tradingbot-pgadmin`**
-(a distinct, non-colliding cookie name on that stack too) if you manage it —
-otherwise the collision just moves to whichever cookie name is still shared.
-
-If this ever resurfaces after redeploying, rule out an actual container
-restart before assuming it's the cookie collision again:
-1. `docker compose ps` — pgAdmin's uptime shorter than your login session means it restarted.
-2. `docker compose logs pgadmin | grep -i "Application Initialisation"` — more than one match means it restarted during your session.
-3. `docker volume inspect flexyvotes_pgadmin_data` — confirm the volume exists and is the one actually mounted.
-
-**"The CSRF token is invalid. You need to refresh the page." specifically
-(distinct from "missing")** — reproduced and confirmed: pgAdmin's
-`SECRET_KEY`/`CSRF_SESSION_KEY` are **not** static config — per
-`config.py`, they're auto-generated and stored in the config database's
-`keys` table on the `pgadmin_data` volume (setting
-`PGADMIN_CONFIG_SECRET_KEY` has no effect; it's explicitly bypassed in favor
-of the DB-stored value). So **every time `pgadmin_data` is deleted/reset,
-a brand-new secret is generated**, which immediately invalidates any
-CSRF token embedded in a page your browser already had loaded — login
-itself still succeeds (its CSRF check is exempted server-side), but the
-app's subsequent calls (e.g. `/preferences/get_all` right after `/browser/`
-loads) fail with "invalid" because they carry a token signed by a secret
-that no longer exists.
-- **Fix:** after resetting `pgadmin_data` (or any pgAdmin container
-  recreate that could have regenerated the secret), close the tab entirely
-  and load the login page fresh (or use a private/incognito window) before
-  logging in again — don't reuse/reload a tab that was open beforehand.
-- There is no way to pin this secret across volume resets via env var on
-  this image; the volume itself is the persistence mechanism. Avoid
-  deleting `pgadmin_data` unless you're intentionally accepting this
-  (and re-adding the `db` server connection afterward).
-
-### Rotate a credential
-1. Generate the new value with the provider (PayStack/Africa's Talking/Cloudinary/Gmail).
-2. Update the corresponding secret in AWS Secrets Manager (see `DEPLOYMENT.md` §4).
-3. Force a new ECS deployment so tasks pick up the new secret value: `aws ecs update-service ... --force-new-deployment`.
-4. Revoke/delete the old credential at the provider once the new deployment is healthy.
-
-### Create a superuser
-The simplest option is to set `DJANGO_SUPERUSER_USERNAME`/`_EMAIL`/`_PASSWORD`
-in the environment/Secrets Manager — the entrypoint's `manage.py seed_admin`
-step creates it automatically on the next deploy/restart if it doesn't
-already exist. To create one manually instead:
-```bash
-aws ecs run-task --cluster flexyvotes-cluster --launch-type FARGATE \
-  --task-definition flexyvotes \
-  --overrides '{"containerOverrides":[{"name":"flexyvotes","command":["python","manage.py","createsuperuser"]}]}' \
-  ...
-```
-(See `DEPLOYMENT.md` §5 for the full command with network configuration.)
-
-### Apply a schema change
-Migrations run automatically on every container start via
-`docker-entrypoint.sh`. For a migration with real data-volume risk (adding a
-`NOT NULL` column to a large table, a data migration, etc.), review the
-generated SQL (`python manage.py sqlmigrate voting <migration_number>`)
-before releasing, and consider running it as a one-off task ahead of the
-rolling deploy rather than relying on the automatic path.
-
-## Backups
-
-- RDS: enable automated backups (`--backup-retention-period 7` or higher) and take a manual snapshot before any risky migration or major release.
-- Media: stored in Cloudinary, not on the app's infrastructure — no separate backup needed for uploaded images, but note Cloudinary's own retention/plan limits.
-- `db.sqlite3` is **local-dev only** — never used in production; no backup relevant there.
-
-## Monitoring & alerting
-
-- CloudWatch Logs: all app/gunicorn output (see `DEPLOYMENT.md` §8).
-- Recommended alarms: ALB `HTTPCode_Target_5XX_Count`, ECS service CPU/memory, RDS `FreeStorageSpace` and `CPUUtilization`.
-- Watch for repeated `django.request` ERROR-level log lines — `settings.py`'s `LOGGING` config routes these to the console/CloudWatch at `ERROR` level specifically so they're easy to filter.
-
-## Known operational limitations to plan around
-
-- **Rate limiting is per-process** (`LocMemCache`): login/registration/email-resend throttling resets per container and isn't shared across multiple ECS tasks. With `desired count >= 2`, an attacker effectively gets N× the intended attempt budget by hitting different tasks. Move to a shared cache (e.g. ElastiCache Redis, via `django-redis`) before/while scaling beyond a single task if this matters for your risk tolerance.
-- **Synchronous email sending**: organizer-approval emails, ticket emails, and voting-code retrieval emails are sent inline during the request (not via a task queue). A slow/unavailable SMTP server will slow down or fail the triggering request. Consider a task queue (Celery + SQS/Redis) if email volume grows.
-- **USSD "payments" are not verified** (see `SECURITY.md` #14) — until real Africa's Talking mobile-money confirmation is wired in, USSD votes/tickets are effectively free. Factor this into any reporting/reconciliation process.
-- **`collectstatic` requires `--upload-unhashed-files`**: `django-cloudinary-storage`'s bundled `collectstatic` override is a no-op without this flag (see `DEPLOYMENT.md` §0). If you ever run it outside the `Dockerfile` (e.g. debugging a non-container deploy), forgetting the flag silently produces "0 static files copied" and every static asset 404s — always include it.
-
-## Incident response quick reference
-
-- **Suspected credential leak**: rotate immediately (see "Rotate a credential" above), then review `SECURITY.md` #2 for the git-history remediation steps.
-- **"Invalid username or password" logging in as the seeded admin after a redeploy**: `seed_admin` (run by the entrypoint on every start) only creates the account the first time that username appears in the database — it does **not** update the password on subsequent starts even if `DJANGO_SUPERUSER_PASSWORD` in `.env` has since changed. The database still has whichever password was set the first time this account was created; `.env` no longer matches it. Same root cause/fix pattern as the pgAdmin credential issue above. Fix by resetting it to whatever `.env` currently says, without needing to know the old value:
-  ```bash
-  docker compose exec web python manage.py shell -c "
-  import os
-  from django.contrib.auth.models import User
-  u = User.objects.get(username=os.environ['DJANGO_SUPERUSER_USERNAME'])
-  u.set_password(os.environ['DJANGO_SUPERUSER_PASSWORD'])
-  u.save()
-  print('Password reset for', u.username)
-  "
-  ```
-  Or use `docker compose exec web python manage.py changepassword <username>` interactively instead. This only affects the one seeded account — it has no effect on organizer accounts created through normal registration, which always set their own password at creation time.
-- **Payment/webhook issues**: check CloudWatch Logs for `paystack_webhook` entries; verify the PayStack dashboard shows the webhook delivering successfully with `200` responses; confirm `PAYSTACK_SECRET_KEY` matches the key configured in the PayStack dashboard for signature verification.
-- **USSD not responding**: verify the Africa's Talking dashboard's configured callback URL matches `https://<domain>/ussd/callback/` and that the ALB/security groups allow inbound traffic from Africa's Talking's IP ranges.
-- **Uploaded image 404s at `/media/...`** (root-caused and fixed during this review — keeping the notes here in case it resurfaces after a settings change): this Django version (`Django==6.0.7`) does **not** derive `default_storage`/`staticfiles_storage` from the legacy `DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` settings at all — it only reads the modern `STORAGES` dict. With only the legacy settings defined, `default_storage` silently fell back to Django's built-in `FileSystemStorage`, so every upload was actually written to local disk (hence a real `/media/...` URL, and hence it vanishing on container restart) instead of going to Cloudinary. `vote_fund/settings.py` now defines `STORAGES` (which Django actually reads) alongside the legacy names (which `django-cloudinary-storage`'s own `collectstatic` override still reads directly via `settings.STATICFILES_STORAGE` — removing them entirely causes an `AttributeError` during `collectstatic`, so keep both in sync if either ever changes). To confirm it's working:
-  1. `docker compose exec web python manage.py shell -c "from django.core.files.storage import default_storage; print(default_storage.__class__)"` — must print `cloudinary_storage.storage.MediaCloudinaryStorage`, not `FileSystemStorage`.
-  2. `docker compose exec web python manage.py shell -c "from django.contrib.staticfiles.storage import staticfiles_storage; print(staticfiles_storage.__class__)"` — must print Whitenoise's `CompressedManifestStaticFilesStorage`.
-  3. If either prints the wrong class after a settings change, check that both the legacy setting and the corresponding key in `STORAGES` still agree.
-  4. Rows created while this bug was active have their `event_image`/etc. pointing at local paths — Cloudinary won't retroactively have them; re-upload through the app/admin to move them over.
-  5. Also confirm `DEBUG=False` in production — `DEBUG=True` is what makes Django serve `/media/` locally at all (`vote_fund/urls.py`) and is what rendered the verbose debug 404 page (which itself leaks internals and shouldn't be shown to real users).
-  `docker-compose.yml`'s `media_data` volume (mounted at `/app/media`) still protects whatever legacy local files exist from being wiped by a restart, independent of this fix.
+| Symptom | Cause / fix |
+|---|---|
+| `400 Bad Request` on every page | The `Host` isn't in `ALLOWED_HOSTS` |
+| CSRF failures on login over plain HTTP | Cookies are `Secure` when `DEBUG=False`. Use HTTPS, or `DEBUG=True` locally. |
+| Static files 404 | The image was built without `collectstatic` (see the Dockerfile), or `DEBUG=False` without WhiteNoise in the middleware |
+| Encrypted fields show errors after a config change | A KEK was removed while data keys still used it. Restore the old entry in `FIELD_ENCRYPTION_KEYS`, then run `keys rewrap`. |
+| Voters at one site get 429 | Shared NAT; see [DEPLOYMENT.md §5](DEPLOYMENT.md#5-elections-behind-a-campus-nat) |
+| Scheduled elections don't open | `beat` isn't running (or two are). Check `celery -A vote_fund inspect ping` and the beat logs. |
+| Emails not delivered | `/console/notifications/` shows failures and their errors; check SMTP credentials and quotas |

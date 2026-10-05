@@ -1,0 +1,10 @@
+<div class="visually-hidden" aria-hidden="true">
+    <label for="fv-hp-{{ honeypot }}">Leave this field empty</label>
+    <input type="text" id="fv-hp-{{ honeypot }}" name="{{ honeypot }}" value="" tabindex="-1" autocomplete="off">
+</div>
+<input type="hidden" name="{{ stamp_field }}" value="{{ stamp }}">
+<input type="hidden" name="fv_fp" value="">
+{% if captcha %}
+<div class="{{ captcha.widget_class }} my-2" data-sitekey="{{ site_key }}"></div>
+<script src="{{ captcha.script }}" async defer nonce="{{ csp_nonce }}"></script>
+{% endif %}

@@ -1,0 +1,12 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Your key share" %}{% endblock %}
+{% block console %}
+<div class="panel" style="max-width: 760px;">
+    <h1 class="h4 fw-bold text-wine">{% translate "Your trustee key share" %} — {{ event.title }}</h1>
+    <div class="alert alert-warning">{% translate "This is the only time this share is displayed. Store it offline now. Without enough shares the ballots can never be counted." %}</div>
+    <pre class="mono p-3 bg-light border rounded" id="share-value">{{ share }}</pre>
+    <div class="d-flex gap-2 no-print"><button type="button" class="btn btn-outline-secondary" data-copy="share-value">{% translate "Copy" %}</button><button type="button" class="btn btn-outline-secondary" data-print>{% translate "Print" %}</button>
+        <a class="btn btn-wine" href="{% url 'elections:console_trustees' event.pk %}">{% translate "I have stored it safely" %}</a></div>
+</div>
+{% endblock %}

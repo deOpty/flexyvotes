@@ -1,0 +1,25 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Live monitor" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<div data-monitor-url="{% url 'elections:console_monitor_data' event.pk %}">
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Status" %}</div><div class="kpi-value" id="mon-status">{{ event.status }}</div></div></div>
+        <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% if event.is_paid %}{% translate "Votes, last 5 min" %}{% else %}{% translate "Ballots, last 5 min" %}{% endif %}</div><div class="kpi-value" id="mon-last5">–</div></div></div>
+        {% if event.is_paid %}
+        <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Payment success (1h)" %}</div><div class="kpi-value" id="mon-psr">–</div></div></div>
+        {% else %}
+        <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Turnout" %}</div><div class="kpi-value small" id="mon-turnout">–</div></div></div>
+        {% endif %}
+        <div class="col-6 col-lg-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Open fraud alerts" %}</div><div class="kpi-value" id="mon-alerts">–</div></div></div>
+    </div>
+    <div class="panel">
+        <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Activity per minute (last hour)" %}</h2><span class="small text-muted">{% translate "Updated" %} <span id="mon-updated">–</span></span></div>
+        <div class="chart-bars" id="mon-chart" role="img" aria-label="{% translate 'Votes per minute chart' %}"></div>
+        <p class="small text-muted mt-2 mb-0">{% if event.is_institutional %}{% translate "Secret ballot: only participation is shown, never choices." %}{% endif %}</p>
+    </div>
+    <div class="panel"><h2 class="h5 fw-bold">{% translate "Latest alerts" %}</h2><ul class="list-group list-group-flush" id="mon-alert-list"></ul><a href="{% url 'fraud:alerts' %}" class="small">{% translate "Fraud monitoring" %}</a></div>
+    <noscript><p class="text-muted">{% translate "Live monitoring needs JavaScript; refresh the page for updates." %}</p></noscript>
+</div>
+{% endblock %}

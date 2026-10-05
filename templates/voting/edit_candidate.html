@@ -1,66 +1,24 @@
 {% extends 'voting/base.html' %}
-
+{% load i18n %}
+{% block title %}{% translate "Edit candidate" %} | {{ event.title }}{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-
-        <div class="mb-4 reveal">
-            <span class="section-eyebrow">Organizer Tools</span>
-            <h2 class="fw-bold text-wine mb-1 mt-1"><i class="bi bi-person-badge me-2"></i>Edit Candidate</h2>
-            <p class="text-muted mb-0">{{ candidate.name }}</p>
+<div class="container py-5" style="max-width: 760px;">
+    <a href="{% url 'elections:console_ballot' event.pk %}" class="small text-muted">&larr; {% translate "Ballot" %}</a>
+    <h1 class="h3 fw-bold text-wine">{% translate "Edit candidate" %}</h1>
+    <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4 p-4">{% csrf_token %}
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="cn">{% translate "Name" %}</label><input id="cn" name="name" value="{{ candidate.name }}" class="form-control" required maxlength="100"></div>
+            <div class="col-md-6"><label class="form-label" for="cc">{% translate "Position" %}</label><select id="cc" name="category" class="form-select">{% if event.is_paid %}<option value="">{% translate "None" %}</option>{% endif %}{% for cat in event.categories.all %}{% if not cat.is_referendum %}<option value="{{ cat.id }}" {% if cat.id == candidate.category_id %}selected{% endif %}>{{ cat.name }}</option>{% endif %}{% endfor %}</select></div>
+            <div class="col-md-6"><label class="form-label" for="ca">{% translate "Affiliation / party" %}</label><input id="ca" name="affiliation" value="{{ candidate.affiliation }}" class="form-control" maxlength="120"></div>
+            <div class="col-md-6"><label class="form-label" for="ce">{% translate "Email (candidate portal)" %}</label><input id="ce" type="email" name="email" value="{{ candidate.email }}" class="form-control"></div>
+            <div class="col-md-6"><label class="form-label" for="cnc">{% translate "Nominee code" %}</label><input id="cnc" name="nominee_code" value="{{ candidate.nominee_code|default:'' }}" class="form-control mono" maxlength="10"></div>
+            <div class="col-md-6"><label class="form-label" for="cs">{% translate "Status" %}</label><select id="cs" name="status" class="form-select">{% for v, l in statuses %}<option value="{{ v }}" {% if v == candidate.status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+            <div class="col-12"><label class="form-label" for="cb">{% translate "Biography" %}</label><textarea id="cb" name="bio" rows="3" class="form-control">{{ candidate.bio }}</textarea></div>
+            <div class="col-12"><label class="form-label" for="cm">{% translate "Manifesto" %}</label><textarea id="cm" name="manifesto" rows="6" class="form-control">{{ candidate.manifesto }}</textarea></div>
+            <div class="col-12">{% if candidate.image and not lite_mode %}<img src="{{ candidate.image.url }}" alt="" width="96" height="96" class="rounded-3 mb-2" style="object-fit:cover">{% endif %}
+                <label class="form-label d-block" for="ci">{% translate "Replace photo (PNG/JPEG, max 2 MB)" %}</label><input id="ci" type="file" name="image" accept="image/png,image/jpeg" class="form-control"></div>
         </div>
-
-        <div class="card shadow-soft border-0 rounded-4xl reveal">
-            <div class="card-body p-4 p-md-5">
-                <form method="POST" enctype="multipart/form-data">
-                    {% csrf_token %}
-
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-7">
-                            <label class="form-label">Name</label>
-                            <input type="text" name="name" class="form-control" value="{{ candidate.name }}" required>
-                        </div>
-                        <div class="col-md-5">
-                            <label class="form-label">Nominee Code</label>
-                            <input type="text" name="nominee_code" class="form-control" value="{{ candidate.nominee_code|default_if_none:'' }}">
-                            <small class="text-muted tiny">Leave blank to auto-generate a new code.</small>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Bio</label>
-                        <textarea name="bio" class="form-control" rows="3">{{ candidate.bio }}</textarea>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Category</label>
-                        <select name="category" class="form-select">
-                            <option value="">None</option>
-                            {% for cat in event.categories.all %}
-                                <option value="{{ cat.id }}" {% if candidate.category.id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="mb-1">
-                        <label class="form-label">Photo</label>
-                        {% if candidate.image %}
-                            <div class="d-flex align-items-center gap-2 mb-2 p-2 rounded-3" style="background-color: var(--ink-50);">
-                                <img src="{{ candidate.image.url }}" alt="{{ candidate.name }}" class="rounded-2" style="width:44px;height:44px;object-fit:cover;">
-                                <small class="text-muted text-truncate">Current: {{ candidate.image.name }}</small>
-                            </div>
-                        {% endif %}
-                        <input type="file" name="image" class="form-control" accept="image/*">
-                        <small class="text-muted tiny">Leave blank to keep current image.</small>
-                    </div>
-
-                    <div class="d-flex flex-column-reverse flex-sm-row gap-2 mt-4">
-                        <a href="{% url 'event_detail' event.id %}" class="btn btn-outline-secondary px-4">Cancel</a>
-                        <button type="submit" class="btn btn-wine flex-grow-1 py-2 fw-bold"><i class="bi bi-check-circle me-2"></i>Save Changes</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+        <button class="btn btn-wine mt-3">{% translate "Save" %}</button>
+    </form>
 </div>
 {% endblock %}

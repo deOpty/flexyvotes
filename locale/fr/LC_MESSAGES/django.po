@@ -1,0 +1,3263 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-10-05 00:08+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "Two-step verification"
+msgstr "Vérification en deux étapes"
+
+msgid "We noticed something unusual about this sign-in"
+msgstr ""
+"Nous avons remarqué quelque chose d'inhabituel lors de cette connexion"
+
+msgid "Please confirm it's you."
+msgstr "Veuillez confirmer qu'il s'agit bien de vous."
+
+msgid "Use a passkey / security key"
+msgstr "Utiliser une clé d'accès / clé de sécurité"
+
+msgid "Code from your authenticator app"
+msgstr "Code de votre application d'authentification"
+
+msgid "Verify"
+msgstr "Vérifier"
+
+msgid "Code sent to your email"
+msgstr "Code envoyé à votre adresse e-mail"
+
+msgid "Use a recovery code"
+msgstr "Utiliser un code de récupération"
+
+msgid "Recovery code"
+msgstr "Code de récupération"
+
+msgid "Use recovery code"
+msgstr "Utiliser le code de récupération"
+
+msgid "Change password"
+msgstr "Changer le mot de passe"
+
+msgid "Account security"
+msgstr "Sécurité du compte"
+
+msgid ""
+"Your role requires two-step verification. Set up an authenticator app or a "
+"passkey to continue."
+msgstr ""
+"Votre rôle exige la vérification en deux étapes. Configurez une application "
+"d'authentification ou une clé d'accès pour continuer."
+
+msgid "Your recovery codes (shown once)"
+msgstr "Vos codes de récupération (affichés une seule fois)"
+
+msgid ""
+"Store these somewhere safe. Each code works once if you lose your "
+"authenticator."
+msgstr ""
+"Conservez-les en lieu sûr. Chaque code fonctionne une seule fois si vous "
+"perdez votre authentificateur."
+
+msgid "Copy"
+msgstr "Copier"
+
+msgid "New API token (shown once)"
+msgstr "Nouveau jeton d'API (affiché une seule fois)"
+
+msgid "Authenticator app (TOTP)"
+msgstr "Application d'authentification (TOTP)"
+
+msgid "Enabled"
+msgstr "Activé"
+
+msgid "Current password"
+msgstr "Mot de passe actuel"
+
+msgid "Turn off"
+msgstr "Désactiver"
+
+msgid "Generate new recovery codes? Old ones stop working."
+msgstr ""
+"Générer de nouveaux codes de récupération ? Les anciens ne fonctionneront "
+"plus."
+
+msgid "Regenerate recovery codes"
+msgstr "Régénérer les codes de récupération"
+
+msgid "left"
+msgstr "restants"
+
+msgid ""
+"Scan this QR code with Google Authenticator, Microsoft Authenticator, "
+"1Password or similar, then enter the 6-digit code."
+msgstr ""
+"Scannez ce code QR avec Google Authenticator, Microsoft Authenticator, "
+"1Password ou une application similaire, puis saisissez le code à 6 chiffres."
+
+msgid "QR code for your authenticator app"
+msgstr "Code QR pour votre application d'authentification"
+
+msgid "Or enter this key manually"
+msgstr "Ou saisissez cette clé manuellement"
+
+msgid "Code"
+msgstr "Code"
+
+msgid "Confirm"
+msgstr "Confirmer"
+
+msgid "Set up authenticator app"
+msgstr "Configurer l'application d'authentification"
+
+msgid "Passkeys & security keys"
+msgstr "Clés d'accès et clés de sécurité"
+
+msgid "added"
+msgstr "ajoutée"
+
+msgid "last used"
+msgstr "dernière utilisation"
+
+msgid "Remove"
+msgstr "Supprimer"
+
+msgid "No passkeys yet."
+msgstr "Aucune clé d'accès pour le moment."
+
+msgid "Name"
+msgstr "Nom"
+
+msgid "Add passkey"
+msgstr "Ajouter une clé d'accès"
+
+msgid "Passkeys need JavaScript."
+msgstr "Les clés d'accès nécessitent JavaScript."
+
+msgid "Password"
+msgstr "Mot de passe"
+
+msgid "Active sessions"
+msgstr "Sessions actives"
+
+msgid "Sign out other sessions"
+msgstr "Déconnecter les autres sessions"
+
+msgid "this device"
+msgstr "cet appareil"
+
+msgid "last active"
+msgstr "dernière activité"
+
+msgid "Sign out"
+msgstr "Se déconnecter"
+
+msgid "Known devices"
+msgstr "Appareils connus"
+
+msgid ""
+"Sign-ins from a new device trigger an email alert and may require extra "
+"verification."
+msgstr ""
+"Une connexion depuis un nouvel appareil déclenche une alerte par e-mail et "
+"peut nécessiter une vérification supplémentaire."
+
+msgid "Forget"
+msgstr "Oublier"
+
+msgid "API tokens"
+msgstr "Jetons d'API"
+
+msgid "expires"
+msgstr "expire"
+
+msgid "Revoke"
+msgstr "Révoquer"
+
+msgid "No tokens."
+msgstr "Aucun jeton."
+
+msgid "Token name"
+msgstr "Nom du jeton"
+
+msgid "e.g. Results dashboard"
+msgstr "ex. Tableau de bord des résultats"
+
+msgid "Create token"
+msgstr "Créer un jeton"
+
+msgid "API documentation"
+msgstr "Documentation de l'API"
+
+msgid "Billing"
+msgstr ""
+
+msgid "Plan"
+msgstr ""
+
+msgid "trial ends"
+msgstr ""
+
+msgid "Current period"
+msgstr ""
+
+msgid "Cancels at period end"
+msgstr ""
+
+msgid "Active elections"
+msgstr ""
+
+msgid "Usage this period"
+msgstr ""
+
+msgid "No usage recorded yet."
+msgstr ""
+
+msgid "mo"
+msgstr "mois"
+
+msgid "Unlimited"
+msgstr ""
+
+msgid "voters per election"
+msgstr ""
+
+msgid "active elections"
+msgstr ""
+
+msgid "per voter beyond"
+msgstr ""
+
+msgid "Billing cycle"
+msgstr ""
+
+msgid "Monthly"
+msgstr ""
+
+msgid "Annual"
+msgstr ""
+
+msgid "Coupon code"
+msgstr ""
+
+msgid "Switch"
+msgstr ""
+
+msgid "Free trial"
+msgstr ""
+
+msgid "Current plan"
+msgstr ""
+
+msgid "Invoices & payment history"
+msgstr ""
+
+msgid "Keep subscription"
+msgstr ""
+
+msgid "Cancel at period end"
+msgstr ""
+
+msgid "Invoice"
+msgstr "Facture"
+
+msgid "Period"
+msgstr ""
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Status"
+msgstr "Statut"
+
+msgid "No invoices yet."
+msgstr ""
+
+msgid "Due"
+msgstr ""
+
+msgid "Description"
+msgstr ""
+
+msgid "Qty"
+msgstr ""
+
+msgid "Unit"
+msgstr ""
+
+msgid "Amount"
+msgstr "Montant"
+
+msgid "Subtotal"
+msgstr ""
+
+msgid "Discount"
+msgstr "Remise"
+
+msgid "Levies"
+msgstr ""
+
+msgid "VAT"
+msgstr ""
+
+msgid "Download PDF"
+msgstr ""
+
+msgid "Pay with Paystack"
+msgstr ""
+
+msgid "Approvals"
+msgstr ""
+
+msgid "Dual-approval queue"
+msgstr ""
+
+msgid ""
+"Sensitive actions requested by one official must be approved by a different "
+"official before they run."
+msgstr ""
+
+msgid "Pending"
+msgstr ""
+
+msgid "Requested by"
+msgstr ""
+
+msgid "Reason"
+msgstr ""
+
+msgid "Cancel my request"
+msgstr ""
+
+msgid "Note"
+msgstr ""
+
+msgid "Approve and execute this action now?"
+msgstr ""
+
+msgid "Approve"
+msgstr ""
+
+msgid "Reject"
+msgstr ""
+
+msgid "Nothing waiting."
+msgstr ""
+
+msgid "History"
+msgstr ""
+
+msgid "Action"
+msgstr ""
+
+msgid "Election"
+msgstr "Élection"
+
+msgid "Requested"
+msgstr ""
+
+msgid "Decided"
+msgstr ""
+
+msgid "Audit log"
+msgstr ""
+
+msgid ""
+"Append-only and hash-chained: each entry includes the hash of the previous "
+"one, so any edit or deletion is detectable."
+msgstr ""
+
+msgid "Event type"
+msgstr ""
+
+msgid "Actor"
+msgstr ""
+
+msgid "Result"
+msgstr "Résultat"
+
+msgid "Any"
+msgstr "Tous"
+
+msgid "Election id"
+msgstr ""
+
+msgid "Filter"
+msgstr ""
+
+msgid "Chain verification"
+msgstr ""
+
+#, python-format
+msgid "intact (%(n)s entries)"
+msgstr ""
+
+msgid "BROKEN"
+msgstr ""
+
+msgid "When"
+msgstr ""
+
+msgid "Event"
+msgstr "Événement"
+
+msgid "Summary"
+msgstr ""
+
+msgid "Request"
+msgstr ""
+
+msgid "changes"
+msgstr ""
+
+msgid "Console navigation"
+msgstr ""
+
+msgid "Dashboard"
+msgstr "Tableau de bord"
+
+msgid "Elections"
+msgstr ""
+
+msgid "New election"
+msgstr ""
+
+msgid "Money"
+msgstr ""
+
+msgid "Payments"
+msgstr ""
+
+msgid "Revenue"
+msgstr ""
+
+msgid "Reconciliation"
+msgstr ""
+
+msgid "Refunds"
+msgstr ""
+
+msgid "Integrity"
+msgstr ""
+
+msgid "Fraud monitoring"
+msgstr ""
+
+msgid "Reports"
+msgstr ""
+
+msgid "Organization"
+msgstr ""
+
+msgid "Team & roles"
+msgstr ""
+
+msgid "Support tickets"
+msgstr ""
+
+msgid "Notifications"
+msgstr ""
+
+msgid "Platform"
+msgstr "Plateforme"
+
+msgid "Organizations"
+msgstr ""
+
+msgid "Organizer approvals"
+msgstr ""
+
+msgid "System health"
+msgstr ""
+
+msgid "Blocklist"
+msgstr ""
+
+msgid "Store"
+msgstr "Boutique"
+
+msgid "API docs"
+msgstr ""
+
+msgid "You"
+msgstr "Vous"
+
+msgid "Constituencies"
+msgstr ""
+
+msgid ""
+"Model your structure (university → faculty → department, or company → region"
+" → branch). Positions can be restricted to a unit and everything beneath it."
+msgstr ""
+
+msgid "voters"
+msgstr "électeurs"
+
+msgid "Delete this unit?"
+msgstr ""
+
+msgid "Delete"
+msgstr ""
+
+msgid "No units yet."
+msgstr ""
+
+msgid "Add unit"
+msgstr ""
+
+msgid "Code (used in voter import files)"
+msgstr ""
+
+msgid "Kind"
+msgstr ""
+
+msgid "Parent"
+msgstr ""
+
+msgid "(top level)"
+msgstr ""
+
+msgid "Add"
+msgstr "Ajouter"
+
+msgid "Election management"
+msgstr ""
+
+#, python-format
+msgid "Welcome, %(name)s"
+msgstr ""
+
+msgid "Working in"
+msgstr ""
+
+msgid "Votes today"
+msgstr ""
+
+msgid "Revenue (30 days)"
+msgstr ""
+
+msgid "Voters on rolls"
+msgstr ""
+
+msgid "Fraud alerts"
+msgstr ""
+
+#, python-format
+msgid "%(n)s election awaits configuration review."
+msgid_plural "%(n)s elections await configuration review."
+msgstr[0] ""
+msgstr[1] ""
+
+#, python-format
+msgid "%(n)s sensitive action needs your approval"
+msgid_plural "%(n)s sensitive actions need your approval"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Type"
+msgstr ""
+
+msgid "Closes"
+msgstr ""
+
+msgid "Actions"
+msgstr ""
+
+msgid "Paid"
+msgstr "Payant"
+
+msgid "Institutional"
+msgstr "Institutionnel"
+
+msgid "Approve configuration"
+msgstr ""
+
+msgid "Manage"
+msgstr ""
+
+msgid "No elections yet. Create your first election to get started."
+msgstr ""
+
+msgid "All"
+msgstr "Tout"
+
+msgid "ago"
+msgstr ""
+
+msgid "Recent activity"
+msgstr ""
+
+msgid "No activity yet."
+msgstr ""
+
+msgid "Timeline"
+msgstr ""
+
+msgid "No notes yet."
+msgstr ""
+
+msgid "Add note"
+msgstr ""
+
+msgid "Preserved evidence"
+msgstr ""
+
+msgid "None."
+msgstr ""
+
+msgid "Title"
+msgstr "Titre"
+
+msgid "File"
+msgstr "Fichier"
+
+msgid "Preserve evidence"
+msgstr ""
+
+msgid ""
+"Files are stored privately, hashed, and can never be modified or deleted."
+msgstr ""
+
+msgid "All elections"
+msgstr ""
+
+msgid "Paid public voting"
+msgstr ""
+
+msgid "Institutional · secret ballot"
+msgstr ""
+
+msgid "Legal hold"
+msgstr ""
+
+msgid "Public page"
+msgstr ""
+
+msgid "Overview"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Categories & contestants"
+msgstr ""
+
+msgid "Ballot"
+msgstr "Bulletin"
+
+msgid "Voters"
+msgstr "Électeurs"
+
+msgid "Eligibility"
+msgstr ""
+
+msgid "Pricing"
+msgstr ""
+
+msgid "Results"
+msgstr "Résultats"
+
+msgid "Live monitor"
+msgstr ""
+
+msgid "Audit"
+msgstr ""
+
+msgid "seats"
+msgstr ""
+
+msgid "Candidate / option"
+msgstr ""
+
+msgid "Votes"
+msgstr "Votes"
+
+msgid "Passed"
+msgstr "Adopté"
+
+msgid "Winner"
+msgstr "Élu(e)"
+
+msgid "Valid ballots"
+msgstr ""
+
+msgid "Abstentions"
+msgstr "Abstentions"
+
+msgid "Invalid"
+msgstr "Nuls"
+
+msgid "Droop quota"
+msgstr ""
+
+msgid "Threshold"
+msgstr ""
+
+msgid "Tie affecting the outcome - resolve according to the election rules."
+msgstr ""
+
+msgid "Elimination ties broken by documented deterministic lot"
+msgstr ""
+
+msgid "Round-by-round counts"
+msgstr ""
+
+msgid "elected"
+msgstr "élu(e)"
+
+msgid "eliminated"
+msgstr ""
+
+msgid "By constituency"
+msgstr ""
+
+msgid "ballots"
+msgstr "bulletins"
+
+msgid "suppressed (below anonymity threshold)"
+msgstr ""
+
+msgid "Audit trail"
+msgstr ""
+
+msgid "Event type starts with"
+msgstr ""
+
+msgid "Verify hash chain"
+msgstr ""
+
+#, python-format
+msgid "Hash chain intact: %(n)s entries verified."
+msgstr ""
+
+msgid "TAMPERING DETECTED"
+msgstr ""
+
+msgid "before / after"
+msgstr ""
+
+msgid "select"
+msgstr "choisir"
+
+msgid "seat(s)"
+msgstr ""
+
+msgid "abstain allowed"
+msgstr ""
+
+msgid "voters in"
+msgstr ""
+
+msgid "Edit"
+msgstr ""
+
+msgid "Delete this position and its candidates?"
+msgstr ""
+
+msgid "Options: YES / NO"
+msgstr ""
+
+msgid "passes above"
+msgstr ""
+
+msgid "Invite to the candidate portal"
+msgstr ""
+
+msgid "Invite"
+msgstr ""
+
+msgid "Portal linked"
+msgstr ""
+
+msgid "No candidates yet."
+msgstr ""
+
+msgid "No positions yet. Add the first one on the right."
+msgstr ""
+
+msgid "Contestants without a category"
+msgstr ""
+
+msgid "Add category"
+msgstr ""
+
+msgid "Add position / race"
+msgstr ""
+
+msgid "Ballot type"
+msgstr ""
+
+msgid "Min"
+msgstr ""
+
+msgid "Max"
+msgstr ""
+
+msgid "Seats"
+msgstr ""
+
+msgid "Max score"
+msgstr ""
+
+#, python-format
+msgid "Referendum %%"
+msgstr ""
+
+msgid "Only voters in"
+msgstr ""
+
+msgid "Everyone eligible"
+msgstr ""
+
+msgid "Allow abstain"
+msgstr ""
+
+msgid "Campaign price per vote (optional)"
+msgstr ""
+
+msgid "Add contestant"
+msgstr ""
+
+msgid "Add candidate"
+msgstr ""
+
+msgid "Position"
+msgstr "Poste"
+
+msgid "None"
+msgstr "Aucun"
+
+msgid "Affiliation / party"
+msgstr "Affiliation / parti"
+
+msgid "Email (for the candidate portal)"
+msgstr ""
+
+msgid "Biography"
+msgstr "Biographie"
+
+msgid "Photo (PNG/JPEG, max 2 MB)"
+msgstr "Photo (PNG/JPEG, 2 Mo max.)"
+
+msgid "Bulk add"
+msgstr ""
+
+msgid "One name per line"
+msgstr ""
+
+msgid "Add all"
+msgstr ""
+
+msgid "Preview the ballot"
+msgstr ""
+
+msgid "filed by"
+msgstr ""
+
+msgid "Resolution"
+msgstr ""
+
+msgid "Resolution / decision"
+msgstr ""
+
+msgid "Update"
+msgstr ""
+
+msgid "Eligibility rules"
+msgstr ""
+
+msgid ""
+"A voter must satisfy every active rule for the election, plus the rules (and"
+" constituency) of each position to see it on their ballot."
+msgstr ""
+
+msgid "Rule"
+msgstr ""
+
+msgid "Applies to"
+msgstr ""
+
+msgid "Whole election"
+msgstr ""
+
+msgid ""
+"No extra rules: everyone on the roll may vote (subject to position "
+"constituencies)."
+msgstr ""
+
+msgid "Add rule"
+msgstr ""
+
+msgid "Attribute (from the import file)"
+msgstr ""
+
+msgid "Values (comma-separated)"
+msgstr ""
+
+msgid "Constituency"
+msgstr ""
+
+msgid "Message shown to ineligible voters"
+msgstr ""
+
+msgid "Manage faculties / departments / regions"
+msgstr ""
+
+msgid "Severity"
+msgstr ""
+
+msgid "reported by"
+msgstr ""
+
+msgid "resolved"
+msgstr ""
+
+msgid "Status note"
+msgstr ""
+
+msgid "Freezes"
+msgstr ""
+
+msgid ""
+"Freezing is immediate. Lifting a freeze outside draft requires a second "
+"official when dual approval is on."
+msgstr ""
+
+msgid "Frozen"
+msgstr ""
+
+msgid "Unfreeze"
+msgstr ""
+
+msgid "Editable"
+msgstr ""
+
+msgid "Freeze"
+msgstr ""
+
+msgid "Extend or re-open voting"
+msgstr ""
+
+msgid "New end (ISO, election time zone)"
+msgstr ""
+
+msgid "Extend voting"
+msgstr ""
+
+msgid "Re-open voting"
+msgstr ""
+
+msgid "Signed configuration snapshots"
+msgstr ""
+
+msgid "Hash"
+msgstr ""
+
+msgid "Signature"
+msgstr ""
+
+msgid "valid"
+msgstr "valide"
+
+msgid "INVALID"
+msgstr ""
+
+msgid "Created automatically when the configuration is approved."
+msgstr ""
+
+msgid "Sign a snapshot now"
+msgstr ""
+
+msgid "Evidence preservation"
+msgstr ""
+
+msgid "Legal hold active"
+msgstr ""
+
+msgid "The election cannot be archived."
+msgstr ""
+
+msgid "Request release"
+msgstr ""
+
+msgid "Place legal hold"
+msgstr ""
+
+msgid "Dual-approval requests"
+msgstr ""
+
+msgid "decided by"
+msgstr ""
+
+msgid "Approvals queue"
+msgstr ""
+
+msgid "Disputes"
+msgstr ""
+
+msgid "No disputes."
+msgstr ""
+
+msgid "Public dispute form"
+msgstr ""
+
+msgid "Incidents"
+msgstr ""
+
+msgid "No incidents."
+msgstr ""
+
+msgid "Incident title"
+msgstr ""
+
+msgid "What happened?"
+msgstr "Que s'est-il passé ?"
+
+msgid "Open incident"
+msgstr ""
+
+msgid "Configuration change history"
+msgstr ""
+
+msgid "Search"
+msgstr "Rechercher"
+
+msgid "Voting window"
+msgstr ""
+
+msgid "No elections match."
+msgstr ""
+
+msgid "Votes, last 5 min"
+msgstr ""
+
+msgid "Ballots, last 5 min"
+msgstr ""
+
+msgid "Payment success (1h)"
+msgstr ""
+
+msgid "Turnout"
+msgstr "Participation"
+
+msgid "Open fraud alerts"
+msgstr ""
+
+msgid "Activity per minute (last hour)"
+msgstr ""
+
+msgid "Updated"
+msgstr ""
+
+msgid "Votes per minute chart"
+msgstr ""
+
+msgid "Secret ballot: only participation is shown, never choices."
+msgstr ""
+
+msgid "Latest alerts"
+msgstr ""
+
+msgid "Live monitoring needs JavaScript; refresh the page for updates."
+msgstr ""
+
+msgid "Election console"
+msgstr ""
+
+msgid "Lifecycle"
+msgstr ""
+
+msgid "Election lifecycle"
+msgstr ""
+
+msgid ""
+"Configure the ballot, voters and settings, then submit the election for "
+"review."
+msgstr ""
+
+msgid ""
+"An election reviewer must approve the configuration. The approved "
+"configuration is signed."
+msgstr ""
+
+msgid ""
+"Publish & schedule: the ballot key is generated and voting opens "
+"automatically at the start time."
+msgstr ""
+
+msgid "Voting opens automatically at the start time (or open it now)."
+msgstr ""
+
+msgid ""
+"Voting is open. The ballot, candidates and (unless self-registration is on) "
+"the voter roll are frozen."
+msgstr ""
+
+msgid ""
+"Voting has closed. Tallying starts automatically for platform-managed keys."
+msgstr ""
+
+msgid "Results are awaiting independent review and certification."
+msgstr ""
+
+msgid "Results are certified and signed. Publish them when ready."
+msgstr ""
+
+msgid "Results are public and verifiable."
+msgstr ""
+
+msgid "Before this election can go ahead"
+msgstr ""
+
+msgid "Opens"
+msgstr ""
+
+msgid "Ended"
+msgstr ""
+
+msgid "eligible"
+msgstr "inscrits"
+
+msgid "positions"
+msgstr "postes"
+
+msgid "candidates"
+msgstr "candidats"
+
+msgid "held for review"
+msgstr ""
+
+msgid "Security & integrity"
+msgstr ""
+
+msgid "Dual approval"
+msgstr ""
+
+msgid "Required,Not required"
+msgstr ""
+
+msgid "Voter sign-in"
+msgstr ""
+
+msgid "one-time code"
+msgstr "code à usage unique"
+
+msgid "Results visibility"
+msgstr ""
+
+msgid "config"
+msgstr ""
+
+msgid "ballot"
+msgstr "bulletin"
+
+msgid "voter roll"
+msgstr "liste électorale"
+
+msgid "none"
+msgstr "aucun"
+
+msgid "Ballot key"
+msgstr ""
+
+msgid "Generated when the election is scheduled"
+msgstr ""
+
+msgid "Open disputes"
+msgstr ""
+
+#, python-format
+msgid "%(n)s request is awaiting a second approver."
+msgid_plural "%(n)s requests are awaiting a second approver."
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "Review"
+msgstr "Vérifier"
+
+msgid "Full audit trail"
+msgstr ""
+
+msgid "Edit details & dates"
+msgstr ""
+
+msgid "Preview ballot"
+msgstr ""
+
+msgid "Analytics"
+msgstr ""
+
+msgid "Guest list"
+msgstr ""
+
+msgid "Ticket scanner"
+msgstr ""
+
+msgid "Add ticket type"
+msgstr ""
+
+msgid "Public verification page"
+msgstr ""
+
+msgid "Results workflow"
+msgstr ""
+
+msgid "Voting closed"
+msgstr ""
+
+msgid "Tally"
+msgstr ""
+
+msgid "Independent review"
+msgstr ""
+
+msgid "Certified & signed"
+msgstr ""
+
+msgid "Published"
+msgstr "Publié"
+
+#, python-format
+msgid "Trustee key shares submitted: %(s)s of %(t)s needed (%(n)s trustees)."
+msgstr ""
+
+msgid "Trustee page"
+msgstr ""
+
+msgid ""
+"Results are only visible to results officers, reviewers and auditors until "
+"they are published."
+msgstr ""
+
+msgid "Official tally"
+msgstr ""
+
+msgid "tallied by"
+msgstr ""
+
+msgid "Eligible voters"
+msgstr "Électeurs inscrits"
+
+msgid "Votes cast"
+msgstr "Votes exprimés"
+
+msgid "Ballots counted / invalid"
+msgstr ""
+
+msgid "Result hash"
+msgstr "Empreinte du résultat"
+
+msgid "Bulletin board root"
+msgstr "Racine du tableau d'affichage"
+
+msgid "No tally yet."
+msgstr ""
+
+msgid "Certification"
+msgstr ""
+
+msgid "Certified"
+msgstr "Certifié"
+
+msgid "by"
+msgstr "par"
+
+msgid "Ed25519 signature"
+msgstr ""
+
+msgid "Signing key id"
+msgstr ""
+
+msgid "Recounts"
+msgstr ""
+
+msgid "By"
+msgstr ""
+
+msgid "Outcome"
+msgstr ""
+
+msgid "Matches official"
+msgstr ""
+
+msgid "No official result to compare"
+msgstr ""
+
+msgid "differences"
+msgstr ""
+
+msgid "Decrypt and count all ballots now?"
+msgstr ""
+
+msgid "Re-run tally"
+msgstr ""
+
+msgid "Run tally"
+msgstr ""
+
+msgid ""
+"Separation of duties: another results officer must review the tally you ran."
+msgstr ""
+
+msgid "Certify and sign these results? This locks the election."
+msgstr ""
+
+msgid "Review notes"
+msgstr ""
+
+msgid "Approve & certify"
+msgstr ""
+
+msgid "Why is it rejected?"
+msgstr ""
+
+msgid "Rejection reason"
+msgstr ""
+
+msgid "Reject tally"
+msgstr ""
+
+msgid "Manual recount"
+msgstr ""
+
+msgid "Independent (auditor) recount"
+msgstr ""
+
+msgid "Request revocation of the certification?"
+msgstr ""
+
+msgid "Reason (required)"
+msgstr ""
+
+msgid "Decertify (controlled correction)"
+msgstr ""
+
+msgid "Verification bundle (JSON)"
+msgstr ""
+
+msgid "Trustees"
+msgstr ""
+
+msgid "Visibility & results"
+msgstr ""
+
+msgid "List publicly on the home page"
+msgstr ""
+
+msgid ""
+"Secret-ballot elections always keep results hidden until they are certified "
+"and published."
+msgstr ""
+
+msgid "Require dual approval (separation of duties)"
+msgstr ""
+
+msgid ""
+"When on: the submitter cannot approve, the tallier cannot certify, and "
+"unfreezes, extensions, re-openings and bulk credential resets need a second "
+"official."
+msgstr ""
+
+msgid "Voter authentication"
+msgstr ""
+
+msgid "Require a one-time code (email/SMS) as a second factor"
+msgstr ""
+
+msgid "Allow self-registration with an institutional email"
+msgstr ""
+
+msgid "Allowed email domains"
+msgstr ""
+
+msgid "Ballot secrecy & keys"
+msgstr ""
+
+msgid "Ballot key custody"
+msgstr ""
+
+msgid "Trustee threshold (k of n)"
+msgstr ""
+
+msgid "Manage trustees"
+msgstr ""
+
+msgid "Publish constituency-level results"
+msgstr ""
+
+msgid "Minimum ballots per published constituency"
+msgstr ""
+
+msgid ""
+"Constituencies with fewer ballots are suppressed so small groups can't be "
+"identified."
+msgstr ""
+
+msgid "Vote limits"
+msgstr ""
+
+msgid "Max votes per voter (election)"
+msgstr ""
+
+msgid "Max spend per voter"
+msgstr ""
+
+msgid "Min votes per payment"
+msgstr ""
+
+msgid "Max votes per payment"
+msgstr ""
+
+msgid ""
+"Per-voter limits apply to the payer's email/phone, and to the card used "
+"(checked after payment; excess is held for review)."
+msgstr ""
+
+msgid "Payment channels & regions"
+msgstr ""
+
+msgid ""
+"Leave all unticked to offer every channel Paystack supports for the "
+"currency."
+msgstr ""
+
+msgid "Expected countries (ISO codes)"
+msgstr ""
+
+msgid ""
+"Payments from elsewhere raise the fraud score; they are not blocked "
+"automatically."
+msgstr ""
+
+msgid "Save settings"
+msgstr ""
+
+msgid "Your key share"
+msgstr ""
+
+msgid "Your trustee key share"
+msgstr ""
+
+msgid ""
+"This is the only time this share is displayed. Store it offline now. Without"
+" enough shares the ballots can never be counted."
+msgstr ""
+
+msgid "Print"
+msgstr "Imprimer"
+
+msgid "I have stored it safely"
+msgstr ""
+
+msgid "Election trustees"
+msgstr ""
+
+#, python-format
+msgid ""
+"The ballot decryption key is split between the trustees. Any %(k)s of the "
+"%(n)s trustees must submit their share before ballots can be counted; nobody"
+" - including platform staff - holds the whole key."
+msgstr ""
+
+msgid "Trustee"
+msgstr ""
+
+msgid "Share collected"
+msgstr ""
+
+msgid "Submitted for tally"
+msgstr ""
+
+msgid "No trustees yet."
+msgstr ""
+
+msgid "Username"
+msgstr "Nom d'utilisateur"
+
+msgid "Add trustee"
+msgstr ""
+
+msgid ""
+"Collect your share once, store it offline (print it or keep it on an "
+"encrypted drive). It cannot be shown again."
+msgstr ""
+
+msgid "Show your key share now? It will not be shown again."
+msgstr ""
+
+msgid "Collect my share"
+msgstr ""
+
+msgid "Shares are created when the election is scheduled."
+msgstr ""
+
+msgid "After voting closes, submit your share so the tally can run."
+msgstr ""
+
+msgid "Key share"
+msgstr ""
+
+msgid "Submit share"
+msgstr ""
+
+msgid "Voter roll"
+msgstr ""
+
+msgid "On the roll"
+msgstr ""
+
+msgid "Eligible"
+msgstr "Inscrit"
+
+msgid "Voted"
+msgstr ""
+
+msgid "Voter ID or exact email"
+msgstr ""
+
+msgid "Voter ID"
+msgstr "Identifiant électeur"
+
+msgid "Issue a new code? The old one stops working."
+msgstr ""
+
+msgid "email it to the voter"
+msgstr ""
+
+msgid "Reset access code"
+msgstr ""
+
+msgid "Send invitation"
+msgstr ""
+
+msgid "Mark verified"
+msgstr ""
+
+msgid "Reinstate"
+msgstr ""
+
+msgid "Suspend this voter?"
+msgstr ""
+
+msgid "Suspend"
+msgstr ""
+
+msgid "Remove this voter from the roll?"
+msgstr ""
+
+msgid "Remove from roll"
+msgstr ""
+
+msgid "No voters yet."
+msgstr ""
+
+msgid "Turnout by unit"
+msgstr ""
+
+msgid "Import voters"
+msgstr ""
+
+msgid "CSV or Excel (.xlsx)"
+msgstr ""
+
+msgid ""
+"Columns: identifier (student/staff/member ID), name, email, phone, "
+"constituency (unit code). Extra columns become attributes for eligibility "
+"rules."
+msgstr ""
+
+msgid "Import"
+msgstr ""
+
+msgid "Add one voter"
+msgstr ""
+
+msgid "Full name"
+msgstr "Nom complet"
+
+msgid "Email"
+msgstr "E-mail"
+
+msgid "Phone"
+msgstr ""
+
+msgid "No unit"
+msgstr ""
+
+msgid "Add voter"
+msgstr ""
+
+msgid "Anonymous access codes"
+msgstr ""
+
+msgid "How many"
+msgstr ""
+
+msgid "Generate"
+msgstr "Générer"
+
+msgid "Or import pre-printed codes (CSV)"
+msgstr ""
+
+msgid "Import codes"
+msgstr ""
+
+msgid "Credentials"
+msgstr ""
+
+msgid "Export roll with unused codes (CSV)"
+msgstr ""
+
+msgid "Email/SMS every voter who has not voted?"
+msgstr ""
+
+msgid "Send invitations to all"
+msgstr ""
+
+msgid "Reset every unused credential? Existing codes stop working."
+msgstr ""
+
+msgid "Reset all unused codes (dual approval)"
+msgstr ""
+
+msgid "Remove every voter who has not voted?"
+msgstr ""
+
+msgid "Remove all unvoted voters"
+msgstr ""
+
+msgid "DOWN"
+msgstr ""
+
+msgid "pending migrations"
+msgstr ""
+
+msgid "Business signals"
+msgstr ""
+
+msgid "Payments in the last hour"
+msgstr ""
+
+msgid "Payment success rate (1h)"
+msgstr ""
+
+msgid "Webhooks (24h) / failed"
+msgstr ""
+
+msgid "Ballots cast in the last hour"
+msgstr ""
+
+msgid "Notifications queued / failed"
+msgstr ""
+
+msgid "Integrations"
+msgstr ""
+
+msgid "yes"
+msgstr "oui"
+
+msgid "no"
+msgstr "non"
+
+msgid "Circuit breakers"
+msgstr ""
+
+msgid "No outbound calls yet in this process."
+msgstr ""
+
+msgid "Audit chains"
+msgstr ""
+
+msgid "Verify all chains"
+msgstr ""
+
+msgid "Prometheus metrics"
+msgstr ""
+
+msgid "Readiness probe"
+msgstr ""
+
+msgid "Pagination"
+msgstr ""
+
+msgid "Previous"
+msgstr ""
+
+#, python-format
+msgid "Page %(n)s of %(total)s"
+msgstr ""
+
+msgid "Next"
+msgstr ""
+
+msgid "Mark all read"
+msgstr ""
+
+msgid "No notifications."
+msgstr ""
+
+msgid "Delivery outbox (email / SMS / WhatsApp)"
+msgstr ""
+
+msgid "Template"
+msgstr ""
+
+msgid "Channel"
+msgstr ""
+
+msgid "To"
+msgstr "Au"
+
+msgid "Retry"
+msgstr ""
+
+msgid "Profile & defaults"
+msgstr ""
+
+msgid "Contact email"
+msgstr ""
+
+msgid "Time zone"
+msgstr ""
+
+msgid "Currency"
+msgstr ""
+
+msgid "Language"
+msgstr "Langue"
+
+msgid "Institutional single sign-on (OpenID Connect)"
+msgstr ""
+
+msgid "Register this redirect URI with your identity provider"
+msgstr ""
+
+msgid "Button label"
+msgstr ""
+
+msgid "Issuer URL"
+msgstr ""
+
+msgid "Client ID"
+msgstr ""
+
+msgid "Client secret (leave blank to keep)"
+msgstr ""
+
+msgid "Remove SSO configuration"
+msgstr ""
+
+msgid "LDAP / Active Directory"
+msgstr ""
+
+msgid "Server URI (ldaps://)"
+msgstr ""
+
+msgid "Bind DN template"
+msgstr ""
+
+msgid "Search base"
+msgstr ""
+
+msgid "Search filter"
+msgstr ""
+
+msgid "Voter ID attribute"
+msgstr ""
+
+msgid "Remove LDAP configuration"
+msgstr ""
+
+msgid "Save"
+msgstr "Enregistrer"
+
+msgid "Secrets are encrypted at rest."
+msgstr ""
+
+msgid "Organizations (tenants)"
+msgstr ""
+
+msgid "Members"
+msgstr ""
+
+msgid "personal"
+msgstr "personnel"
+
+msgid "Team"
+msgstr ""
+
+msgid "New organization"
+msgstr ""
+
+msgid "First admin (username)"
+msgstr ""
+
+msgid "Create"
+msgstr "Créer"
+
+msgid "Registered"
+msgstr ""
+
+msgid "No pending organizers."
+msgstr ""
+
+msgid "Approved"
+msgstr ""
+
+msgid "Remove organizer access?"
+msgstr ""
+
+msgid "Unapprove"
+msgstr ""
+
+msgid "Reports & exports"
+msgstr ""
+
+msgid "Finance"
+msgstr ""
+
+msgid "Revenue report"
+msgstr ""
+
+msgid "Reconciliation runs"
+msgstr ""
+
+msgid "Approval history"
+msgstr ""
+
+msgid "API"
+msgstr "API"
+
+msgid "Machine-readable data for every report is available from the REST API."
+msgstr ""
+
+msgid "OpenAPI documentation"
+msgstr ""
+
+msgid "Election results & rolls"
+msgstr ""
+
+msgid "Reference"
+msgstr "Référence"
+
+msgid "Subject"
+msgstr "Objet"
+
+msgid "From"
+msgstr ""
+
+msgid "Opened"
+msgstr ""
+
+msgid "No tickets."
+msgstr ""
+
+msgid "assigned to"
+msgstr ""
+
+msgid "internal note"
+msgstr ""
+
+msgid "Reply"
+msgstr ""
+
+msgid "Internal note (not emailed)"
+msgstr ""
+
+msgid "Assign to me"
+msgstr ""
+
+msgid "Organization settings"
+msgstr ""
+
+msgid "Person"
+msgstr ""
+
+msgid "Role"
+msgstr ""
+
+msgid "Scope"
+msgstr ""
+
+msgid "Granted"
+msgstr ""
+
+msgid "Whole organization"
+msgstr ""
+
+msgid "Revoke this role?"
+msgstr ""
+
+msgid "Grant a role"
+msgstr ""
+
+msgid "Username or email (must already have an account)"
+msgstr ""
+
+msgid "Limit to one election (optional)"
+msgstr ""
+
+msgid "Grant"
+msgstr ""
+
+msgid "What each role can do"
+msgstr ""
+
+msgid "Access denied"
+msgstr "Accès refusé"
+
+msgid "You don't have access to this page"
+msgstr "Vous n'avez pas accès à cette page"
+
+msgid ""
+"Your role does not include the permission needed here. If you think this is "
+"a mistake, ask your organization administrator."
+msgstr ""
+"Votre rôle ne comprend pas l'autorisation nécessaire. S'il s'agit d'une "
+"erreur, contactez l'administrateur de votre organisation."
+
+msgid "Page not found"
+msgstr "Page introuvable"
+
+msgid "We couldn't find that page"
+msgstr "Nous n'avons pas trouvé cette page"
+
+msgid "The link may be out of date, or the election may not be public yet."
+msgstr ""
+"Le lien est peut-être obsolète, ou l'élection n'est pas encore publique."
+
+msgid "Too many requests"
+msgstr "Trop de requêtes"
+
+msgid "Please slow down"
+msgstr "Veuillez ralentir"
+
+#, python-format
+msgid "Try again in about %(retry_after)s seconds."
+msgstr "Réessayez dans environ %(retry_after)s secondes."
+
+msgid "Accessibility settings"
+msgstr "Paramètres d'accessibilité"
+
+msgid "Accessibility & low-bandwidth"
+msgstr "Accessibilité et faible débit"
+
+msgid ""
+"These preferences are saved in this browser only. Every page, including the "
+"ballot, works with a keyboard, a screen reader, and without JavaScript."
+msgstr ""
+"Ces préférences sont enregistrées uniquement dans ce navigateur. Toutes les "
+"pages, y compris le bulletin, fonctionnent au clavier, avec un lecteur "
+"d'écran et sans JavaScript."
+
+msgid "Display"
+msgstr "Affichage"
+
+msgid "High contrast"
+msgstr "Contraste élevé"
+
+msgid "Large text"
+msgstr "Grand texte"
+
+msgid "Low-bandwidth mode"
+msgstr "Mode faible débit"
+
+msgid ""
+"Skips web fonts, icons, photos and animations to save data on slow "
+"connections."
+msgstr ""
+"Désactive les polices web, icônes, photos et animations pour économiser les "
+"données sur les connexions lentes."
+
+msgid "Save preferences"
+msgstr "Enregistrer les préférences"
+
+msgid "Our commitment"
+msgstr "Notre engagement"
+
+msgid ""
+"We target WCAG 2.1 level AA: labelled form controls, visible focus, "
+"sufficient contrast and clear error messages."
+msgstr ""
+"Nous visons le niveau AA des WCAG 2.1 : champs de formulaire étiquetés, "
+"focus visible, contraste suffisant et messages d'erreur clairs."
+
+msgid "The voting flow is plain HTML forms and works without JavaScript."
+msgstr ""
+"Le parcours de vote repose sur de simples formulaires HTML et fonctionne "
+"sans JavaScript."
+
+msgid "Problems? Contact the support desk and we will help you vote."
+msgstr "Un problème ? Contactez le support et nous vous aiderons à voter."
+
+msgid "Back to home"
+msgstr "Retour à l'accueil"
+
+msgid "Alert"
+msgstr ""
+
+msgid "score"
+msgstr "score"
+
+msgid "Candidate"
+msgstr "Candidat"
+
+msgid "Payment"
+msgstr "Paiement"
+
+msgid "held"
+msgstr "en attente"
+
+msgid "device"
+msgstr "appareil"
+
+msgid "Signals"
+msgstr ""
+
+msgid "Notes"
+msgstr ""
+
+msgid "Other alerts from this device"
+msgstr ""
+
+msgid "If confirmed, blocklist the device, card and email"
+msgstr ""
+
+msgid "Legitimate (release)"
+msgstr ""
+
+msgid "Confirm fraud"
+msgstr ""
+
+msgid ""
+"Risk score 0–30 normal · 31–60 monitor · 61–80 challenge · 81–100 held for "
+"review. Nothing is deleted: suspicious votes are held until an analyst "
+"decides."
+msgstr ""
+
+msgid "Decision"
+msgstr ""
+
+msgid "Score"
+msgstr "Score"
+
+msgid "Top signals"
+msgstr ""
+
+msgid "No alerts."
+msgstr ""
+
+msgid ""
+"Blocklisted attributes add +60 to the risk score (anonymizer ranges +25). "
+"Emails and phones are stored as keyed hashes."
+msgstr ""
+
+msgid "Value"
+msgstr ""
+
+msgid "Empty."
+msgstr ""
+
+msgid "Add to blocklist"
+msgstr ""
+
+msgid "bonus"
+msgstr "bonus"
+
+msgid "credited"
+msgstr "crédités"
+
+msgid "not credited"
+msgstr ""
+
+msgid "Channel / card"
+msgstr ""
+
+msgid "Fees"
+msgstr ""
+
+msgid "Refunded"
+msgstr "Remboursé"
+
+msgid "Risk"
+msgstr ""
+
+msgid "Origin"
+msgstr ""
+
+msgid "Gateway"
+msgstr ""
+
+msgid "Payment audit trail"
+msgstr ""
+
+msgid "Re-verify with Paystack"
+msgstr ""
+
+msgid "Release & credit votes"
+msgstr ""
+
+msgid "Reject (refund)"
+msgstr ""
+
+msgid "Request this refund?"
+msgstr ""
+
+msgid "Refund amount"
+msgstr ""
+
+msgid "Reverse the credited votes"
+msgstr ""
+
+msgid "Request refund"
+msgstr ""
+
+msgid "Risk assessments"
+msgstr ""
+
+msgid "Reference or payer email"
+msgstr ""
+
+msgid "Held only"
+msgstr ""
+
+msgid "Election / candidate"
+msgstr ""
+
+msgid "Created"
+msgstr ""
+
+msgid "No payments."
+msgstr ""
+
+msgid "Pricing, bundles & discounts"
+msgstr ""
+
+#, python-format
+msgid ""
+"Base price: %(c)s %(p)s per vote (categories can override it for campaign "
+"pricing)."
+msgstr ""
+
+msgid "Vote bundles"
+msgstr "Forfaits de votes"
+
+msgid "Price"
+msgstr ""
+
+msgid "Window"
+msgstr ""
+
+msgid "promo"
+msgstr "promo"
+
+msgid "Disable"
+msgstr ""
+
+msgid "Enable"
+msgstr "Activer"
+
+msgid "No bundles."
+msgstr ""
+
+msgid "Discount codes"
+msgstr ""
+
+msgid "Used"
+msgstr ""
+
+msgid "No codes."
+msgstr ""
+
+msgid "New bundle / promotion"
+msgstr ""
+
+msgid "Name, e.g. Fan pack"
+msgstr ""
+
+msgid "Bonus"
+msgstr ""
+
+msgid "Bonus votes"
+msgstr ""
+
+msgid "Badge, e.g. Best value"
+msgstr ""
+
+msgid "Badge"
+msgstr ""
+
+msgid "Starts"
+msgstr ""
+
+msgid "Ends"
+msgstr ""
+
+msgid "Max per voter (optional)"
+msgstr ""
+
+msgid "Max per voter"
+msgstr ""
+
+msgid "Promotional"
+msgstr ""
+
+msgid "Add bundle"
+msgstr ""
+
+msgid "New discount code"
+msgstr ""
+
+msgid "Max uses"
+msgstr ""
+
+msgid "Per voter"
+msgstr ""
+
+msgid "Per voter limit"
+msgstr ""
+
+msgid "Create code"
+msgstr ""
+
+msgid "Payment reconciliation"
+msgstr ""
+
+msgid ""
+"Compares our records with Paystack's to catch missed, duplicated or delayed "
+"webhooks and downtime. Runs automatically every 15 minutes."
+msgstr ""
+
+msgid "Look back (hours)"
+msgstr ""
+
+msgid "Run now"
+msgstr ""
+
+msgid "Needs review"
+msgstr ""
+
+msgid "Issue"
+msgstr ""
+
+msgid "Ours / theirs"
+msgstr ""
+
+msgid "Resolve"
+msgstr ""
+
+msgid "Nothing needs review."
+msgstr ""
+
+msgid "Runs"
+msgstr ""
+
+msgid "Started"
+msgstr ""
+
+msgid "Checked"
+msgstr ""
+
+msgid "Discrepancies"
+msgstr ""
+
+msgid "Auto-resolved"
+msgstr ""
+
+msgid "Requested / approved"
+msgstr ""
+
+msgid "No refunds."
+msgstr ""
+
+msgid "All paid elections"
+msgstr ""
+
+msgid "Apply"
+msgstr ""
+
+msgid "Gross"
+msgstr ""
+
+msgid "Net"
+msgstr ""
+
+msgid "Gateway fees"
+msgstr ""
+
+msgid "Success rate"
+msgstr ""
+
+msgid "Held"
+msgstr ""
+
+msgid "By election"
+msgstr ""
+
+msgid "Platform fee"
+msgstr ""
+
+msgid "Organizer payout"
+msgstr ""
+
+msgid "By day"
+msgstr ""
+
+msgid "By channel"
+msgstr ""
+
+msgid "Status mix"
+msgstr ""
+
+#, python-format
+msgid "Vote for %(n)s"
+msgstr "Voter pour %(n)s"
+
+msgid "Payment steps"
+msgstr "Étapes du paiement"
+
+msgid "Choose votes"
+msgstr "Choisir les votes"
+
+msgid "Pay"
+msgstr "Payer"
+
+msgid "Verified"
+msgstr "Vérifié"
+
+msgid "Credited"
+msgstr "Crédités"
+
+msgid "code"
+msgstr "code"
+
+msgid "Voting is not open right now."
+msgstr "Le vote n'est pas ouvert pour le moment."
+
+msgid "Online payment is temporarily unavailable."
+msgstr "Le paiement en ligne est temporairement indisponible."
+
+msgid "Choose a bundle"
+msgstr "Choisir un forfait"
+
+msgid "votes"
+msgstr "votes"
+
+msgid "Offer ends"
+msgstr "Fin de l'offre"
+
+msgid "Custom number of votes"
+msgstr "Nombre de votes personnalisé"
+
+msgid "Number of votes"
+msgstr "Nombre de votes"
+
+msgid "each"
+msgstr "chacun"
+
+msgid "Discount code (optional)"
+msgstr "Code de réduction (facultatif)"
+
+msgid "Email for your receipt"
+msgstr "E-mail pour votre reçu"
+
+msgid "or phone"
+msgstr "ou téléphone"
+
+msgid "Enter the number of votes to see the total."
+msgstr "Saisissez le nombre de votes pour voir le total."
+
+msgid "Continue to secure payment"
+msgstr "Continuer vers le paiement sécurisé"
+
+msgid ""
+"You'll pay on Paystack (card, mobile money or bank). Votes are credited only"
+" after Paystack confirms the payment to us directly."
+msgstr ""
+"Vous paierez sur Paystack (carte, mobile money ou banque). Les votes ne sont"
+" crédités qu'après confirmation directe du paiement par Paystack."
+
+msgid "Invoice paid"
+msgstr "Facture payée"
+
+msgid "Confirming your payment…"
+msgstr "Confirmation de votre paiement…"
+
+msgid "Payment not completed"
+msgstr "Paiement non finalisé"
+
+msgid "Votes credited!"
+msgstr "Votes crédités !"
+
+#, python-format
+msgid "%(v)s vote(s) for %(n)s have been counted."
+msgstr "%(v)s vote(s) pour %(n)s ont été comptabilisé(s)."
+
+msgid "Payment received — under review"
+msgstr "Paiement reçu — en cours de vérification"
+
+msgid ""
+"Your payment was successful. As a security precaution it is being reviewed "
+"before the votes are counted. This usually takes a short while; if it can't "
+"be approved you will be refunded."
+msgstr ""
+"Votre paiement a réussi. Par mesure de sécurité, il est vérifié avant que "
+"les votes soient comptés. Cela prend généralement peu de temps ; s'il ne "
+"peut pas être approuvé, vous serez remboursé."
+
+msgid "Loading"
+msgstr "Chargement"
+
+msgid "Confirming your payment with Paystack…"
+msgstr "Confirmation de votre paiement auprès de Paystack…"
+
+msgid ""
+"This page refreshes automatically. If you approved a mobile-money prompt it "
+"can take a minute."
+msgstr ""
+"Cette page s'actualise automatiquement. Si vous avez validé une demande "
+"mobile money, cela peut prendre une minute."
+
+msgid "Check again"
+msgstr "Vérifier à nouveau"
+
+msgid "No money was taken, or the payment failed. You can try again."
+msgstr ""
+"Aucun montant n'a été débité, ou le paiement a échoué. Vous pouvez "
+"réessayer."
+
+msgid "Try again"
+msgstr "Réessayer"
+
+msgid "Set up your candidate account"
+msgstr "Créez votre compte candidat"
+
+msgid "Candidate portal"
+msgstr "Espace candidat"
+
+#, python-format
+msgid "Create an account to manage %(n)s's profile for %(e)s."
+msgstr "Créez un compte pour gérer le profil de %(n)s pour %(e)s."
+
+msgid "Already have an account?"
+msgstr "Vous avez déjà un compte ?"
+
+msgid "Sign in"
+msgstr "Se connecter"
+
+msgid "Create account"
+msgstr "Créer le compte"
+
+msgid "Your profile"
+msgstr "Votre profil"
+
+msgid "Manifesto"
+msgstr "Programme"
+
+msgid "Save profile"
+msgstr "Enregistrer le profil"
+
+msgid "Manifesto documents (PDF)"
+msgstr "Documents du programme (PDF)"
+
+msgid "None yet."
+msgstr "Aucun pour le moment."
+
+msgid "Upload"
+msgstr "Téléverser"
+
+msgid "Election information"
+msgstr "Informations sur l'élection"
+
+msgid "Voting opens"
+msgstr "Ouverture du vote"
+
+msgid "Voting closes"
+msgstr "Clôture du vote"
+
+msgid "Who can vote"
+msgstr "Qui peut voter"
+
+msgid "Voters in"
+msgstr "Électeurs de"
+
+msgid "Nominee code"
+msgstr "Code du candidat"
+
+msgid "Campaign statistics"
+msgstr "Statistiques de campagne"
+
+msgid "Current rank"
+msgstr "Classement actuel"
+
+msgid "Paid vote transactions"
+msgstr "Transactions de votes payants"
+
+msgid "votes cast"
+msgstr "votes exprimés"
+
+msgid ""
+"Statistics appear when results are allowed to be public. Individual voter "
+"information is never shown."
+msgstr ""
+"Les statistiques apparaissent lorsque les résultats peuvent être publics. "
+"Aucune information individuelle sur les électeurs n'est jamais affichée."
+
+msgid "View certified results"
+msgstr "Voir les résultats certifiés"
+
+msgid "View public profile"
+msgstr "Voir le profil public"
+
+msgid "Contestant"
+msgstr "Candidat"
+
+msgid ""
+"You are not linked to any candidacy. Use the invitation link from your "
+"election officials."
+msgstr ""
+"Vous n'êtes lié à aucune candidature. Utilisez le lien d'invitation envoyé "
+"par les responsables de l'élection."
+
+msgid "All candidates"
+msgstr "Tous les candidats"
+
+msgid "Candidate for"
+msgstr "Candidat au poste de"
+
+msgid "Documents"
+msgstr "Documents"
+
+msgid "Go to the ballot"
+msgstr "Accéder au bulletin"
+
+msgid "Candidates"
+msgstr "Candidats"
+
+msgid "Referendum question: vote YES or NO."
+msgstr "Question référendaire : votez OUI ou NON."
+
+msgid "File a dispute"
+msgstr "Déposer une réclamation"
+
+msgid ""
+"Election officials review every dispute. Your details are encrypted and only"
+" visible to officials handling it."
+msgstr ""
+"Les responsables de l'élection examinent chaque réclamation. Vos coordonnées"
+" sont chiffrées et visibles uniquement par les responsables qui la traitent."
+
+msgid "Your name"
+msgstr "Votre nom"
+
+msgid "You are a"
+msgstr "Vous êtes"
+
+msgid "Voter"
+msgstr "Électeur"
+
+msgid "Observer / agent"
+msgstr "Observateur / délégué"
+
+msgid "Other"
+msgstr "Autre"
+
+msgid "Category"
+msgstr "Catégorie"
+
+msgid "Submit dispute"
+msgstr "Envoyer la réclamation"
+
+msgid ""
+"Results will be published here once they have been tallied, independently "
+"reviewed and certified."
+msgstr ""
+"Les résultats seront publiés ici une fois dépouillés, vérifiés de manière "
+"indépendante et certifiés."
+
+msgid "Results for this competition are not public yet."
+msgstr "Les résultats de ce concours ne sont pas encore publics."
+
+msgid "Certified results"
+msgstr "Résultats certifiés"
+
+msgid "Live, unofficial counts — updated automatically."
+msgstr "Décompte en direct, non officiel — mis à jour automatiquement."
+
+msgid "Total votes"
+msgstr "Total des votes"
+
+msgid "Invalid ballots"
+msgstr "Bulletins nuls"
+
+msgid "Valid"
+msgstr "Valides"
+
+msgid "Tie"
+msgstr "Égalité"
+
+msgid "Published results"
+msgstr "Résultats publiés"
+
+msgid ""
+"Certified results of past elections. Every result carries a digital "
+"signature you can verify independently."
+msgstr ""
+"Résultats certifiés des élections passées. Chaque résultat porte une "
+"signature numérique vérifiable de manière indépendante."
+
+msgid "Search elections"
+msgstr "Rechercher des élections"
+
+msgid "published"
+msgstr "publié"
+
+msgid "No published results yet."
+msgstr "Aucun résultat publié pour le moment."
+
+msgid "Election verification"
+msgstr "Vérification de l'élection"
+
+msgid ""
+"Anyone can check that the published result matches the certified election "
+"data, and voters can confirm their ballot is in the ballot box."
+msgstr ""
+"Chacun peut vérifier que le résultat publié correspond aux données "
+"certifiées, et les électeurs peuvent confirmer que leur bulletin est dans "
+"l'urne."
+
+msgid "Election status"
+msgstr "Statut de l'élection"
+
+msgid "Ballots on bulletin board"
+msgstr "Bulletins sur le tableau d'affichage"
+
+msgid "key"
+msgstr "clé"
+
+msgid "Independent checks"
+msgstr "Vérifications indépendantes"
+
+msgid "all passed"
+msgstr "toutes réussies"
+
+msgid "problem detected"
+msgstr "problème détecté"
+
+msgid "Re-run these checks yourself:"
+msgstr "Refaites ces vérifications vous-même :"
+
+msgid "download the verification bundle"
+msgstr "téléchargez le dossier de vérification"
+
+msgid ""
+"and the offline verifier (tools/verify_election.py). The platform's public "
+"key is published at"
+msgstr ""
+"et le vérificateur hors ligne (tools/verify_election.py). La clé publique de"
+" la plateforme est publiée à l'adresse"
+
+msgid "Check your ballot"
+msgstr "Vérifier votre bulletin"
+
+msgid "Ballot tracker"
+msgstr "Identifiant de suivi du bulletin"
+
+msgid "Paste your 64-character ballot tracker"
+msgstr "Collez votre identifiant de suivi de 64 caractères"
+
+msgid "Check"
+msgstr "Vérifier"
+
+msgid "That is not a valid tracker."
+msgstr "Cet identifiant de suivi n'est pas valide."
+
+msgid "Your ballot is on the bulletin board."
+msgstr "Votre bulletin figure sur le tableau d'affichage."
+
+#, python-format
+msgid "Position %(i)s of %(n)s."
+msgstr "Position %(i)s sur %(n)s."
+
+msgid "Merkle inclusion proof"
+msgstr "Preuve d'inclusion de Merkle"
+
+msgid "Root"
+msgstr "Racine"
+
+msgid "No ballot with that tracker was found. If you voted, file a dispute."
+msgstr ""
+"Aucun bulletin ne correspond à cet identifiant. Si vous avez voté, déposez "
+"une réclamation."
+
+msgid "Voting steps"
+msgstr "Étapes du vote"
+
+msgid "Choose"
+msgstr "Choisir"
+
+msgid "Done"
+msgstr "Terminé"
+
+msgid "Ballot preview"
+msgstr "Aperçu du bulletin"
+
+msgid "Your ballot"
+msgstr "Votre bulletin"
+
+msgid "Preview"
+msgstr "Aperçu"
+
+msgid ""
+"this is exactly what voters see. Nothing can be submitted from this page."
+msgstr ""
+"voici exactement ce que voient les électeurs. Rien ne peut être soumis "
+"depuis cette page."
+
+#, python-format
+msgid ""
+"Make your choices below, then review them before casting. This ballot "
+"session expires at %(t)s."
+msgstr ""
+"Faites vos choix ci-dessous, puis vérifiez-les avant de voter. Cette session"
+" de vote expire à %(t)s."
+
+msgid "Yes"
+msgstr "Oui"
+
+msgid "No"
+msgstr "Non"
+
+#, python-format
+msgid "Rank for %(n)s"
+msgstr "Rang pour %(n)s"
+
+#, python-format
+msgid "Score for %(n)s"
+msgstr "Note pour %(n)s"
+
+msgid "Profile"
+msgstr "Profil"
+
+msgid "Abstain on this position"
+msgstr "M'abstenir pour ce poste"
+
+msgid "Leave without voting? You can come back while voting is open."
+msgstr "Partir sans voter ? Vous pouvez revenir tant que le vote est ouvert."
+
+msgid "Exit"
+msgstr "Quitter"
+
+msgid "Review my choices"
+msgstr "Vérifier mes choix"
+
+msgid "Enter your code"
+msgstr "Saisissez votre code"
+
+msgid "Confirm it's you"
+msgstr "Confirmez votre identité"
+
+msgid "Enter your one-time code"
+msgstr "Saisissez votre code à usage unique"
+
+#, python-format
+msgid "We sent a 6-digit code to %(hint)s."
+msgstr "Nous avons envoyé un code à 6 chiffres à %(hint)s."
+
+msgid ""
+"If your details are on the voter roll, we have sent you a 6-digit code."
+msgstr ""
+"Si vos coordonnées figurent sur la liste électorale, nous vous avons envoyé "
+"un code à 6 chiffres."
+
+msgid "It expires in 10 minutes."
+msgstr "Il expire dans 10 minutes."
+
+msgid "6-digit code"
+msgstr "Code à 6 chiffres"
+
+msgid "Send a new code"
+msgstr "Envoyer un nouveau code"
+
+msgid "Ballot cast"
+msgstr "Bulletin déposé"
+
+msgid "Your ballot has been cast"
+msgstr "Votre bulletin a été déposé"
+
+msgid ""
+"Thank you for voting. Your ballot was encrypted and added to the ballot box."
+msgstr ""
+"Merci d'avoir voté. Votre bulletin a été chiffré et déposé dans l'urne."
+
+msgid ""
+"This tracker proves your ballot is in the published ballot box. It does not "
+"reveal how you voted, and it cannot be used to prove your choices to anyone."
+msgstr ""
+"Cet identifiant prouve que votre bulletin est dans l'urne publiée. Il ne "
+"révèle pas votre vote et ne permet de prouver vos choix à personne."
+
+msgid "Copy tracker"
+msgstr "Copier l'identifiant"
+
+msgid "Print / save receipt"
+msgstr "Imprimer / enregistrer le reçu"
+
+msgid "Check it is on the bulletin board"
+msgstr "Vérifier sa présence sur le tableau d'affichage"
+
+msgid "Your ballot was recorded"
+msgstr "Votre bulletin a été enregistré"
+
+msgid ""
+"Our records show a ballot has already been cast with these credentials. If "
+"you did not vote, contact the election officials immediately or file a "
+"dispute."
+msgstr ""
+"Nos registres indiquent qu'un bulletin a déjà été déposé avec ces "
+"identifiants. Si vous n'avez pas voté, contactez immédiatement les "
+"responsables de l'élection ou déposez une réclamation."
+
+msgid "Report a problem"
+msgstr "Signaler un problème"
+
+msgid "Register to vote"
+msgstr "S'inscrire pour voter"
+
+#, python-format
+msgid "Enter the 6-digit code we sent to %(h)s to finish registering."
+msgstr ""
+"Saisissez le code à 6 chiffres envoyé à %(h)s pour finaliser l'inscription."
+
+msgid "Verification code"
+msgstr "Code de vérification"
+
+msgid "Complete registration"
+msgstr "Finaliser l'inscription"
+
+#, python-format
+msgid ""
+"Use your institutional email address (@%(d)s). We'll send a code to verify "
+"it."
+msgstr ""
+"Utilisez votre adresse e-mail institutionnelle (@%(d)s). Nous vous enverrons"
+" un code pour la vérifier."
+
+msgid "We'll send a code to verify your email address."
+msgstr "Nous vous enverrons un code pour vérifier votre adresse e-mail."
+
+msgid "Student / staff / member ID (if you have one)"
+msgstr "Numéro d'étudiant / d'employé / de membre (le cas échéant)"
+
+msgid "Institutional email"
+msgstr "E-mail institutionnel"
+
+msgid "Send verification code"
+msgstr "Envoyer le code de vérification"
+
+msgid "Review your ballot"
+msgstr "Vérifiez votre bulletin"
+
+msgid ""
+"Check every choice carefully. Once cast, your ballot cannot be changed."
+msgstr ""
+"Vérifiez chaque choix attentivement. Une fois déposé, votre bulletin ne peut"
+" plus être modifié."
+
+msgid "Abstained"
+msgstr "Abstention"
+
+msgid "I confirm these are my final choices and I am casting my own ballot."
+msgstr ""
+"Je confirme qu'il s'agit de mes choix définitifs et que je dépose mon propre"
+" bulletin."
+
+msgid "Change my choices"
+msgstr "Modifier mes choix"
+
+msgid "Cast my ballot"
+msgstr "Déposer mon bulletin"
+
+msgid "Sign in to vote"
+msgstr "Se connecter pour voter"
+
+msgid "You have already voted in this election."
+msgstr "Vous avez déjà voté à cette élection."
+
+msgid "View your receipt"
+msgstr "Voir votre reçu"
+
+msgid "Voting is temporarily paused. Please check back shortly."
+msgstr "Le vote est temporairement suspendu. Veuillez revenir sous peu."
+
+msgid "Voting has not opened yet. It opens on"
+msgstr "Le vote n'est pas encore ouvert. Il ouvre le"
+
+msgid "Voting is closed."
+msgstr "Le vote est clos."
+
+msgid ""
+"Your identity is checked against the voter roll. Your ballot is encrypted "
+"and stored separately - nobody, including election officials, can link your "
+"choices to you."
+msgstr ""
+"Votre identité est vérifiée sur la liste électorale. Votre bulletin est "
+"chiffré et stocké séparément - personne, pas même les responsables de "
+"l'élection, ne peut relier vos choix à votre identité."
+
+msgid "Voter ID and access code"
+msgstr "Identifiant électeur et code d'accès"
+
+msgid "Access code"
+msgstr "Code d'accès"
+
+msgid "Voter / student / staff ID"
+msgstr "Identifiant électeur / étudiant / employé"
+
+msgid ""
+"The code from your invitation email, SMS or slip. It is not case-sensitive."
+msgstr ""
+"Le code reçu par e-mail, SMS ou sur votre fiche d'invitation. Il ne tient "
+"pas compte des majuscules."
+
+msgid "Continue"
+msgstr "Continuer"
+
+msgid "Lost your access code?"
+msgstr "Code d'accès perdu ?"
+
+msgid "Your voter ID"
+msgstr "Votre identifiant électeur"
+
+msgid "A new code is sent only to the email address on the voter roll."
+msgstr ""
+"Un nouveau code est envoyé uniquement à l'adresse e-mail inscrite sur la "
+"liste électorale."
+
+msgid "One-time code"
+msgstr "Code à usage unique"
+
+msgid "Voter ID or email address"
+msgstr "Identifiant électeur ou adresse e-mail"
+
+msgid "Send the code by"
+msgstr "Envoyer le code par"
+
+msgid "Send me a code"
+msgstr "Envoyez-moi un code"
+
+msgid "Institutional sign-in"
+msgstr "Connexion institutionnelle"
+
+#, python-format
+msgid "Continue with %(name)s"
+msgstr "Continuer avec %(name)s"
+
+msgid "Directory account"
+msgstr "Compte d'annuaire"
+
+msgid "Platform account"
+msgstr "Compte de la plateforme"
+
+#, python-format
+msgid "Continue as %(u)s"
+msgstr "Continuer en tant que %(u)s"
+
+msgid "Sign in to your account"
+msgstr "Connectez-vous à votre compte"
+
+msgid "Not on the roll yet? Register with your institutional email"
+msgstr "Pas encore inscrit ? Inscrivez-vous avec votre e-mail institutionnel"
+
+msgid "Read about the candidates"
+msgstr "Découvrir les candidats"
+
+msgid "Accessibility options"
+msgstr "Options d'accessibilité"
+
+msgid "Election analytics"
+msgstr ""
+
+msgid "Total revenue"
+msgstr ""
+
+msgid "Download report (PDF)"
+msgstr ""
+
+msgid ""
+"This is a secret-ballot election: only participation is shown until results "
+"are certified."
+msgstr ""
+
+#, python-format
+msgid "Votes per candidate in %(c)s"
+msgstr ""
+
+msgid "Detailed breakdown"
+msgstr ""
+
+msgid "Paid votes"
+msgstr ""
+
+msgid "Ticket (tie-breaker) votes"
+msgstr ""
+
+msgid "Uncategorized"
+msgstr ""
+
+msgid "No votes yet."
+msgstr ""
+
+msgid "Secure voting for awards, shows and institutions"
+msgstr "Vote sécurisé pour les prix, émissions et institutions"
+
+msgid "Skip to content"
+msgstr "Aller au contenu"
+
+msgid "Main navigation"
+msgstr "Navigation principale"
+
+msgid "Toggle navigation"
+msgstr "Afficher/masquer la navigation"
+
+msgid "Home"
+msgstr "Accueil"
+
+msgid "Tickets"
+msgstr "Billets"
+
+msgid "Contact"
+msgstr "Contact"
+
+msgid "Security"
+msgstr "Sécurité"
+
+msgid "Logout"
+msgstr "Déconnexion"
+
+msgid "Organizer Login"
+msgstr "Connexion organisateur"
+
+msgid "Close"
+msgstr "Fermer"
+
+msgid ""
+"Secure, auditable voting for reality shows, awards, universities, "
+"associations and companies."
+msgstr ""
+"Vote sécurisé et vérifiable pour la téléréalité, les prix, les universités, "
+"les associations et les entreprises."
+
+msgid "Browse elections"
+msgstr "Parcourir les élections"
+
+msgid "Results & verification"
+msgstr "Résultats et vérification"
+
+msgid "Trust"
+msgstr "Confiance"
+
+msgid "Public signing key"
+msgstr "Clé publique de signature"
+
+msgid "Report a vulnerability"
+msgstr "Signaler une vulnérabilité"
+
+msgid "Contact us"
+msgstr "Nous contacter"
+
+msgid "Support desk"
+msgstr "Assistance"
+
+msgid "All rights reserved."
+msgstr "Tous droits réservés."
+
+msgid "Contact & support"
+msgstr "Contact et assistance"
+
+msgid "Get in touch"
+msgstr "Contactez-nous"
+
+msgid ""
+"Questions about running an election, a payment, or need help voting? Send us"
+" a message and our support team will reply by email."
+msgstr ""
+"Une question sur l'organisation d'une élection, un paiement, ou besoin "
+"d'aide pour voter ? Envoyez-nous un message et notre équipe vous répondra "
+"par e-mail."
+
+msgid "Contact information"
+msgstr "Coordonnées"
+
+msgid "Mon–Fri, 8am – 6pm GMT"
+msgstr "Lun–ven, 8 h – 18 h GMT"
+
+msgid ""
+"Election day emergencies: open a ticket with the category 'Voting problem' "
+"and include the election name."
+msgstr ""
+"Urgences le jour du vote : ouvrez une demande dans la catégorie « Problème "
+"de vote » en indiquant le nom de l'élection."
+
+msgid "Email address"
+msgstr "Adresse e-mail"
+
+msgid "General question"
+msgstr "Question générale"
+
+msgid "Voting problem"
+msgstr "Problème de vote"
+
+msgid "Running an election"
+msgstr "Organiser une élection"
+
+msgid "Message"
+msgstr "Message"
+
+msgid "Send message"
+msgstr "Envoyer le message"
+
+msgid "Time zone & currency"
+msgstr ""
+
+msgid "Election time zone (dates above are in this zone)"
+msgstr ""
+
+msgid "Edit candidate"
+msgstr ""
+
+msgid "Email (candidate portal)"
+msgstr ""
+
+msgid "Replace photo (PNG/JPEG, max 2 MB)"
+msgstr ""
+
+msgid "Edit position"
+msgstr ""
+
+msgid "Min selections"
+msgstr ""
+
+msgid "Max selections / ranks"
+msgstr ""
+
+msgid "Max score (score voting)"
+msgstr ""
+
+#, python-format
+msgid "Referendum pass threshold (%%)"
+msgstr ""
+
+msgid "Campaign price per vote (blank = election price)"
+msgstr ""
+
+msgid "Max votes per voter in this category"
+msgstr ""
+
+msgid "Public vote"
+msgstr "Vote public"
+
+msgid "Secret ballot"
+msgstr "Scrutin secret"
+
+msgid "Voting closes in"
+msgstr "Le vote se termine dans"
+
+msgid "Voting has ended"
+msgstr "Le vote est terminé"
+
+msgid "Vote now"
+msgstr "Voter maintenant"
+
+msgid "Buy tickets"
+msgstr "Acheter des billets"
+
+msgid "Event flyer"
+msgstr "Affiche de l'événement"
+
+msgid "You manage this election."
+msgstr "Vous gérez cette élection."
+
+msgid "It is not public yet."
+msgstr "Elle n'est pas encore publique."
+
+msgid "Open election console"
+msgstr "Ouvrir la console de l'élection"
+
+msgid "Voting is temporarily paused."
+msgstr "Le vote est temporairement suspendu."
+
+msgid "Voting has not opened yet."
+msgstr "Le vote n'est pas encore ouvert."
+
+msgid "How to vote"
+msgstr "Comment voter"
+
+msgid ""
+"Sign in with the details from your invitation (voter ID and access code, a "
+"one-time code, or your institutional account)."
+msgstr ""
+"Connectez-vous avec les informations de votre invitation (identifiant "
+"électeur et code d'accès, code à usage unique ou compte institutionnel)."
+
+msgid "Read about the candidates and make your choices for each position."
+msgstr "Découvrez les candidats et faites vos choix pour chaque poste."
+
+msgid "Review your ballot and confirm. Once cast, it can't be changed."
+msgstr ""
+"Vérifiez votre bulletin et confirmez. Une fois déposé, il ne peut plus être "
+"modifié."
+
+msgid ""
+"Keep your ballot tracker to check your ballot is in the published ballot "
+"box."
+msgstr ""
+"Conservez votre identifiant de suivi pour vérifier que votre bulletin est "
+"dans l'urne publiée."
+
+msgid "Your ballot is encrypted and stored without any link to your identity."
+msgstr ""
+"Votre bulletin est chiffré et stocké sans aucun lien avec votre identité."
+
+msgid "On the ballot"
+msgstr "Au bulletin"
+
+msgid "Yes / No"
+msgstr "Oui / Non"
+
+msgid "Report a problem or file a dispute"
+msgstr "Signaler un problème ou déposer une réclamation"
+
+msgid "Live counts"
+msgstr "Décompte en direct"
+
+msgid "Vote bundles available"
+msgstr "Forfaits de votes disponibles"
+
+msgid "Contestants will appear here soon."
+msgstr "Les candidats apparaîtront bientôt ici."
+
+msgid "Have a ticket? Cast your free vote"
+msgstr "Vous avez un billet ? Votez gratuitement"
+
+msgid "Ticket reference"
+msgstr "Référence du billet"
+
+msgid "Vote"
+msgstr "Voter"
+
+msgid "Voting has ended."
+msgstr "Le vote est terminé."

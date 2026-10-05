@@ -1,448 +1,224 @@
-# Security Review & Remediation Log
+# Security
 
-This document records the security assessment performed on FlexyVotes, every
-vulnerability found, the fix applied, and what — if anything — still requires
-action from the team (credential rotation, product decisions, etc.). Findings
-are ordered by severity.
+This document covers FlexyVotes's threat model, the access-control matrix, the security
+controls, how security is tested, and the log of every vulnerability found so far and how
+it was fixed.
 
-Severity is assessed on realistic exploitability and business impact for this
-app (a payment-driven voting/ticketing platform), not a generic CVSS score.
+To report a vulnerability, write to the address in `/.well-known/security.txt` (set by
+`SECURITY_CONTACT`). Please don't test against live elections.
 
----
+## 1. Assets
 
-## 1. CRITICAL — Payment bypass: free votes and free tickets
+| Asset | Why it matters |
+|---|---|
+| Vote counts and ballots | The outcome of competitions and elections |
+| Ballot secrecy | Voters must not be linkable to their choices |
+| Money | Paystack funds, refunds, organizer payouts |
+| Voter roll PII | Names, emails, phone numbers, student IDs |
+| Keys | KEK, signing key, election private keys, trustee shares |
+| Audit log | The evidence that settles disputes |
 
-**Where:** `voting/views.py` — `vote_success()` and `ticket_success()`.
+## 2. Threat model
 
-**The bug:** When a voter/buyer's browser is redirected back from PayStack,
-these views looked up the transaction by the `reference` query parameter and,
-if its status was `Pending`, immediately flipped it to `Success` — with no
-verification that a payment had actually happened. The `reference` is not a
-secret: it is generated and returned to the *same browser* the moment the
-Pending transaction is created (`initiate_vote` / `buy_ticket`), before the
-user is ever sent to PayStack.
-
-**Impact:** Any user could call `initiate_vote` (or `buy_ticket`) to create a
-Pending transaction, note the reference from the redirect, and then visit
-`/vote/success/?reference=<ref>` (or `/ticket/success/?reference=<ref>`)
-directly — skipping PayStack entirely — to have their vote counted or ticket
-issued for free. This directly undermines the platform's core monetization
-and could be used to manufacture unlimited free votes (undermining the
-integrity of every paid vote count) or free event tickets.
-
-**Fix:** Added `verify_paystack_transaction()` in `voting/services.py`, which
-calls PayStack's authoritative `GET /transaction/verify/:reference` endpoint
-server-to-server. `vote_success` and `ticket_success` now only mark a Pending
-transaction `Success` if PayStack itself confirms the transaction status is
-`success`. If verification fails, the user sees a "payment not yet confirmed"
-message instead of a completed vote/ticket. The `paystack_webhook` endpoint
-(HMAC-signature verified) remains the primary confirmation path; this fixes
-the fallback path used when the browser redirect arrives before the webhook.
-
-**Tests:** `VoteSuccessPaymentBypassTests`, `BuyTicketTests.test_unverified_ticket_payment_is_not_credited` in `voting/tests.py`.
-
-**Status:** Fixed and covered by regression tests.
-
----
-
-## 2. CRITICAL — Live secrets committed to git history
-
-**Where:** `.env` (tracked in git since an early commit), and `vote_fund/settings.py` (hardcoded Cloudinary credentials in recent commits, per `git log`: "Hardcoded Cloudinary keys to test bypass", "Hardcoded Cloudinary config...").
-
-**The bug:** `.env` — containing the PayStack secret key, Africa's Talking
-API key, a Gmail app password, and Cloudinary API credentials — was tracked
-in git with no `.gitignore`, and the same Cloudinary credentials were also
-hardcoded directly into `settings.py` source in recent commits.
-
-**Impact:** Anyone with read access to the repository (or its history, even
-after later commits remove the values) has these live credentials. This is a
-full compromise of the payment secret, SMS/USSD account, email account, and
-media storage account.
-
-**Fix applied in this pass:**
-- Added `.gitignore` (excludes `.env`, `db.sqlite3`, `media/`, `staticfiles/`, caches, venvs).
-- Added `.env.example` as the template for required variables (no real values).
-- Removed the hardcoded Cloudinary credentials from `settings.py`; it now reads `CLOUDINARY_STORAGE` entirely from environment variables.
-- Ran `git rm --cached` on `.env`, `db.sqlite3`, and `media/**` so they are no longer tracked going forward (files remain on disk locally).
-
-**Action still required from the team (cannot be done automatically):**
-1. **Rotate every credential that was ever in `.env`**: PayStack secret key, Africa's Talking API key, the Gmail app password, and the Cloudinary API secret. Untracking the file does **not** remove it from git history — anyone with a clone of the repository (or access to the remote) can still recover the old values from earlier commits.
-2. Generate a fresh, unique `SECRET_KEY` per environment (see finding #3) and never reuse the one from local `.env` in production.
-3. Decide whether to rewrite git history to purge the old `.env` blob (e.g. `git filter-repo`). This is a destructive, force-push operation that rewrites every commit hash and was **not** performed automatically — do this only after rotating credentials, and coordinate with anyone else with a clone of the repo.
-
-**Status:** Code-level exposure fixed; **credential rotation is a mandatory manual follow-up** before this app should be considered safe to operate in production.
-
----
-
-## 3. HIGH — Placeholder Django `SECRET_KEY`
-
-**Where:** `.env` had `SECRET_KEY=your_django_secret_key_here`.
-
-**Impact:** `python manage.py check --deploy` flags this as `security.W009`.
-A weak/predictable `SECRET_KEY` undermines session signing, password reset
-tokens, and CSRF token generation.
-
-**Fix:** Generated a strong random key (`django.core.management.utils.get_random_secret_key()`) for local `.env`. **Production/staging must each get their own independently generated key** — never reuse the local development key.
-
-**Status:** Fixed locally; deployment guide (`DEPLOYMENT.md`) documents generating a fresh key per environment.
-
----
-
-## 4. HIGH — Broken access control on ticket check-in (`process_scan`)
-
-**Where:** `voting/views.py` — `process_scan()`.
-
-**The bug:** The view required a logged-in user (`@login_required`) but never
-checked that the user was the organizer of — or staff for — the specific
-event being scanned. Every other event-scoped view in the codebase
-(`event_scanner`, `event_guestlist`, `edit_event`, etc.) has this check;
-`process_scan` was missing it.
-
-**Impact:** Any authenticated user (e.g. a regular voter who self-registered)
-could check in/burn tickets for *any* event, not just their own — a direct
-authorization bypass with real financial/operational impact (marking paid
-tickets as used, blocking legitimate attendees at the door).
-
-**Fix:** Added the same `request.user != event.organizer and not request.user.is_staff` check used elsewhere, returning `403` for unauthorized users.
-
-**Tests:** `ProcessScanAuthorizationTests` in `voting/tests.py`.
-
-**Status:** Fixed and covered by regression tests.
-
----
-
-## 5. MEDIUM — CSRF protection disabled where it wasn't needed
-
-**Where:** `voting/views.py` — `process_scan()` had `@csrf_exempt`.
-
-**The bug:** `process_scan` is a session-authenticated, state-changing
-endpoint (it marks tickets as checked in). It was decorated `@csrf_exempt`
-even though the calling template (`templates/voting/scanner.html`) already
-sends a valid `X-CSRFToken` header on every request — the exemption was pure
-downside with no corresponding benefit.
-
-**Impact:** An attacker-controlled page could have triggered ticket check-ins
-via a logged-in organizer's browser (classic CSRF), since Django would not
-have required a valid token.
-
-**Fix:** Removed `@csrf_exempt`. The existing frontend code needed no changes since it was already sending the token correctly.
-
-**Status:** Fixed.
-
----
-
-## 6. MEDIUM — Abusable public endpoint for sending arbitrary email attachments
-
-**Where:** `voting/views.py` — `send_ticket_email()`.
-
-**The bug:** This endpoint is intentionally public/unauthenticated (a buyer
-without a login needs to (re)send their own e-ticket) and `@csrf_exempt`, but
-had no rate limiting, no validation of the "image" content type, and no size
-cap. It decoded attacker-controlled base64 data and emailed it as an
-attachment from the platform's own Gmail account to a real buyer email
-address.
-
-**Impact:** Someone who obtained (or brute-forced) a valid ticket reference
-could repeatedly trigger emails with arbitrary attached content sent from the
-platform's mail account — a spam/phishing/reputation-abuse vector, and an
-unbounded resource-consumption risk (arbitrarily large attachments).
-
-**Fix:** Added per-IP rate limiting (10 requests/minute), an allow-list for
-image type (`png`/`jpeg`/`jpg` only), a 5MB size cap, and proper exception
-handling for malformed input instead of letting it 500.
-
-**Status:** Fixed.
-
----
-
-## 7. MEDIUM — Non-constant-time webhook signature comparison
-
-**Where:** `voting/views.py` — `paystack_webhook()`.
-
-**The bug:** The computed HMAC-SHA512 signature was compared to the header
-value with plain `==`, which is not constant-time and is theoretically
-vulnerable to a timing side-channel that could help an attacker forge a
-signature byte-by-byte.
-
-**Fix:** Switched to `hmac.compare_digest()`. Also added a `try/except` around `json.loads(request.body)` so a malformed body returns `400` instead of an unhandled exception (potential info leak via a stack trace / 500 error).
-
-**Status:** Fixed.
-
----
-
-## 8. MEDIUM — No brute-force protection on login
-
-**Where:** `voting/views.py` — `login_view()`.
-
-**The bug:** `register_view` already had per-IP rate limiting (3
-attempts/minute) but `login_view` had none at all, allowing unlimited
-password-guessing attempts against any account, including organizer/admin
-accounts.
-
-**Fix:** Added the same cache-backed per-IP rate limiting pattern to
-`login_view` (5 attempts/minute, reset on success).
-
-**Note:** This uses Django's `LocMemCache`, which is per-process — see
-finding #12 for why this needs to move to a shared cache (Redis/Memcached)
-before running multiple app instances/workers in production.
-
-**Status:** Fixed for a single-process deployment; needs a shared cache for multi-instance deployments (tracked separately, see #12).
-
----
-
-## 9. MEDIUM — Weak passwords accepted on registration
-
-**Where:** `voting/views.py` — `register_view()`.
-
-**The bug:** New accounts were created via `User.objects.create_user()`
-directly. Django's `AUTH_PASSWORD_VALIDATORS` (configured in `settings.py`)
-are only enforced through Django's forms/admin — calling `create_user`
-directly bypasses them entirely, so any password (including `"123"`) was
-accepted.
-
-**Impact:** Weak organizer-account passwords are a real risk given
-organizers can create events, manage payouts-adjacent data, and view
-guest/voter PII.
-
-**Fix:** Added an explicit `validate_password()` call before user creation, surfacing validation errors back to the registration form.
-
-**Tests:** `RegisterViewTests` in `voting/tests.py`.
-
-**Status:** Fixed and covered by regression tests.
-
----
-
-## 10. LOW-MEDIUM — Unhandled exceptions causing 500s on bad input
-
-**Where:** `initiate_vote()` (non-numeric `amount`), `cast_vote_with_code()`
-(GET request crashed with `UnboundLocalError` because `candidate` was only
-defined inside the `POST` branch), `paystack_webhook()` (malformed JSON).
-
-**Impact:** Primarily an availability/robustness issue — a malformed or
-adversarial request could 500. A 500 response could also leak a stack trace
-if `DEBUG` were ever mistakenly left on in production.
-
-**Fix:** Added input validation / `try-except` blocks returning clean error
-responses (redirect with a flash message, or `400`) instead of crashing.
-
-**Status:** Fixed.
-
----
-
-## 11. LOW — Ticket overselling (business-logic / integrity issue)
-
-**Where:** `voting/views.py` — `buy_ticket()`.
-
-**The bug:** No check against `Ticket.quantity_available` before accepting a
-purchase, so a ticket type could be sold far beyond its configured stock.
-
-**Fix:** Added a check that sums existing `Success` purchases for the ticket and rejects new purchases that would exceed `quantity_available`.
-
-**Tests:** `BuyTicketTests.test_sold_out_ticket_is_rejected`.
-
-**Status:** Fixed.
-
----
-
-## 12. LOW — USSD multi-step flow used unordered querysets
-
-**Where:** `voting/views.py` — `ussd_callback()`, the ticket-purchase branch (`first_input == "2"`).
-
-**The bug:** Each step of the USSD session independently re-queries
-`Event.objects.filter(...).distinct()` / `event.tickets.filter(...)` and
-indexes into the result by position (`events[event_index]`), with no
-`order_by()`. On SQLite this happens to be stable (insertion order), but on
-Postgres — the production database — row order without `ORDER BY` is
-**undefined** and can differ between two queries in the same session,
-meaning a user could be charged for/allocated a different event or ticket
-type than the one they selected earlier in the same USSD session.
-
-**Impact:** A data-integrity bug with direct financial impact (buyer pays for
-ticket A, gets charged as/receives ticket B) once running against Postgres in
-production.
-
-**Fix:** Added explicit `.order_by('id')` to every occurrence of these queries in the USSD flow.
-
-**Status:** Fixed.
-
----
-
-## 13. INFORMATIONAL — Production hardening gaps (now addressed)
-
-Prior to this review, `settings.py` had:
-- No `MEDIA_URL`/`MEDIA_ROOT` defined at all — `vote_fund/urls.py` referenced
-  `settings.MEDIA_URL`/`MEDIA_ROOT` unconditionally when `DEBUG=True`, which
-  crashed with `AttributeError` on any local/DEBUG run. **(Also filed as a
-  functional bug — see the bug list below.)**
-- `ALLOWED_HOSTS` and no `CSRF_TRUSTED_ORIGINS` at all, hardcoded to a single
-  Render.com domain — would silently be wrong/insecure on a new AWS domain.
-- No `LOGGING` configuration (relying on Django defaults, which mostly
-  discard output under gunicorn).
-- `SESSION_COOKIE_SECURE`/`CSRF_COOKIE_SECURE` were hardcoded `True`
-  unconditionally — this actually breaks local HTTP development entirely
-  (cookies silently never set), rather than being a vulnerability, but it's
-  the kind of over-broad setting that tends to get "temporarily" disabled
-  in ways that don't get re-enabled.
-- No `X_FRAME_OPTIONS`, `SECURE_CONTENT_TYPE_NOSNIFF`, HSTS, or SSL-redirect configuration.
-
-**Fix:** `settings.py` now defines `MEDIA_URL`/`MEDIA_ROOT`; makes
-`ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` configurable via environment
-variables; ties cookie-secure flags to `DEBUG` so local dev still works over
-HTTP; adds `X_FRAME_OPTIONS=DENY` and `SECURE_CONTENT_TYPE_NOSNIFF=True`
-unconditionally; and adds **opt-in** (env-var-gated) `SECURE_SSL_REDIRECT`
-and HSTS settings that should be turned on once TLS termination is
-confirmed working in front of the app (see `DEPLOYMENT.md`) — they default
-to off so a deploy without HTTPS configured yet doesn't get redirect-looped
-or lock itself out. Added a console-based `LOGGING` config suitable for
-container log collection (e.g. CloudWatch Logs).
-
-**Status:** Fixed; `SECURE_SSL_REDIRECT`/HSTS enabling is an explicit step in the deployment checklist once HTTPS is live.
-
----
-
-## 14. INFORMATIONAL / Accepted risk — USSD "payment" is not actually verified
-
-**Where:** `voting/views.py` — `ussd_callback()`.
-
-**Finding:** Both the USSD voting flow and the USSD ticket-purchase flow
-create a `VoteTransaction`/`TicketPurchase` with `status='Success'`
-immediately, with no real mobile-money charge ever collected or verified.
-`voting/at_service.py` contains a `trigger_mobile_money_checkout()` helper
-for Africa's Talking mobile money, but **it is never called from any view** —
-the integration exists but isn't wired in.
-
-**Impact:** Every vote or ticket "purchased" via USSD is effectively free
-today. This is a product/business decision as much as a security one — flag
-it to the team explicitly rather than silently "fixing" it, since wiring in
-real mobile-money collection is a feature-level change (async
-payment-confirmation callback, session/state handling across the
-checkout-then-confirm gap, etc.), not a one-line patch.
-
-**Status:** Not fixed — **flagged for a product/engineering decision**. Documented in `docs/TRD.md` and `docs/PRD.md` as a known limitation.
-
----
-
-## 15. HIGH (data integrity) — Uploaded media was silently written to local disk instead of Cloudinary
-
-**Where:** `vote_fund/settings.py`.
-
-**The bug:** `settings.py` set only the legacy `DEFAULT_FILE_STORAGE` /
-`STATICFILES_STORAGE` settings. `Django==6.0.7` (the version this project is
-pinned to) does not derive `default_storage` from those legacy settings the
-way earlier Django versions did — it resolves storage exclusively from the
-`STORAGES` dict. With `STORAGES` undefined, `default_storage` silently fell
-back to Django's built-in `FileSystemStorage`, confirmed live via
-`default_storage.__class__` printing `FileSystemStorage` instead of
-Cloudinary's storage class.
-
-**Impact:** Every uploaded image (event flyers/backgrounds, candidate
-photos, product/ticket images) was actually being written to the
-container's local, ephemeral filesystem instead of Cloudinary — the opposite
-of what `settings.py`'s own comments and the git history ("FORCE Cloudinary
-Storage for all media files") describe as intentional. Consequences: (1)
-every uploaded image was lost on the next container restart/redeploy/scale
-event, since container filesystems aren't persistent by default; (2) images
-rendered as broken `/media/...` links whenever `DEBUG=False` (no local
-static-media serving); (3) discovered in production as a real user-facing
-404 on an event flyer.
-
-**Fix:** Added a `STORAGES` dict to `settings.py` pointing `default` at
-`cloudinary_storage.storage.MediaCloudinaryStorage` and `staticfiles` at
-Whitenoise's `CompressedManifestStaticFilesStorage`. The legacy
-`DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` settings were kept (not
-removed) because `django-cloudinary-storage`'s own bundled `collectstatic`
-override reads `settings.STATICFILES_STORAGE` directly and raises
-`AttributeError` at build time if it's absent entirely — both forms must
-stay defined and in agreement.
-
-**Verification:** rebuilt the Docker image and confirmed, against the
-running container: `default_storage.__class__` is now
-`cloudinary_storage.storage.MediaCloudinaryStorage`; `staticfiles_storage.__class__`
-is still Whitenoise's `CompressedManifestStaticFilesStorage` (no regression);
-static assets and all pages still serve `200`; all 13 tests pass; and an
-actual test image upload was confirmed to reach Cloudinary and return a real
-`res.cloudinary.com` URL.
-
-**Remaining action:** rows created while this bug was active (before the
-fix was deployed) still have local paths stored in the database and will
-not retroactively appear in Cloudinary — those images need to be re-uploaded
-through the app/admin once the fix is live.
-
-**Status:** Fixed and verified end-to-end.
-
----
-
-## 16. INFORMATIONAL — New attack surface: pgAdmin service added
-
-**Where:** `docker-compose.yml` — `pgadmin` service (`dpage/pgadmin4`).
-
-**What changed:** A pgAdmin service was added, at the team's request, so
-admins can browse/query the `db` Postgres container through a web UI
-instead of a `psql` shell. It runs on the same Docker network as `db` and is
-published on `PGADMIN_PORT` (default `5050`).
-
-**Risk:** pgAdmin is a full database administration console with its own
-login, served over plain HTTP by this container image. If `PGADMIN_PORT` is
-reachable from the public internet, it becomes a direct path to every row
-in the database (including PII in `TicketPurchase`/`VotingCode`/`User`) for
-anyone who can reach or brute-force that login, and credentials would
-travel in plaintext without TLS in front of it.
-
-**Mitigation (must be applied at the infrastructure level, not something
-this compose file can enforce on its own):**
-- Restrict `PGADMIN_PORT` at the network layer to admin IPs only (security
-  group rule / firewall allow-list) — never open it to `0.0.0.0/0`.
-- Prefer accessing it over a VPN/SSH tunnel/bastion rather than a directly
-  routable public port at all.
-- Use a strong, unique `PGADMIN_DEFAULT_PASSWORD` (not shared with the
-  Django admin or database password).
-- If remote access is genuinely required, put a TLS-terminating reverse
-  proxy in front of it rather than exposing the raw port.
-
-**Status:** Feature added per request; access-control enforcement is an
-infrastructure/operator responsibility — see the checklist in
-`DEPLOYMENT.md`.
-
----
-
-## 17. Verified as already correct (no change needed)
-
-- **CSV export injection**: `download_codes` and `download_guestlist` already
-  sanitize every string field via `sanitize_csv_value()` before writing to
-  CSV, correctly neutralizing formula-injection (`=`, `+`, `-`, `@` prefixes).
-- **`DEBUG` default**: defaults to `False` unless explicitly set via env var — correct.
-- **Password hashing**: uses Django's default `User` model / `create_user`, which hashes with Django's configured (PBKDF2) hasher — no custom/weak hashing was introduced.
-
----
-
-## Summary table
-
-| # | Finding | Severity | Status |
+| Adversary | Goal | Main mitigations | Residual risk |
 |---|---|---|---|
-| 1 | Payment bypass via `vote_success`/`ticket_success` | Critical | Fixed |
-| 2 | Live secrets committed to git history | Critical | Code fixed; **rotation required (manual)** |
-| 3 | Placeholder `SECRET_KEY` | High | Fixed (locally; per-env action needed) |
-| 4 | Missing authorization on `process_scan` | High | Fixed |
-| 5 | Unneeded CSRF exemption on `process_scan` | Medium | Fixed |
-| 6 | Abusable `send_ticket_email` endpoint | Medium | Fixed |
-| 7 | Non-constant-time webhook signature check | Medium | Fixed |
-| 8 | No login rate limiting | Medium | Fixed (single-process) |
-| 9 | Weak passwords accepted on registration | Medium | Fixed |
-| 10 | Unhandled exceptions (500s) on bad input | Low-Medium | Fixed |
-| 11 | Ticket overselling | Low | Fixed |
-| 12 | Unordered USSD queries (Postgres data-integrity risk) | Low | Fixed |
-| 13 | Missing production hardening (MEDIA settings, headers, logging) | Informational | Fixed |
-| 14 | USSD "payment" never actually verified | Informational | **Open — product decision needed** |
-| 15 | Uploaded media silently written to local disk instead of Cloudinary (`STORAGES` vs legacy settings) | High (data integrity) | Fixed and verified end-to-end |
-| 16 | pgAdmin service added — new DB-access attack surface if network-exposed | Informational | Added; access control is an infra responsibility |
-| 17 | CSV injection guard, DEBUG default, password hashing | — | Verified correct, no change |
+| Fan or bot farm | Free or inflated paid votes | Server-side Paystack verification, exact amount and currency match, one credit per payment, fraud scoring and holds, rate limits, CAPTCHA and honeypot, per-voter caps | Many distinct real cards and phones can still buy votes. That is legitimate paid voting, but anomaly scans flag it. |
+| Stolen-card fraudster | Votes now, chargeback later | Card and device velocity, account-farm signals, chargeback reversal, blocklist | Revenue is lost on the chargeback, but the votes are reversed |
+| Institutional voter | Vote twice, or vote while ineligible | Eligibility at issue time, single-use authorization (row lock + partial unique), ballot validated on the server | — |
+| Credential thief | Vote as someone else | Codes and OTPs only go to roll contacts; lockout and rate limits; optional second factor; "you already voted" page with a dispute path | A voter who shares their code can be impersonated |
+| Election official | See or change how people voted | No voter–ballot link; ballots sealed and append-only; trustee custody (k of n); signed results; recounts; audit | A colluding DB superuser could compare ballot insertion order with `voted_at` (timing) |
+| Organizer | Change rules mid-election, fake results | Lifecycle locks, freezes, re-approval after changes, separation of duties, signed config snapshots, signed certification, public verification | — |
+| Platform insider / DBA | Edit audit or ballots | Hash chain verified every 6 h; DB triggers block UPDATE and DELETE; changes need DDL, which is logged | Can drop the triggers. Detection only. |
+| Network attacker | Steal sessions, tamper with traffic | TLS + HSTS, `Secure` / `HttpOnly` / `SameSite` cookies, CSRF, strict CSP | — |
+| Web attacker | XSS, SSRF, injection, open redirect | Auto-escaping, `json_script`, nonce CSP, URL allow-list + public-IP check, ORM only, `safe_next()` for redirects, upload magic-byte checks | `style-src 'unsafe-inline'` is still allowed (for Bootstrap attributes) |
 
-## Outstanding action items for the team
+## 3. Access control
 
-1. **Rotate all credentials** that were ever in `.env` (PayStack, Africa's Talking, Gmail app password, Cloudinary) — see finding #2.
-2. **Generate a unique `SECRET_KEY` per environment** — never reuse the development key in staging/production.
-3. **Decide on and schedule git history rewrite** to purge the old `.env` blob, after credentials are rotated.
-4. **Decide the product direction for USSD payments** (finding #14) — wire in real Africa's Talking mobile-money confirmation, or explicitly scope USSD as a free/demo channel.
-5. Before scaling to multiple app instances/workers, replace `LocMemCache`-based rate limiting with a shared cache (Redis/Memcached) — see `docs/TRD.md`.
-6. **Re-upload any images that were saved while finding #15 was active** — those rows still point at local paths that don't exist in Cloudinary.
-7. **Lock down `PGADMIN_PORT` at the network level** (security group/firewall) before or immediately after starting the `pgadmin` service in any environment reachable from the internet — see finding #16.
+Authorization is permission-based (`core/rbac.py`). A user's permissions are the union of
+their role assignments.
+- **Scope:** each assignment applies to the platform, one organization (including all its
+  elections) or one election.
+- **Organizers:** an event's `organizer` gets the Organizer column below for that event.
+- **Platform admins:** Django staff and superusers have every permission.
+- **Separation of duties:** this is enforced in code, not by roles. The approver must not be
+  the submitter, and the certifier must not be the tallier. This holds even for an
+  Organization Admin, who has both permissions.
+
+SA Super Admin · OA Organization Admin · EA Election Admin · ER Election Reviewer ·
+EO Election Officer · AU Election Auditor · CM Candidate Manager · FO Finance Officer ·
+SU Support Agent · FA Fraud Analyst · RO Results Officer
+
+| Permission | SA | OA | EA | ER | EO | AU | CM | FO | SU | FA | RO | Organizer |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `election.create` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `election.edit` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.submit` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.review` | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |
+| `election.publish` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.pause` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
+| `election.close` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.archive` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.freeze` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `candidate.create` | ✓ | ✓ | ✓ |  |  |  | ✓ |  |  |  |  | ✓ |
+| `candidate.edit` | ✓ | ✓ | ✓ |  |  |  | ✓ |  |  |  |  | ✓ |
+| `voter.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  | ✓ |  |  | ✓ |
+| `voter.import` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `voter.edit` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
+| `voter.credentials` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
+| `vote.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  | ✓ | ✓ | ✓ |
+| `vote.export` | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
+| `results.view` | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |  | ✓ | ✓ |
+| `results.tally` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  | ✓ | ✓ |
+| `results.approve` | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |
+| `results.certify` | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |
+| `results.publish` | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |
+| `results.recount` | ✓ | ✓ |  |  |  | ✓ |  |  |  |  | ✓ |  |
+| `payment.view` | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ | ✓ |  | ✓ |
+| `payment.reconcile` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
+| `refund.create` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
+| `refund.approve` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
+| `pricing.manage` | ✓ | ✓ | ✓ |  |  |  |  | ✓ |  |  |  | ✓ |
+| `audit.view` | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  | ✓ |  | ✓ |
+| `fraud.view` | ✓ | ✓ |  |  |  | ✓ |  |  |  | ✓ |  |  |
+| `fraud.review` | ✓ | ✓ |  |  |  |  |  |  |  | ✓ |  |  |
+| `dispute.view` | ✓ | ✓ | ✓ |  | ✓ | ✓ |  |  |  |  |  | ✓ |
+| `dispute.manage` | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
+| `incident.manage` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
+| `approval.decide` | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |
+| `org.manage` | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
+| `org.billing` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
+| `support.view` | ✓ | ✓ |  |  | ✓ |  |  |  | ✓ |  |  |  |
+| `support.manage` | ✓ | ✓ |  |  |  |  |  |  | ✓ |  |  |  |
+| `ticket.manage` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `store.manage` | ✓ |  |  |  |  |  |  |  |  |  |  |  |
+| `platform.admin` | ✓ |  |  |  |  |  |  |  |  |  |  |  |
+
+The `VOTER` role is a marker with no permissions. Granting and revoking roles is audited
+(`ROLE_GRANTED` / `ROLE_REVOKED`).
+
+## 4. Controls
+
+| Area | Control |
+|---|---|
+| **Passwords** | Argon2id; min length 10, common-password, numeric and similarity validators |
+| **Login** | Lockout after `LOGIN_MAX_FAILURES` (default 5) for `LOGIN_LOCKOUT_SECONDS` (900 s); 10/min per IP; failures audited; same error for unknown user and bad password |
+| **MFA** | TOTP with replay protection and recovery codes; passkeys (WebAuthn); email step-up for new devices; enforced for staff with `ENFORCE_STAFF_MFA=True` |
+| **Sessions** | 8 h max age (`SESSION_COOKIE_AGE`); `Secure`, `HttpOnly`, `SameSite=Lax`; session key rotated at login; server-side list with revoke and sign-out-others; logout is POST only |
+| **SSO / LDAP** | OIDC with PKCE, `state`, `nonce` and JWKS validation; LDAP over TLS; per-organization configs encrypted |
+| **CSRF** | Django CSRF on every form and on session-authenticated API calls. Exempt only where the caller is authenticated another way: Paystack webhook (HMAC) and USSD (token / IP). |
+| **Headers** | Nonce-based CSP with no inline handlers; `X-Frame-Options: DENY` and `frame-ancestors 'none'`; `nosniff`; `Referrer-Policy: strict-origin-when-cross-origin`; `Permissions-Policy`; COOP and CORP `same-origin`; HSTS when `SECURE_HSTS_SECONDS` > 0 |
+| **Output encoding** | Django auto-escaping; data passed to JavaScript only through `json_script`; CSV and Excel exports neutralise formulas (`=`, `+`, `-`, `@`); PDF exports escape values |
+| **Input validation** | django-ninja and Pydantic schemas for the API; server-side ballot validation; positive-amount checks on every price field; size caps on uploads and on request bodies (`DATA_UPLOAD_MAX_MEMORY_SIZE`) |
+| **Uploads** | Images limited to 2 MB. Documents limited to 10 MB, with checks on extension **and** magic bytes. Evidence and manifestos go to private storage, are streamed only by permission-checked views, and get a SHA-256 on upload. |
+| **Redirects** | `safe_next()` allows only same-host relative URLs |
+| **SSRF** | `core.http.validate_url`: HTTPS only, host allow-list, resolved IP must be public; timeouts and circuit breakers on every outbound call |
+| **Rate limiting** | Redis-backed and shared across replicas; covers login, voter sign-in (IP and identifier), OTP, registration, payments, disputes, tracker lookups and the API; returns `429` with `Retry-After` |
+| **Bot protection** | Honeypot field + signed form timestamp (`FORM_MIN_FILL_SECONDS`) on pay, register, voter sign-in, voter registration, dispute and contact forms; optional Turnstile, hCaptcha or reCAPTCHA (`CAPTCHA_PROVIDER`) |
+| **Payments** | HMAC-SHA512 webhook check with a constant-time compare; server-side verify on every callback; exact amount and currency match; one credit per payment (DB-enforced); fake gateway refused when `DEBUG=False` |
+| **Ballot secrecy** | Identity and ballot separated (§2 of [TRD.md](TRD.md#3-ballot-secrecy-and-cryptography)); confirmation emails don't carry the tracker; ballot exports contain only ciphertext and trackers |
+| **Encryption at rest** | AES-256-GCM envelope encryption of PII and secrets, KEK in KMS or env; blind indexes for lookups; RDS storage encryption on top |
+| **Secrets** | Only from the environment (AWS Secrets Manager in production); never logged; `.env` is git-ignored; the image build uses a throw-away key, so no secret is baked in |
+| **Audit** | Hash-chained, append-only (ORM + DB triggers), verified every 6 h; records actor, IP, user agent, correlation id and field-level diffs |
+| **Database** | Least-privilege app role; append-only triggers; `statement_timeout`; TLS to RDS (`DATABASE_SSL_REQUIRE`) |
+| **Containers** | Non-root user, slim base, no build tools at runtime, healthchecks; Trivy scan in CI |
+| **Admin surface** | Django admin at a configurable path (`ADMIN_URL`); pgAdmin only behind the `admin` profile and must be firewalled (finding A16) |
+
+## 5. Security testing
+
+| Kind | Tool / location | When |
+|---|---|---|
+| Security regression tests | `core/tests/test_rbac_security.py`, `test_auth_sso.py`, `test_crypto_audit.py`, `elections/tests/test_secret_ballot.py`, `payments/tests/test_payments.py`, `api/tests/test_api.py` | Every CI run |
+| Race-condition tests | `elections/tests/test_concurrency.py` (PostgreSQL): 10 concurrent casts of one token, racing sign-in and cast, concurrent audit appends, concurrent webhook replays, concurrent identical idempotency keys | Every CI run |
+| SAST | Bandit (`pyproject.toml` config). Currently 0 findings; the `# nosec` markers are reviewed false positives (test-only placeholders). | Every CI run |
+| Dependency audit | `pip-audit -r requirements.txt --strict`. Currently 0 known vulnerabilities. | Every CI run |
+| Container scan | Trivy on the built image (HIGH and CRITICAL fail the build) | Every CI run |
+| DAST | OWASP ZAP baseline against a running stack (`.zap/rules.tsv`) | Every CI run |
+| Deployment checks | `manage.py check --deploy` plus the custom checks `flexyvotes.W001`–`W006` (missing keys, unauthenticated USSD, …) | Every CI run and every deploy |
+
+Covered by tests:
+- RBAC denial in the console, finance, fraud and organizer tools, and on lifecycle
+  transitions;
+- object-level checks, such as an officer of org A acting on org B;
+- CSRF enforcement (tested on the ticket-email endpoint; Django enforces it on every form);
+- payment receipts work only with the unguessable reference and disclose no payer details;
+- open redirects;
+- webhook signature and replay handling;
+- amount tampering;
+- double casting and token reuse;
+- tampered ballots counted as invalid;
+- audit tampering and deletion detected;
+- MFA replay;
+- lockout;
+- SSO `state` and `nonce` mismatch;
+- OTP brute force;
+- file-type spoofing;
+- CSV injection;
+- SSRF;
+- security headers and CSP nonces.
+
+## 6. Remediation log
+
+### Part A: first security review (original app)
+
+| # | Finding | Severity | Status now |
+|---|---|---|---|
+| A1 | Payment bypass: `vote_success` and `ticket_success` marked transactions paid from the `reference` query parameter | Critical | **Fixed.** Every callback verifies server to server; the rebuild routes everything through `apply_gateway_result()`. |
+| A2 | Live secrets committed to git (`.env`, hardcoded Cloudinary keys) | Critical | Code fixed (`.gitignore`, env-only config). **Credential rotation and history purge are still manual** (§7). |
+| A3 | Placeholder `SECRET_KEY` | High | Fixed; settings refuse to start without a key when `DEBUG=False` |
+| A4 | Missing authorization on ticket check-in (`process_scan`) | High | Fixed; now needs `ticket.manage` on the event |
+| A5 | Needless CSRF exemption on `process_scan` | Medium | Fixed |
+| A6 | `send_ticket_email` could mail arbitrary attachments | Medium | Fixed; only the buyer's own ticket, rate limited |
+| A7 | Non-constant-time webhook signature compare | Medium | Fixed (`hmac.compare_digest`) |
+| A8 | No login brute-force protection | Medium | Fixed. The old per-process limiter is replaced by a Redis-backed one plus account lockout. |
+| A9 | Weak passwords accepted | Medium | Fixed (validators, Argon2) |
+| A10 | Unhandled exceptions (500s) on bad input | Low-Medium | Fixed; custom 400 / 403 / 404 / 429 / 500 pages; API error envelope |
+| A11 | Ticket overselling | Low | Fixed (row lock on purchase) |
+| A12 | Unordered USSD querysets | Low | Fixed |
+| A13 | Production hardening gaps (headers, logging, media) | Info | Fixed and extended (CSP nonces, JSON logs, Sentry) |
+| A14 | USSD "payment" never verified | Info (open) | **Fixed in the rebuild.** USSD starts a Paystack mobile-money charge and credits nothing until Paystack confirms it. The callback is authenticated by token and/or IP. |
+| A15 | Uploads silently written to local disk instead of Cloudinary | High (data integrity) | Fixed (`STORAGES`). Rebuild note: the Cloudinary package's `collectstatic` override is no longer used (finding B12). |
+| A16 | pgAdmin adds DB-access attack surface | Info | Kept behind the `admin` compose profile; it must be firewalled (§7) |
+| A17 | CSV injection, `DEBUG` default, password hashing | — | Verified correct |
+
+### Part B: platform rebuild (this release)
+
+| # | Finding | Severity | Fix | Test / evidence |
+|---|---|---|---|---|
+| B1 | **Ballots linkable to voters.** The legacy code-voting flow stored the code used next to the candidate it voted for. | Critical (secrecy) | Rebuilt as voter → single-use authorization → anonymous sealed ballot (TRD §3) | `test_secret_ballot.py` |
+| B2 | Stored XSS on analytics. Chart data was rendered with `\|safe`. | High | `json_script`, no inline scripts | Template compile + CSP |
+| B3 | XSS on ticket pages. Values were interpolated into inline JS strings. | High | Data attributes + external JS | Template review; the nonce CSP blocks injected inline script |
+| B4 | 14 known CVEs in dependencies (Django, urllib3, sqlparse) | High | Upgraded to Django 6.0.8, urllib3 2.8.0, sqlparse 0.6.0 | `pip-audit` clean |
+| B5 | Logout over GET (cross-site logout) | Low | Logout is POST only | `test_logout_requires_post` |
+| B6 | `mark_safe` nonce helper and unescaped HTML in exports (Bandit) | Medium | Removed `mark_safe`; `html.escape` in exports; dead legacy modules deleted | Bandit clean |
+| B7 | Edit-event form overwrote price and fee with hardcoded values | Medium (integrity) | Form uses stored values; validated server side | `test_edit_event_keeps_price_and_converts_timezone` |
+| B8 | Shamir reconstruction accepted wrong share sets silently | High (tally integrity) | SHA-256 checksum inside the secret; a wrong combination is rejected | `test_shamir_threshold` |
+| B9 | Refund flow used a stale payment row (double refund possible under a race) | Medium | Re-fetch with a row lock before deciding | Refund tests in `test_payments.py` |
+| B10 | **Append-only trigger migration failed on PostgreSQL**: the `%` in `RAISE` was read as a query parameter, so the protection could not be installed | High | Run the DDL verbatim (`params=None`) | New `test_database_triggers_make_tables_append_only` (PostgreSQL) |
+| B11 | **KEK upgrade locked out existing data.** Setting `FIELD_ENCRYPTION_KEYS` after starting without it made every existing data key unreadable, and `keys rewrap` couldn't migrate. | High (data loss) | The derived KEK stays available for unwrap only; data keys are unwrapped by the provider that wrapped them (local → KMS works); `keys status` warns about stale keys | `test_upgrade_from_derived_kek_to_configured_kek`, `test_switch_from_local_kek_to_kms` |
+| B12 | The Docker image couldn't build: settings refused to load without `SECRET_KEY`, and Cloudinary's `collectstatic` crashed on Django 6 | Medium (availability) | Build-step-only placeholder key; Django's own `collectstatic` (app order) | Image builds in CI |
+| B13 | `restore.sh` relied on GNU-only `sha256sum --ignore-missing`, failing on BusyBox and Alpine | Medium (recovery) | Portable checksum check; warning when no checksum file is present | Backup → restore → `verify_integrity` round trip ([DISASTER_RECOVERY.md](DISASTER_RECOVERY.md)) |
+| B14 | `security.txt` expiry hardcoded, contact was a no-reply address | Low | Rolling 180-day expiry; `SECURITY_CONTACT` setting | `test_well_known_endpoints` |
+| B15 | **Election-day lockout.** In code-only elections the per-identifier sign-in limit was keyed on a blank identifier, so all voters shared one counter: after 10 sign-ins in 10 minutes, everyone got 429. Per-IP limits (15/min app, 30 req/min nginx) would also throttle a campus behind one NAT IP. | High (availability) | The per-identifier limit applies only when an identifier is given. Per-IP limits are configurable (`VOTER_*_PER_IP_*`) with campus-friendly defaults. nginx limits are raised, with a `trusted_nat.conf` exemption. | `test_code_only_voters_do_not_share_a_rate_limit`, `test_guessing_one_voters_code_is_limited_per_identifier` |
+| B16 | **Health probes rejected in production.** With a real `ALLOWED_HOSTS`, the ALB check (Host = target IP) and the image `HEALTHCHECK` (Host = 127.0.0.1) got 400, so containers would be marked unhealthy and replaced in a loop. Also, `/healthz/ready` showed its detailed checks to `Authorization: Bearer None` when no `METRICS_TOKEN` was set. | High (availability) / Low | `HealthCheckMiddleware` answers probes before host validation; the token compare is constant-time and needs a configured token | `test_probes_work_with_load_balancer_host_headers` |
+| B17 | `verify_integrity` didn't check that keys can decrypt data, so a restore with the wrong KEK passed verification | Medium (recovery) | It now unwraps every data key and decrypts a sample of every encrypted column | `test_verify_integrity_fails_when_keys_cannot_decrypt` |
+| B18 | **Cross-tenant reconciliation data.** Any organization's Finance Officer saw every tenant's open reconciliation items (payment references, amounts), could resolve any item by id, and could start platform-wide runs. Auditors could not see the reports at all. | High (tenant isolation) | Items are filtered to the viewer's organizations. Resolving needs `payment.reconcile` on that payment's event. Runs and their totals are platform-admin only. Auditors get read-only access. | `ReconciliationScopingTests` |
+| B19 | **Cross-tenant fraud blocklist.** Any organization's fraud analyst could see the platform-wide blocklist (IPs, devices, card signatures), add entries that blocked voters on *every* tenant's events, and deactivate other tenants' entries | High (tenant isolation / availability) | Entries now carry an `organization` (empty means platform-wide, for platform admins only). The engine applies platform entries plus the event's own organization's entries. Analysts see and manage only their organizations' entries. | `BlocklistTenancyTests` |
+
+## 7. Outstanding actions for the team
+
+1. **Rotate every credential that was ever committed** (A2): Paystack, Africa's Talking,
+   Gmail app password, Cloudinary. Then decide whether to purge history with
+   `git filter-repo`. That is a coordinated force-push.
+2. **Set dedicated keys in every non-development environment.** Use `FIELD_ENCRYPTION_KEYS`
+   or `KMS_KEY_ID`, plus `SIGNING_PRIVATE_KEY` and `BLIND_INDEX_KEY`, then run
+   `keys rewrap` and `keys reindex`. Follow the procedure in
+   [OPERATIONS.md](OPERATIONS.md#key-management). Before replacing a derived signing key,
+   publish its public key in `SIGNING_PREVIOUS_PUBLIC_KEYS`.
+3. **Set `USSD_CALLBACK_TOKEN`** (and `USSD_ALLOWED_IPS` with Africa's Talking's ranges).
+4. **Firewall pgAdmin** to admin IPs or a VPN, and give it a unique password (A16).
+5. **Production flags:** turn on `ENFORCE_STAFF_MFA`, set `METRICS_TOKEN`, choose a
+   `CAPTCHA_PROVIDER` for high-profile paid events, and set `SECURITY_CONTACT`.
+6. **Paystack allow-list:** if the Paystack key has an IP allow-list, add the NAT gateway
+   or EC2 egress IPs. Otherwise verification and reconciliation fail with "Your IP address
+   is not allowed" (this was seen when running locally).

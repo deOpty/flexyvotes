@@ -1,4 +1,4 @@
-{% extends 'voting/base.html' %} {% block content %}
+{% extends 'voting/base.html' %}{% load i18n fv %} {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-9 col-xl-8">
     <div class="mb-4 reveal">
@@ -76,7 +76,7 @@
                 type="date"
                 name="start_date_date"
                 class="form-control"
-                value="{{ event.start_date|date:'Y-m-d' }}"
+                value="{{ event.start_date|in_tz:event.timezone|date:'Y-m-d' }}"
                 required />
             </div>
             <div class="col-6 col-md-3">
@@ -85,7 +85,7 @@
                 type="time"
                 name="start_date_time"
                 class="form-control"
-                value="{{ event.start_date|date:'H:i' }}"
+                value="{{ event.start_date|in_tz:event.timezone|date:'H:i' }}"
                 required />
             </div>
             <div class="col-6 col-md-3">
@@ -94,7 +94,7 @@
                 type="date"
                 name="end_date_date"
                 class="form-control"
-                value="{{ event.end_date|date:'Y-m-d' }}"
+                value="{{ event.end_date|in_tz:event.timezone|date:'Y-m-d' }}"
                 required />
             </div>
             <div class="col-6 col-md-3">
@@ -103,8 +103,29 @@
                 type="time"
                 name="end_date_time"
                 class="form-control"
-                value="{{ event.end_date|date:'H:i' }}"
+                value="{{ event.end_date|in_tz:event.timezone|date:'H:i' }}"
                 required />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Time zone & currency -->
+      <div class="card shadow-soft border-0 rounded-4xl mb-4">
+        <div class="card-body p-4 p-md-5">
+          <h5 class="fw-bold mb-3">{% load i18n %}{% translate "Time zone & currency" %}</h5>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label" for="tzSelect">{% translate "Election time zone (dates above are in this zone)" %}</label>
+              <select name="timezone" id="tzSelect" class="form-select">
+                {% for tz in timezones %}<option value="{{ tz }}" {% if tz == event.timezone %}selected{% endif %}>{{ tz }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="curSelect">{% translate "Currency" %}</label>
+              <select name="currency" id="curSelect" class="form-select">
+                {% for c in currencies %}<option value="{{ c }}" {% if c == event.currency %}selected{% endif %}>{{ c }}</option>{% endfor %}
+              </select>
             </div>
           </div>
         </div>
@@ -134,8 +155,7 @@
               <select
                 name="voting_mode"
                 id="votingModeSelect"
-                class="form-select"
-                onchange="toggleCodeMode()">
+                class="form-select">
                 <option
                   value="Pay to Vote"
                   {% if event.voting_mode == "Pay to Vote" %}selected{% endif %}>
@@ -174,19 +194,14 @@
           <!-- Wrap these in a div to hide them -->
           <div id="payToVoteFields">
               <div class="row mb-3">
+                  {% if is_platform_admin %}<div class="col-md-6">
+                      <label class="form-label fw-bold text-muted small" for="feeInput">Platform Fee (%)</label>
+                      <input type="number" id="feeInput" name="platform_fee_percentage" class="form-control" value="{{ event.platform_fee_percentage }}" step="0.01" min="0" max="100" required>
+                  </div>{% endif %}
                   <div class="col-md-6">
-                      <label class="form-label fw-bold text-muted small">Platform Fee (%)</label>
-                      <input type="number" name="platform_fee_percentage" class="form-control" value="20.00" step="0.01" required>
+                      <label class="form-label fw-bold text-muted small" for="priceInput">Price Per Vote</label>
+                      <input type="number" id="priceInput" name="vote_price" class="form-control" value="{{ event.vote_price }}" step="0.01" min="0" required>
                   </div>
-                  <div class="col-md-6">
-                      <label class="form-label fw-bold text-muted small">Price Per Vote (₵)</label>
-                      <input type="number" name="vote_price" class="form-control" value="1.00" step="0.01" required>
-                  </div>
-              </div>
-              
-              <div class="form-check form-switch mb-4">
-                  <input class="form-check-input" type="checkbox" name="enable_tie_breaker" id="tieBreakerSwitch">
-                  <label class="form-check-label fw-bold text-muted small" for="tieBreakerSwitch">Enable Tie-Breaker Voting (Online tickets get free votes)</label>
               </div>
           </div>
 
@@ -310,7 +325,7 @@
 
       <div class="d-flex flex-column-reverse flex-sm-row gap-2 mt-4 reveal">
         <a
-          href="{% url 'dashboard' %}"
+          href="{% url 'elections:console_overview' event.pk %}"
           class="btn btn-outline-secondary px-4"
           >Cancel</a
         >
@@ -324,32 +339,17 @@
   </div>
 </div>
 
-<!-- JavaScript to show/hide Code Mode -->
-<script>
-  function toggleCodeMode() {
-    const mode = document.getElementById('votingModeSelect').value;
-    const codeDiv = document.getElementById('codeModeDiv');
-    if (mode === 'Code Voting') {
-      codeDiv.style.display = 'block';
-    } else {
-      codeDiv.style.display = 'none';
+<script nonce="{{ csp_nonce }}">
+  (function () {
+    var select = document.getElementById('votingModeSelect');
+    function sync() {
+      var institutional = select.value === 'Code Voting';
+      document.getElementById('codeModeDiv').style.display = institutional ? 'block' : 'none';
+      document.getElementById('payToVoteFields').style.display = institutional ? 'none' : 'block';
+      document.querySelectorAll('#payToVoteFields input[required]').forEach(function (input) { input.disabled = institutional; });
     }
-  }
-  // Hide Pay to Vote fields if Code Voting is selected
-  function toggleVotingModeFields() {
-      const mode = document.getElementById('votingModeSelect').value;
-      const payToVoteFields = document.getElementById('payToVoteFields');
-      if (mode === 'Code Voting') {
-          payToVoteFields.style.display = 'none';
-      } else {
-          payToVoteFields.style.display = 'block';
-      }
-  }
-        
-  // Listen for dropdown changes
-  document.getElementById('votingModeSelect').addEventListener('change', toggleVotingModeFields);
-        
-  // Run once on page load
-  toggleVotingModeFields();
+    select.addEventListener('change', sync);
+    sync();
+  })();
 </script>
 {% endblock %}

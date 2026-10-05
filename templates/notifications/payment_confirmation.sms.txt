@@ -1,0 +1,1 @@
+{% autoescape off %}{{ votes }} vote(s) for {{ candidate }} credited. Ref {{ reference }}.{% endautoescape %}

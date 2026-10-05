@@ -1,0 +1,44 @@
+{% extends 'voting/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Results" %} | {{ event.title }}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 980px;">
+    <a href="{% url 'event_detail' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+    <h1 class="fw-bold text-wine">{% translate "Results" %}</h1>
+    {% if not public %}
+    <div class="alert alert-secondary">{% if event.is_institutional %}{% translate "Results will be published here once they have been tallied, independently reviewed and certified." %}{% else %}{% translate "Results for this competition are not public yet." %}{% endif %}</div>
+    {% else %}
+        {% if public.certified %}
+        <div class="alert alert-success d-flex flex-wrap justify-content-between gap-2 align-items-center">
+            <span><i class="bi bi-patch-check-fill" aria-hidden="true"></i> {% translate "Certified results" %} · {{ public.certification.certified_at|date:"d M Y H:i" }}</span>
+            <span class="d-flex gap-2"><a class="btn btn-sm btn-outline-success" href="?format=pdf">PDF</a><a class="btn btn-sm btn-outline-success" href="?format=csv">CSV</a><a class="btn btn-sm btn-outline-success" href="?format=xlsx">Excel</a><a class="btn btn-sm btn-success" href="{% url 'elections:verify' event.pk %}">{% translate "Verify" %}</a></span>
+        </div>
+        {% else %}
+        <div class="alert alert-info" data-live-url="{% url 'live_counts' event.pk %}" data-live-interval="10000">{% translate "Live, unofficial counts — updated automatically." %} {% translate "Total votes" %}: <strong id="total-votes">{{ total_votes|number }}</strong></div>
+        {% endif %}
+        {% with data=public.data %}
+        {% if data.turnout.eligible_voters %}
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Eligible voters" %}</div><div class="kpi-value">{{ data.turnout.eligible_voters|number }}</div></div></div>
+            <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Votes cast" %}</div><div class="kpi-value">{{ data.turnout.votes_cast|number }}</div></div></div>
+            <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Turnout" %}</div><div class="kpi-value">{{ data.turnout.turnout_percentage|pct }}</div></div></div>
+            <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Invalid ballots" %}</div><div class="kpi-value">{{ data.turnout.invalid_ballots|number }}</div></div></div>
+        </div>
+        {% endif %}
+        {% for position in data.positions %}
+        <section class="card border-0 shadow-sm rounded-4 p-4 mb-3" aria-labelledby="rp-{{ forloop.counter }}">
+            <h2 id="rp-{{ forloop.counter }}" class="h5 fw-bold text-wine">{{ position.position }}</h2>
+            {% for c in position.candidates %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between"><span class="fw-semibold">{{ c.rank }}. {{ c.name }}{% if c.candidate_id in position.winners and public.certified %} <span class="badge bg-success">{% if position.method == 'referendum' %}{% translate "Passed" %}{% else %}{% translate "Winner" %}{% endif %}</span>{% endif %}</span>
+                    <span><span id="vote-count-{{ c.candidate_id }}">{{ c.votes|number }}</span> · <span id="percentage-{{ c.candidate_id }}">{{ c.percentage|pct }}</span></span></div>
+                <div class="progress" style="height: 10px;" role="progressbar" aria-label="{{ c.name }}" aria-valuenow="{{ c.percentage }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-wine" id="progress-{{ c.candidate_id }}" style="width: {{ c.percentage }}%"></div></div>
+            </div>
+            {% endfor %}
+            <p class="small text-muted mb-0">{% translate "Valid" %}: {{ position.valid_ballots|number }}{% if position.abstentions %} · {% translate "Abstentions" %}: {{ position.abstentions|number }}{% endif %}{% if position.ties and public.certified %} · <strong>{% translate "Tie" %}</strong>{% endif %}</p>
+        </section>
+        {% endfor %}
+        {% endwith %}
+    {% endif %}
+</div>
+{% endblock %}

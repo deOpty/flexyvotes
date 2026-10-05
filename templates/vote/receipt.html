@@ -1,0 +1,28 @@
+{% extends 'vote/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Ballot cast" %} | {{ event.title }}{% endblock %}
+{% block steps %}{% include 'vote/_steps.html' with step=4 %}{% endblock %}
+{% block vote %}
+{% if receipt %}
+<div class="text-center mb-4">
+    <div class="display-4 text-success" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></div>
+    <h1 class="h3 fw-bold text-wine">{% translate "Your ballot has been cast" %}</h1>
+    <p class="text-muted">{% translate "Thank you for voting. Your ballot was encrypted and added to the ballot box." %}</p>
+</div>
+<div class="card receipt-card p-4 mb-3">
+    <h2 class="h6 text-uppercase text-muted">{% translate "Ballot tracker" %}</h2>
+    <p class="mono fs-6 mb-2" id="tracker">{{ receipt.tracker }}</p>
+    <p class="small mb-1">{{ receipt.election }} · {{ receipt.cast_at|slice:":10" }} {{ receipt.cast_at|slice:"11:16" }} UTC</p>
+    <p class="small text-muted mb-0">{% translate "This tracker proves your ballot is in the published ballot box. It does not reveal how you voted, and it cannot be used to prove your choices to anyone." %}</p>
+</div>
+<div class="d-flex flex-wrap gap-2 no-print">
+    <button type="button" class="btn btn-outline-secondary" data-copy="tracker">{% translate "Copy tracker" %}</button>
+    <button type="button" class="btn btn-outline-secondary" data-print>{% translate "Print / save receipt" %}</button>
+    <a class="btn btn-wine" href="{{ verify_url }}?tracker={{ receipt.tracker }}">{% translate "Check it is on the bulletin board" %}</a>
+</div>
+{% else %}
+<h1 class="h3 fw-bold text-wine">{% translate "Your ballot was recorded" %}</h1>
+<p>{% translate "Our records show a ballot has already been cast with these credentials. If you did not vote, contact the election officials immediately or file a dispute." %}</p>
+<a class="btn btn-outline-danger" href="{% url 'elections:file_dispute' event.pk %}">{% translate "Report a problem" %}</a>
+{% endif %}
+{% endblock %}

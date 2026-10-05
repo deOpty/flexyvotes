@@ -1,0 +1,8 @@
+{% autoescape off %}Your ballot for "{{ election }}" was recorded on {{ cast_at }}.
+
+For ballot secrecy this message does not contain your choices or your
+ballot tracker. Use the tracker shown on your confirmation screen to check
+that your ballot is on the public bulletin board: {{ verify_link }}
+
+If you did not vote, contact the election officials immediately.
+{% endautoescape %}

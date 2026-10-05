@@ -1,0 +1,23 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Organizations" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Organizations (tenants)" %}</h1>
+<div class="row g-3">
+    <div class="col-xl-8"><div class="panel">
+        <table class="table table-sm align-middle"><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Type" %}</th><th>{% translate "Elections" %}</th><th>{% translate "Members" %}</th><th></th></tr></thead>
+        <tbody>{% for org in organizations %}<tr><td><strong>{{ org.name }}</strong>{% if org.is_personal %} <span class="badge bg-light text-dark border">{% translate "personal" %}</span>{% endif %}<div class="small text-muted mono">{{ org.slug }}</div></td><td class="small">{{ org.get_kind_display }}</td><td>{{ org.elections }}</td><td>{{ org.members }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'console:organization' org.pk %}">{% translate "Settings" %}</a> <a class="btn btn-sm btn-outline-secondary" href="{% url 'console:team_org' org.pk %}">{% translate "Team" %}</a></td></tr>{% endfor %}</tbody></table>
+    </div></div>
+    <div class="col-xl-4"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "New organization" %}</h2>
+        <form method="post">{% csrf_token %}
+            <label class="form-label small" for="nn">{% translate "Name" %}</label><input id="nn" name="name" class="form-control mb-2" required>
+            <label class="form-label small" for="nk">{% translate "Type" %}</label><select id="nk" name="kind" class="form-select mb-2">{% for v, l in kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+            <label class="form-label small" for="ne">{% translate "Contact email" %}</label><input id="ne" type="email" name="contact_email" class="form-control mb-2">
+            <label class="form-label small" for="na">{% translate "First admin (username)" %}</label><input id="na" name="admin" class="form-control mb-3">
+            <button class="btn btn-wine w-100">{% translate "Create" %}</button>
+        </form>
+    </div></div>
+</div>
+{% endblock %}

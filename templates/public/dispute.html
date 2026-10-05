@@ -1,0 +1,21 @@
+{% extends 'voting/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "File a dispute" %} | {{ event.title }}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 720px;">
+    <a href="{% url 'event_detail' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+    <h1 class="fw-bold text-wine">{% translate "File a dispute" %}</h1>
+    <p class="text-muted">{% translate "Election officials review every dispute. Your details are encrypted and only visible to officials handling it." %}</p>
+    <form method="post" class="card border-0 shadow-sm rounded-4 p-4">{% csrf_token %}{% bot_protection %}
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="dn">{% translate "Your name" %}</label><input id="dn" name="name" value="{{ form.name }}" class="form-control" required></div>
+            <div class="col-md-6"><label class="form-label" for="de">{% translate "Email" %}</label><input id="de" type="email" name="email" value="{{ form.email }}" class="form-control" required></div>
+            <div class="col-md-6"><label class="form-label" for="dr">{% translate "You are a" %}</label><select id="dr" name="role" class="form-select"><option value="VOTER">{% translate "Voter" %}</option><option value="CANDIDATE">{% translate "Candidate" %}</option><option value="OBSERVER">{% translate "Observer / agent" %}</option><option value="OTHER">{% translate "Other" %}</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="dc">{% translate "Category" %}</label><select id="dc" name="category" class="form-select">{% for v, l in categories %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div>
+            <div class="col-12"><label class="form-label" for="ds">{% translate "Subject" %}</label><input id="ds" name="subject" value="{{ form.subject }}" class="form-control" maxlength="200" required></div>
+            <div class="col-12"><label class="form-label" for="dd">{% translate "What happened?" %}</label><textarea id="dd" name="description" rows="6" class="form-control" required>{{ form.description }}</textarea></div>
+        </div>
+        <button class="btn btn-wine mt-3">{% translate "Submit dispute" %}</button>
+    </form>
+</div>
+{% endblock %}

@@ -213,9 +213,10 @@
     </div>
 </div>
 
-<script>
-    var myModal = new bootstrap.Modal(document.getElementById('registerSuccessModal'));
-    myModal.show();
+<script nonce="{{ csp_nonce }}">
+    window.addEventListener('load', function () {
+        new bootstrap.Modal(document.getElementById('registerSuccessModal')).show();
+    });
 </script>
 {% endif %}
 {% endblock %}

@@ -1,152 +1,78 @@
 {% extends 'voting/base.html' %}
-
+{% load i18n fv %}
+{% block title %}{% translate "Analytics" %} | {{ event.title }}{% endblock %}
 {% block content %}
 <div class="container py-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 reveal">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <p class="section-eyebrow mb-1">Event Analytics</p>
-            <h2 class="fw-bold text-wine mb-1">{{ event.title }}</h2>
-            <p class="text-muted mb-0">
-                Total Revenue: <b class="text-wine">${{ event.get_total_revenue }}</b>
-                <span class="mx-2">&middot;</span>
-                Your Payout: <b class="text-wine">${{ event.get_organizer_payout }}</b>
-            </p>
+            <p class="section-eyebrow mb-1">{% translate "Election analytics" %}</p>
+            <h1 class="h2 fw-bold text-wine mb-1">{{ event.title }}</h1>
+            {% if event.is_paid %}
+            <p class="text-muted mb-0">{% translate "Total revenue" %}: <b class="text-wine">{{ event.get_total_revenue|money:event.currency }}</b>
+                <span class="mx-2">&middot;</span>{% translate "Organizer payout" %}: <b class="text-wine">{{ event.get_organizer_payout|money:event.currency }}</b></p>
+            {% endif %}
         </div>
-        <button onclick="downloadPDF()" class="btn btn-gold px-3"><i class="bi bi-download me-1"></i> Download Report (PDF)</button>
+        <div class="d-flex gap-2">
+            <a href="{% url 'elections:console_overview' event.pk %}" class="btn btn-outline-secondary">{% translate "Election console" %}</a>
+            {% if event.is_paid %}<a href="{% url 'elections:console_results_export' event.pk 'pdf' %}" class="btn btn-gold px-3"><i class="bi bi-download me-1" aria-hidden="true"></i> {% translate "Download report (PDF)" %}</a>{% endif %}
+        </div>
     </div>
 
-    <!-- Chart Sections (One for each category) -->
+    {% if turnout %}
+    <div class="alert alert-info">{% translate "This is a secret-ballot election: only participation is shown until results are certified." %}</div>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "On the roll" %}</div><div class="kpi-value">{{ turnout.total|number }}</div></div></div>
+        <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Eligible" %}</div><div class="kpi-value">{{ turnout.eligible|number }}</div></div></div>
+        <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Voted" %}</div><div class="kpi-value">{{ turnout.voted|number }}</div></div></div>
+        <div class="col-6 col-md-3"><div class="card kpi p-3"><div class="kpi-label">{% translate "Turnout" %}</div><div class="kpi-value">{{ turnout.turnout_percentage|pct }}</div></div></div>
+    </div>
+    {% endif %}
+
+    {% if chart_data %}
+    {{ chart_data|json_script:"chart-data" }}
     <div class="row mb-4">
         {% for chart in chart_data %}
-        <div class="col-md-6 mb-4 reveal reveal-delay-{{ forloop.counter0|add:1 }}">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-body p-4">
-                    <div class="d-flex align-items-center gap-2 mb-4">
-                        <span class="icon-circle" style="width:38px;height:38px;font-size:1rem;"><i class="bi bi-bar-chart-fill"></i></span>
-                        <h5 class="card-title mb-0 text-wine">Category: {{ chart.category_name }}</h5>
-                    </div>
-                    <div class="position-relative" style="min-height: 300px;">
-                        <div class="skeleton" id="chart-skeleton-{{ forloop.counter }}" style="position: absolute; inset: 0; border-radius: var(--radius-md);"></div>
-                        <canvas id="chart-{{ forloop.counter }}" style="max-height: 300px;"></canvas>
-                    </div>
-                </div>
-            </div>
+        <div class="col-md-6 mb-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100"><div class="card-body p-4">
+                <h2 class="h5 card-title text-wine mb-3">{{ chart.category_name }}</h2>
+                <canvas id="chart-{{ forloop.counter }}" style="max-height: 300px;" role="img" aria-label="{% blocktranslate with c=chart.category_name %}Votes per candidate in {{ c }}{% endblocktranslate %}"></canvas>
+            </div></div>
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 
-    <!-- Data Table Section -->
-    <div class="row">
-        <div class="col-12 mb-4 reveal">
-            <div class="card border-0 shadow-sm rounded-4">
-                <div class="card-body p-4">
-                    <h5 class="card-title mb-3 text-wine"><i class="bi bi-table me-2"></i>Detailed Breakdown</h5>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle" id="analyticsTable">
-                            <thead>
-                                <tr>
-                                    <th>Category</th>
-                                    <th>Candidate</th>
-                                    <th>Pay-to-Votes</th>
-                                    <th>Free (Tie-Breaker) Votes</th>
-                                    <th>Total Votes</th>
-                                    <th>Revenue</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for candidate in all_candidates %}
-                                <tr>
-                                    <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">{{ candidate.category.name|default:"Uncategorized" }}</span></td>
-                                    <td class="fw-semibold">{{ candidate.name }}</td>
-                                    <td>{{ candidate.main_votes }}</td>
-                                    <td>{{ candidate.tie_breaker_votes }}</td>
-                                    <td><span class="badge bg-wine">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</span></td>
-                                    <td class="fw-semibold text-wine">₵{{ candidate.revenue }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="6" class="text-center text-muted p-4">No votes yet.</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    {% if all_candidates %}
+    <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
+        <h2 class="h5 card-title mb-3 text-wine">{% translate "Detailed breakdown" %}</h2>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th>{% translate "Category" %}</th><th>{% translate "Candidate" %}</th><th>{% translate "Paid votes" %}</th><th>{% translate "Ticket (tie-breaker) votes" %}</th><th>{% translate "Total" %}</th><th>{% translate "Revenue" %}</th></tr></thead>
+            <tbody>{% for candidate in all_candidates %}<tr><td>{{ candidate.category.name|default:_("Uncategorized") }}</td><td class="fw-semibold">{{ candidate.name }}</td><td>{{ candidate.main_votes|number }}</td><td>{{ candidate.tie_breaker_votes|number }}</td><td><span class="badge bg-wine">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</span></td><td class="fw-semibold text-wine">{{ candidate.revenue|money:event.currency }}</td></tr>
+            {% empty %}<tr><td colspan="6" class="text-center text-muted p-4">{% translate "No votes yet." %}</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div></div>
+    {% endif %}
 </div>
-
-<!-- Chart.js Library -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<script>
-    // 1. Render a Grouped Bar Chart for EACH category
-    const chartData = {{ chart_data|safe }};
-    chartData.forEach((chart, index) => {
-        const ctx = document.getElementById(`chart-${index + 1}`).getContext('2d');
-        const skeleton = document.getElementById(`chart-skeleton-${index + 1}`);
-        if (skeleton) skeleton.remove();
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: chart.labels,
-                datasets: [
-                    {
-                        label: 'Pay-to-Vote',
-                        data: chart.main_data,
-                        backgroundColor: '#800020', // Wine
-                        borderColor: '#800020',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Free Vote (Ticket)',
-                        data: chart.tie_breaker_data,
-                        backgroundColor: '#FFD700', // Gold
-                        borderColor: '#FFD700',
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                scales: { y: { beginAtZero: true } },
-                plugins: { legend: { display: true, position: 'bottom' } }
-            }
+{% endblock %}
+{% block extra_js %}
+{% if chart_data and not lite_mode %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" nonce="{{ csp_nonce }}"></script>
+<script nonce="{{ csp_nonce }}">
+    (function () {
+        var data = JSON.parse(document.getElementById('chart-data').textContent);
+        data.forEach(function (chart, index) {
+            var canvas = document.getElementById('chart-' + (index + 1));
+            if (!canvas || !window.Chart) return;
+            new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: { labels: chart.labels, datasets: [
+                    { label: 'Paid votes', data: chart.main_data, backgroundColor: '#800020' },
+                    { label: 'Ticket votes', data: chart.tie_breaker_data, backgroundColor: '#FFD700' }
+                ] },
+                options: { scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+            });
         });
-    });
-
-    // 2. Download PDF Function
-    function downloadPDF() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        const canvases = document.querySelectorAll('canvas');
-        let yPosition = 20;
-        
-        canvases.forEach((canvas, index) => {
-            const cardBody = canvas.closest('.card-body');
-            const titleElement = cardBody.querySelector('h5');
-            const titleText = titleElement ? titleElement.innerText : `Chart ${index + 1}`;
-            
-            if (yPosition > 250) { doc.addPage(); yPosition = 20; }
-            
-            doc.setFontSize(16);
-            doc.setTextColor(128, 0, 32);
-            doc.text(titleText, 105, yPosition, { align: 'center' });
-            yPosition += 10;
-            
-            const imgData = canvas.toDataURL('image/png');
-            const imgWidth = 180; 
-            const imgHeight = (canvas.height / canvas.width) * imgWidth;
-            
-            if (yPosition + imgHeight > 280) { doc.addPage(); yPosition = 20; }
-            
-            const xPosition = (210 - imgWidth) / 2;
-            doc.addImage(imgData, 'PNG', xPosition, yPosition, imgWidth, imgHeight);
-            yPosition += imgHeight + 15;
-        });
-        
-        doc.save('{{ event.title }}_analytics.pdf');
-    }
+    })();
 </script>
+{% endif %}
 {% endblock %}

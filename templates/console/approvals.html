@@ -1,0 +1,35 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Approvals" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Dual-approval queue" %}</h1>
+<p class="text-muted">{% translate "Sensitive actions requested by one official must be approved by a different official before they run." %}</p>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "Pending" %}</h2>
+    {% for req in pending %}
+    <div class="border rounded-3 p-3 mb-2">
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+            <div><strong>{{ req.get_action_display }}</strong>{% if req.election %} · <a href="{% url 'elections:console_overview' req.election.pk %}">{{ req.election.title }}</a>{% endif %}
+                <div class="small text-muted">{% translate "Requested by" %} {{ req.requested_by.username }} · {{ req.requested_at|date:"d M Y H:i" }} · {% translate "expires" %} {{ req.expires_at|date:"d M H:i" }}</div>
+                <div class="small">{% translate "Reason" %}: {{ req.reason }}</div>
+                {% if req.payload %}<div class="small mono text-muted">{{ req.payload }}</div>{% endif %}</div>
+            <div class="d-flex gap-2 align-items-start">
+                {% if req.requested_by_id == request.user.pk %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="request" value="{{ req.pk }}"><input type="hidden" name="decision" value="cancel"><button class="btn btn-sm btn-outline-secondary">{% translate "Cancel my request" %}</button></form>
+                {% else %}
+                <form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="request" value="{{ req.pk }}">
+                    <input name="note" class="form-control form-control-sm" placeholder="{% translate 'Note' %}" aria-label="{% translate 'Note' %}">
+                    <button name="decision" value="approve" class="btn btn-sm btn-success" data-confirm="{% translate 'Approve and execute this action now?' %}">{% translate "Approve" %}</button>
+                    <button name="decision" value="reject" class="btn btn-sm btn-outline-danger">{% translate "Reject" %}</button></form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% empty %}<p class="text-muted mb-0">{% translate "Nothing waiting." %}</p>{% endfor %}
+</div>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "History" %}</h2>
+    <table class="table table-sm"><thead><tr><th>{% translate "Action" %}</th><th>{% translate "Election" %}</th><th>{% translate "Requested" %}</th><th>{% translate "Decided" %}</th><th>{% translate "Status" %}</th></tr></thead>
+        <tbody>{% for req in history %}<tr><td>{{ req.get_action_display }}</td><td>{{ req.election.title|default:"—" }}</td><td class="small">{{ req.requested_by.username }} {{ req.requested_at|date:"d M H:i" }}</td><td class="small">{{ req.decided_by.username|default:"—" }} {{ req.decided_at|date:"d M H:i" }}</td><td>{{ req.get_status_display }}{% if req.result.error %}<div class="small text-danger">{{ req.result.error }}</div>{% endif %}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">—</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}

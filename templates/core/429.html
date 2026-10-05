@@ -1,0 +1,6 @@
+{% extends 'core/error_base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Too many requests" %}{% endblock %}
+{% block code %}429{% endblock %}
+{% block heading %}{% translate "Please slow down" %}{% endblock %}
+{% block message %}{{ message }} {% if retry_after %}{% blocktranslate %}Try again in about {{ retry_after }} seconds.{% endblocktranslate %}{% endif %}{% endblock %}

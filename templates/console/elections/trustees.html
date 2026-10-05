@@ -1,0 +1,36 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Trustees" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Election trustees" %}</h2>
+            <p class="small text-muted">{% blocktranslate with k=status.threshold n=status.trustees %}The ballot decryption key is split between the trustees. Any {{ k }} of the {{ n }} trustees must submit their share before ballots can be counted; nobody - including platform staff - holds the whole key.{% endblocktranslate %}</p>
+            <table class="table table-sm"><thead><tr><th>#</th><th>{% translate "Trustee" %}</th><th>{% translate "Share collected" %}</th><th>{% translate "Submitted for tally" %}</th></tr></thead>
+                <tbody>{% for t in trustee_rows %}<tr><td>{{ t.index }}</td><td>{{ t.trustee.username }}</td><td>{{ t.collected_at|date:"d M H:i"|default:"—" }}</td><td>{{ t.submitted_at|date:"d M H:i"|default:"—" }}</td></tr>
+                {% empty %}<tr><td colspan="4" class="text-muted">{% translate "No trustees yet." %}</td></tr>{% endfor %}</tbody></table>
+            {% if 'election.edit' in perms and not event.ballot_key %}
+            <form method="post" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="add"><label class="visually-hidden" for="tu">{% translate "Username" %}</label><input id="tu" name="username" class="form-control" placeholder="{% translate 'Username' %}" required><button class="btn btn-outline-wine">{% translate "Add trustee" %}</button></form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-5">
+        {% if my_share %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Your key share" %}</h2>
+            {% if not my_share.collected_at and my_share.share_hash %}
+            <p class="small">{% translate "Collect your share once, store it offline (print it or keep it on an encrypted drive). It cannot be shown again." %}</p>
+            <form method="post" data-confirm="{% translate 'Show your key share now? It will not be shown again.' %}">{% csrf_token %}<input type="hidden" name="action" value="collect"><button class="btn btn-wine w-100">{% translate "Collect my share" %}</button></form>
+            {% elif not my_share.share_hash %}
+            <p class="small text-muted">{% translate "Shares are created when the election is scheduled." %}</p>
+            {% else %}
+            <p class="small">{% translate "After voting closes, submit your share so the tally can run." %}</p>
+            <form method="post">{% csrf_token %}<input type="hidden" name="action" value="submit"><label class="form-label small" for="share">{% translate "Key share" %}</label><textarea id="share" name="share" rows="3" class="form-control mono mb-2" required></textarea><button class="btn btn-wine w-100">{% translate "Submit share" %}</button></form>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

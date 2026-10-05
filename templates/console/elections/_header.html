@@ -1,0 +1,38 @@
+{% load i18n fv %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+    <div>
+        <a href="{% url 'elections:console_list' %}" class="small text-muted">&larr; {% translate "All elections" %}</a>
+        <h1 class="h3 fw-bold text-wine mb-1">{{ event.title }}</h1>
+        <div class="d-flex flex-wrap gap-2 align-items-center small">
+            {{ event.status|status_badge:event.get_status_display }}
+            <span class="badge bg-light text-dark border">{% if event.is_paid %}{% translate "Paid public voting" %}{% else %}{% translate "Institutional · secret ballot" %}{% endif %}</span>
+            {% if event.organization %}<span class="text-muted">{{ event.organization.name }}</span>{% endif %}
+            {% if event.legal_hold %}<span class="badge bg-danger">{% translate "Legal hold" %}</span>{% endif %}
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'event_detail' event.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> {% translate "Public page" %}</a>
+        {% for action in actions %}
+        <form method="post" action="{% url 'elections:console_transition' event.pk %}" {% if action.confirm %}data-confirm="{{ action.confirm }}"{% endif %}>
+            {% csrf_token %}<input type="hidden" name="action" value="{{ action.name }}">
+            <button type="submit" class="btn btn-sm btn-{{ action.style }}">{{ action.label }}</button>
+        </form>
+        {% endfor %}
+    </div>
+</div>
+<ul class="nav nav-pills election-tabs mb-4 flex-wrap gap-1" role="list">
+    <li class="nav-item"><a class="nav-link {% if tab == 'overview' %}active{% endif %}" href="{% url 'elections:console_overview' event.pk %}">{% translate "Overview" %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'settings' %}active{% endif %}" href="{% url 'elections:console_settings' event.pk %}">{% translate "Settings" %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'ballot' %}active{% endif %}" href="{% url 'elections:console_ballot' event.pk %}">{% if event.is_paid %}{% translate "Categories & contestants" %}{% else %}{% translate "Ballot" %}{% endif %}</a></li>
+    {% if event.is_institutional %}
+    <li class="nav-item"><a class="nav-link {% if tab == 'voters' %}active{% endif %}" href="{% url 'elections:console_voters' event.pk %}">{% translate "Voters" %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'eligibility' %}active{% endif %}" href="{% url 'elections:console_eligibility' event.pk %}">{% translate "Eligibility" %}</a></li>
+    {% else %}
+    <li class="nav-item"><a class="nav-link" href="{% url 'payments:pricing' event.pk %}">{% translate "Pricing" %}</a></li>
+    <li class="nav-item"><a class="nav-link" href="{% url 'payments:console_list' %}?event={{ event.pk }}">{% translate "Payments" %}</a></li>
+    {% endif %}
+    <li class="nav-item"><a class="nav-link {% if tab == 'results' %}active{% endif %}" href="{% url 'elections:console_results' event.pk %}">{% translate "Results" %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'monitor' %}active{% endif %}" href="{% url 'elections:console_monitor' event.pk %}">{% translate "Live monitor" %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'integrity' %}active{% endif %}" href="{% url 'elections:console_integrity' event.pk %}">{% translate "Integrity" %}</a></li>
+    <li class="nav-item"><a class="nav-link {% if tab == 'audit' %}active{% endif %}" href="{% url 'elections:console_audit' event.pk %}">{% translate "Audit" %}</a></li>
+</ul>

@@ -1,0 +1,6 @@
+{% extends 'core/error_base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Page not found" %}{% endblock %}
+{% block code %}404{% endblock %}
+{% block heading %}{% translate "We couldn't find that page" %}{% endblock %}
+{% block message %}{% translate "The link may be out of date, or the election may not be public yet." %}{% endblock %}

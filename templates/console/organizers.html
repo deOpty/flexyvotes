@@ -1,0 +1,18 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Organizer approvals" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Organizer approvals" %}</h1>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "Pending" %}</h2>
+    <table class="table table-sm align-middle"><thead><tr><th>{% translate "Username" %}</th><th>{% translate "Email" %}</th><th>{% translate "Registered" %}</th><th></th></tr></thead>
+    <tbody>{% for p in pending %}<tr><td>{{ p.user.username }}</td><td>{{ p.user.email }}</td><td class="small">{{ p.user.date_joined|date:"d M Y H:i" }}</td>
+        <td class="text-end"><form method="post" class="d-inline">{% csrf_token %}<input type="hidden" name="profile" value="{{ p.pk }}"><button name="decision" value="approve" class="btn btn-sm btn-success">{% translate "Approve" %}</button></form></td></tr>
+    {% empty %}<tr><td colspan="4" class="text-muted">{% translate "No pending organizers." %}</td></tr>{% endfor %}</tbody></table>
+</div>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "Approved" %}</h2>
+    <table class="table table-sm align-middle"><tbody>{% for p in approved %}<tr><td>{{ p.user.username }}</td><td>{{ p.user.email }}</td>
+        <td class="text-end"><form method="post" data-confirm="{% translate 'Remove organizer access?' %}">{% csrf_token %}<input type="hidden" name="profile" value="{{ p.pk }}"><button name="decision" value="unapprove" class="btn btn-sm btn-outline-danger">{% translate "Unapprove" %}</button></form></td></tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}

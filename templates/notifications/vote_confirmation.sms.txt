@@ -1,0 +1,1 @@
+{% autoescape off %}Your ballot for {{ election }} was recorded. If this was not you, contact the officials.{% endautoescape %}

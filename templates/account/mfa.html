@@ -1,0 +1,35 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Two-step verification" %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 520px;">
+    <h1 class="h3 fw-bold text-wine">{% translate "Two-step verification" %}</h1>
+    {% if reasons %}<div class="alert alert-warning small">{% translate "We noticed something unusual about this sign-in" %} ({{ reasons|join:", " }}). {% translate "Please confirm it's you." %}</div>{% endif %}
+    {% if 'passkey' in methods %}
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-3">
+        <button type="button" id="passkey-login" class="btn btn-wine w-100" data-options-url="{% url 'account:mfa_passkey_options' %}" data-verify-url="{% url 'account:mfa_passkey_verify' %}">{% translate "Use a passkey / security key" %}</button>
+    </div>
+    {% endif %}
+    {% if 'totp' in methods %}
+    <form method="post" class="card border-0 shadow-sm rounded-4 p-4 mb-3">{% csrf_token %}<input type="hidden" name="method" value="totp">
+        <label class="form-label" for="totp">{% translate "Code from your authenticator app" %}</label>
+        <input id="totp" name="code" class="form-control form-control-lg mono mb-3" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+        <button class="btn btn-wine w-100">{% translate "Verify" %}</button>
+    </form>
+    {% endif %}
+    {% if 'email' in methods %}
+    <form method="post" class="card border-0 shadow-sm rounded-4 p-4 mb-3">{% csrf_token %}<input type="hidden" name="method" value="email">
+        <label class="form-label" for="ecode">{% translate "Code sent to your email" %}</label>
+        <input id="ecode" name="code" class="form-control form-control-lg mono mb-3" inputmode="numeric" autocomplete="one-time-code" required>
+        <button class="btn btn-wine w-100">{% translate "Verify" %}</button>
+    </form>
+    {% endif %}
+    {% if 'recovery' in methods %}
+    <details class="card border-0 shadow-sm rounded-4 p-4"><summary>{% translate "Use a recovery code" %}</summary>
+        <form method="post" class="mt-3">{% csrf_token %}<input type="hidden" name="method" value="recovery">
+            <label class="form-label" for="rcode">{% translate "Recovery code" %}</label><input id="rcode" name="code" class="form-control mono mb-3" required>
+            <button class="btn btn-outline-wine w-100">{% translate "Use recovery code" %}</button></form>
+    </details>
+    {% endif %}
+</div>
+{% endblock %}

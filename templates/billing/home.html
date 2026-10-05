@@ -1,0 +1,45 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Billing" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Billing" %} · {{ organization.name }}</h1>
+<div class="row g-3 mb-3">
+    <div class="col-md-4"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Plan" %}</div><div class="kpi-value">{{ subscription.plan.name }}</div><div class="small">{{ subscription.get_status_display }}{% if subscription.trial_ends_at %} · {% translate "trial ends" %} {{ subscription.trial_ends_at|date:"d M Y" }}{% endif %}</div></div></div>
+    <div class="col-md-4"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Current period" %}</div><div class="fw-semibold">{{ subscription.current_period_start|date:"d M Y" }} &ndash; {{ subscription.current_period_end|date:"d M Y" }}</div>{% if subscription.cancel_at_period_end %}<div class="small text-danger">{% translate "Cancels at period end" %}</div>{% endif %}</div></div>
+    <div class="col-md-4"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Active elections" %}</div><div class="kpi-value">{{ active_elections }}{% if subscription.plan.limits.max_active_elections %} / {{ subscription.plan.limits.max_active_elections }}{% endif %}</div></div></div>
+</div>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "Usage this period" %}</h2>
+    <div class="d-flex flex-wrap gap-4 small">{% for metric, total in usage.items %}<div><div class="text-muted">{{ metric|title }}</div><strong>{{ total|number }}</strong></div>{% empty %}<span class="text-muted">{% translate "No usage recorded yet." %}</span>{% endfor %}</div>
+</div>
+<div class="row g-3 mb-3">
+    {% for plan in plans %}
+    <div class="col-md-6 col-xl-3"><div class="panel h-100 d-flex flex-column {% if plan.pk == subscription.plan_id %}border border-2 border-danger{% endif %}">
+        <h3 class="h5 fw-bold">{{ plan.name }}</h3>
+        <p class="small text-muted">{{ plan.description }}</p>
+        <div class="fs-4 fw-bold text-wine">{{ plan.monthly_price|money:plan.currency }}<span class="fs-6 text-muted">/{% translate "mo" %}</span></div>
+        <ul class="small flex-grow-1 mt-2">
+            <li>{% if plan.limits.max_voters_per_election %}{{ plan.limits.max_voters_per_election|number }}{% else %}{% translate "Unlimited" %}{% endif %} {% translate "voters per election" %}</li>
+            <li>{% if plan.limits.max_active_elections %}{{ plan.limits.max_active_elections }}{% else %}{% translate "Unlimited" %}{% endif %} {% translate "active elections" %}</li>
+            {% if plan.price_per_voter %}<li>{{ plan.price_per_voter }} {{ plan.currency }} {% translate "per voter beyond" %} {{ plan.included_voters|number }}</li>{% endif %}
+            {% for f in plan.features %}<li>{{ f|title }}</li>{% endfor %}
+        </ul>
+        {% if plan.pk != subscription.plan_id %}
+        <form method="post" class="mt-2">{% csrf_token %}<input type="hidden" name="plan" value="{{ plan.code }}">
+            {% if plan.monthly_price > 0 %}
+            <select name="cycle" class="form-select form-select-sm mb-1" aria-label="{% translate 'Billing cycle' %}"><option value="MONTHLY">{% translate "Monthly" %}</option><option value="ANNUAL">{% translate "Annual" %} ({{ plan.annual_price|money:plan.currency }})</option></select>
+            <input name="coupon" class="form-control form-control-sm mb-1" placeholder="{% translate 'Coupon code' %}" aria-label="{% translate 'Coupon code' %}">
+            <div class="d-flex gap-1"><button name="action" value="change" class="btn btn-sm btn-wine flex-fill">{% translate "Switch" %}</button><button name="action" value="trial" class="btn btn-sm btn-outline-wine flex-fill">{% translate "Free trial" %}</button></div>
+            {% else %}<button name="action" value="change" class="btn btn-sm btn-outline-secondary w-100">{% translate "Switch" %}</button>{% endif %}
+        </form>
+        {% else %}<span class="badge bg-success align-self-start">{% translate "Current plan" %}</span>{% endif %}
+    </div></div>
+    {% endfor %}
+</div>
+<div class="panel">
+    <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Invoices & payment history" %}</h2>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="cancel"><button class="btn btn-sm btn-link text-danger">{% if subscription.cancel_at_period_end %}{% translate "Keep subscription" %}{% else %}{% translate "Cancel at period end" %}{% endif %}</button></form></div>
+    <table class="table table-sm"><thead><tr><th>{% translate "Invoice" %}</th><th>{% translate "Period" %}</th><th>{% translate "Total" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>{% for inv in invoices %}<tr><td><a href="{% url 'billing:invoice' inv.pk %}" class="mono">{{ inv.number }}</a></td><td class="small">{{ inv.period_start|date:"d M Y" }} &ndash; {{ inv.period_end|date:"d M Y" }}</td><td>{{ inv.total|money:inv.currency }}</td><td>{{ inv.get_status_display }}{% if inv.paid_at %} · {{ inv.paid_at|date:"d M Y" }}{% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="text-muted">{% translate "No invoices yet." %}</td></tr>{% endfor %}</tbody></table>
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Blocklist" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Blocklist" %}</h1>
+<p class="text-muted">{% translate "Blocklisted attributes add +60 to the risk score (anonymizer ranges +25). Emails and phones are stored as keyed hashes." %}</p>
+<div class="row g-3">
+    <div class="col-lg-8"><div class="panel"><table class="table table-sm align-middle"><thead><tr><th>{% translate "Type" %}</th><th>{% translate "Value" %}</th><th>{% translate "Applies to" %}</th><th>{% translate "Reason" %}</th><th></th></tr></thead>
+    <tbody>{% for e in entries %}<tr><td>{{ e.get_kind_display }}</td><td class="mono small">{{ e.value|truncatechars:40 }}</td><td class="small">{% if e.organization %}{{ e.organization.name }}{% else %}{% translate "All organizations" %}{% endif %}</td><td class="small">{{ e.reason }}</td><td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="deactivate"><input type="hidden" name="entry" value="{{ e.pk }}"><button class="btn btn-sm btn-outline-secondary">{% translate "Remove" %}</button></form></td></tr>{% empty %}<tr><td colspan="5" class="text-muted">{% translate "Empty." %}</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-lg-4"><form method="post" class="panel">{% csrf_token %}<h2 class="h5 fw-bold">{% translate "Add" %}</h2>
+        <label class="form-label small" for="bl-org">{% translate "Applies to" %}</label>
+        <select id="bl-org" name="organization" class="form-select mb-2">{% if platform %}<option value="">{% translate "All organizations (platform-wide)" %}</option>{% endif %}{% for o in organizations %}<option value="{{ o.pk }}">{{ o.name }}</option>{% endfor %}</select>
+        <select name="kind" class="form-select mb-2" aria-label="{% translate 'Type' %}">{% for v, l in kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <input name="value" class="form-control mb-2" placeholder="203.0.113.0/24, x@spam.com, …" required aria-label="{% translate 'Value' %}">
+        <input name="reason" class="form-control mb-2" placeholder="{% translate 'Reason' %}" aria-label="{% translate 'Reason' %}">
+        <button class="btn btn-wine w-100">{% translate "Add to blocklist" %}</button></form></div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+groups:
+  - name: flexyvotes
+    rules:
+      - alert: HighServerErrorRate
+        expr: sum(rate(fv_http_requests_total{status_class="5xx"}[5m])) / clamp_min(sum(rate(fv_http_requests_total[5m])), 1) > 0.02
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "More than 2% of requests are failing with 5xx"}
+
+      - alert: PaymentSuccessRateLow
+        expr: sum(increase(fv_payments_total{status="SUCCESS"}[30m])) / clamp_min(sum(increase(fv_payments_total{status=~"SUCCESS|FAILED|ABANDONED"}[30m])), 1) < 0.6
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "Payment success rate below 60% - check Paystack status and fraud holds"}
+
+      - alert: VoteSubmissionFailures
+        expr: sum(rate(fv_vote_submissions_total{outcome!~"success|already_voted|invalid_ballot"}[10m])) > 0.5
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Unusual rate of rejected ballot submissions"}
+
+      - alert: VoteLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(fv_vote_latency_seconds_bucket[5m])) by (le, mode)) > 1
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "p95 vote recording latency above 1s"}
+
+      - alert: DatabaseSlow
+        expr: histogram_quantile(0.95, sum(rate(fv_db_query_duration_seconds_bucket[5m])) by (le)) > 0.25
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "p95 database query latency above 250ms"}
+
+      - alert: QueueBacklog
+        expr: max(fv_queue_depth) > 5000
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Background job backlog growing - scale workers"}
+
+      - alert: WebhookFailures
+        expr: max(fv_failed_webhooks_last_hour) > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Paystack webhooks failing - votes may not be credited until reconciliation"}
+
+      - alert: FraudAlertSpike
+        expr: sum(increase(fv_fraud_alerts_total{decision=~"HOLD|CHALLENGE"}[15m])) > 50
+        labels: {severity: warning}
+        annotations: {summary: "Spike in high-risk activity - possible coordinated attack"}
+
+      - alert: RateLimitingSpike
+        expr: sum(rate(fv_rate_limited_total[5m])) > 5
+        for: 10m
+        labels: {severity: info}
+        annotations: {summary: "Sustained rate limiting - possible bot traffic"}
+
+      - alert: AppDown
+        expr: up{job="flexyvotes"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "FlexyVotes metrics endpoint unreachable"}

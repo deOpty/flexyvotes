@@ -1,0 +1,3 @@
+{% autoescape off %}Thank you! We received {{ amount }} (reference {{ reference }}).
+{{ votes }} vote(s) for {{ candidate }} in "{{ election }}" have been credited.
+{% endautoescape %}

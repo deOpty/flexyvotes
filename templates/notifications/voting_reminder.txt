@@ -1,0 +1,5 @@
+{% autoescape off %}Reminder: you have not yet voted in "{{ election }}".
+Voting closes {{ ends }}.
+
+Vote here: {{ link }}
+{% endautoescape %}

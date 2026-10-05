@@ -1,0 +1,14 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Notifications" %}{% endblock %}
+{% block console %}
+<div class="d-flex justify-content-between align-items-center"><h1 class="h3 fw-bold text-wine">{% translate "Notifications" %}</h1>
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="read_all"><button class="btn btn-sm btn-outline-secondary">{% translate "Mark all read" %}</button></form></div>
+<div class="panel"><ul class="list-unstyled mb-0">{% for n in inbox %}<li class="border-bottom py-2 {% if not n.read_at %}fw-semibold{% endif %}">{{ n.subject }} <span class="small text-muted">· {{ n.created_at|timesince }}</span></li>{% empty %}<li class="text-muted">{% translate "No notifications." %}</li>{% endfor %}</ul></div>
+{% if outbox %}
+<div class="panel"><h2 class="h5 fw-bold">{% translate "Delivery outbox (email / SMS / WhatsApp)" %}</h2>
+<table class="table table-sm align-middle"><thead><tr><th>{% translate "When" %}</th><th>{% translate "Template" %}</th><th>{% translate "Channel" %}</th><th>{% translate "To" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+<tbody>{% for n in outbox %}<tr><td class="small">{{ n.created_at|date:"d M H:i" }}</td><td class="mono small">{{ n.template }}</td><td>{{ n.channel }}</td><td class="small">{{ n.recipient_hint }}</td><td>{{ n.status }}{% if n.last_error %}<div class="small text-danger">{{ n.last_error|truncatechars:60 }}</div>{% endif %}</td>
+<td>{% if n.status == 'FAILED' %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="retry"><input type="hidden" name="notification" value="{{ n.pk }}"><button class="btn btn-sm btn-outline-secondary">{% translate "Retry" %}</button></form>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}

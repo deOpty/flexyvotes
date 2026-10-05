@@ -1,0 +1,62 @@
+{% extends 'vote/base.html' %}
+{% load i18n fv %}
+{% block title %}{% if preview %}{% translate "Ballot preview" %}{% else %}{% translate "Your ballot" %}{% endif %} | {{ event.title }}{% endblock %}
+{% block steps %}{% if not preview %}{% include 'vote/_steps.html' with step=2 %}{% endif %}{% endblock %}
+{% block vote %}
+{% if preview %}<div class="alert alert-info"><strong>{% translate "Preview" %}</strong> — {% translate "this is exactly what voters see. Nothing can be submitted from this page." %}</div>{% endif %}
+<h1 class="h3 fw-bold text-wine">{% translate "Your ballot" %}</h1>
+{% if not preview %}
+<p class="text-muted">{% blocktranslate with t=expires_at|date:"H:i" %}Make your choices below, then review them before casting. This ballot session expires at {{ t }}.{% endblocktranslate %}</p>
+{% endif %}
+<form method="post" novalidate {% if preview %}aria-disabled="true"{% endif %}>
+    {% csrf_token %}
+    {% for position in positions %}
+    {% with key=position.id|stringformat:"s" %}
+    {% with current=selections|get_item:key %}
+    <fieldset class="ballot-position {% if errors|get_item:position.id %}has-error{% endif %}" data-position="{{ position.id }}" data-type="{{ position.ballot_type }}" data-max="{{ position.max_select }}" aria-describedby="rules-{{ position.id }}">
+        <legend>{{ position.name }}</legend>
+        {% if position.description %}<p class="small">{{ position.description }}</p>{% endif %}
+        <p class="small text-muted" id="rules-{{ position.id }}">{{ position.rules }}{% if position.ballot_type == 'MULTIPLE' or position.ballot_type == 'FPTP' or position.ballot_type == 'APPROVAL' %} <span class="fw-semibold" data-counter aria-live="polite"></span>{% endif %}</p>
+        {% if errors|get_item:position.id %}<div class="alert alert-danger py-2" role="alert">{{ errors|get_item:position.id }}</div>{% endif %}
+
+        {% if position.ballot_type == 'REFERENDUM' %}
+            {% for option in position.options %}
+            <label class="choice"><input type="radio" name="pos_{{ position.id }}" value="{{ option }}" {% if current == option %}checked{% endif %} {% if preview %}disabled{% endif %}><span class="fs-5 fw-bold">{% if option == 'YES' %}{% translate "Yes" %}{% else %}{% translate "No" %}{% endif %}</span></label>
+            {% endfor %}
+        {% else %}
+            {% for c in position.candidates %}
+            <div class="choice">
+                {% if position.ballot_type == 'SINGLE' %}
+                <input type="radio" id="c-{{ position.id }}-{{ c.id }}" name="pos_{{ position.id }}" value="{{ c.id }}" data-choice {% if c.id|stringformat:"s" in current or c.id in current %}checked{% endif %} {% if preview %}disabled{% endif %}>
+                {% elif position.ballot_type == 'RANKED' %}
+                <select class="form-select rank-input" id="c-{{ position.id }}-{{ c.id }}" name="pos_{{ position.id }}_rank_{{ c.id }}" data-rank aria-label="{% blocktranslate with n=c.name %}Rank for {{ n }}{% endblocktranslate %}" {% if preview %}disabled{% endif %}>
+                    <option value="">—</option>{% for i in position.candidates %}{% if forloop.counter <= position.max_select %}<option value="{{ forloop.counter }}">{{ forloop.counter }}</option>{% endif %}{% endfor %}
+                </select>
+                {% elif position.ballot_type == 'SCORE' %}
+                <input type="number" class="form-control score-input" id="c-{{ position.id }}-{{ c.id }}" name="pos_{{ position.id }}_score_{{ c.id }}" min="0" max="{{ position.max_score }}" data-score aria-label="{% blocktranslate with n=c.name %}Score for {{ n }}{% endblocktranslate %}" {% if preview %}disabled{% endif %}>
+                {% else %}
+                <input type="checkbox" id="c-{{ position.id }}-{{ c.id }}" name="pos_{{ position.id }}" value="{{ c.id }}" data-choice {% if c.id|stringformat:"s" in current or c.id in current %}checked{% endif %} {% if preview %}disabled{% endif %}>
+                {% endif %}
+                {% if c.image_url and not lite_mode %}<img src="{{ c.image_url }}" alt="" class="avatar">{% else %}<span class="avatar" aria-hidden="true">{{ c.name|slice:":1" }}</span>{% endif %}
+                <label for="c-{{ position.id }}-{{ c.id }}" class="flex-grow-1 mb-0" style="cursor:pointer">
+                    <span class="fw-semibold d-block">{{ c.name }}</span>
+                    {% if c.affiliation %}<span class="small text-muted">{{ c.affiliation }}</span>{% endif %}
+                </label>
+                {% if c.bio or c.manifesto %}<a class="small" href="{% url 'elections:candidate_profile' event.pk c.id %}" target="_blank" rel="noopener">{% translate "Profile" %}<span class="visually-hidden"> {{ c.name }}</span></a>{% endif %}
+            </div>
+            {% endfor %}
+        {% endif %}
+        {% if position.allow_abstain %}
+        <label class="choice mt-2 bg-light"><input type="checkbox" name="pos_{{ position.id }}_abstain" data-abstain {% if key in selections and current is None %}checked{% endif %} {% if preview %}disabled{% endif %}><span>{% translate "Abstain on this position" %}</span></label>
+        {% endif %}
+    </fieldset>
+    {% endwith %}{% endwith %}
+    {% endfor %}
+    {% if not preview %}
+    <div class="ballot-actions d-flex justify-content-between gap-2">
+        <button type="submit" formaction="{% url 'elections:vote_logout' event.pk %}" class="btn btn-outline-secondary" data-confirm="{% translate 'Leave without voting? You can come back while voting is open.' %}">{% translate "Exit" %}</button>
+        <button type="submit" class="btn btn-wine btn-lg px-4">{% translate "Review my choices" %} &rarr;</button>
+    </div>
+    {% endif %}
+</form>
+{% endblock %}

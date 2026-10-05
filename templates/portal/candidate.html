@@ -1,0 +1,55 @@
+{% extends 'voting/base.html' %}
+{% load i18n fv %}
+{% block title %}{{ candidate.name }} | {% translate "Candidate portal" %}{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <a href="{% url 'portal:home' %}" class="small text-muted">&larr; {% translate "Candidate portal" %}</a>
+    <h1 class="fw-bold text-wine">{{ candidate.name }}</h1>
+    <p class="text-muted">{{ event.title }} · {{ stats.position }}</p>
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-3">
+                <h2 class="h5 fw-bold">{% translate "Your profile" %}</h2>
+                {% if not editable %}<div class="alert alert-secondary small">{{ edit_reason }}</div>{% endif %}
+                <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="action" value="profile">
+                    <fieldset {% if not editable %}disabled{% endif %}>
+                        {% if candidate.image and not lite_mode %}<img src="{{ candidate.image.url }}" alt="" class="rounded-3 mb-2" width="120" height="120" style="object-fit:cover">{% endif %}
+                        <label class="form-label" for="pi">{% translate "Photo (PNG/JPEG, max 2 MB)" %}</label><input id="pi" type="file" name="image" accept="image/png,image/jpeg" class="form-control mb-3">
+                        <label class="form-label" for="pa">{% translate "Affiliation / party" %}</label><input id="pa" name="affiliation" value="{{ candidate.affiliation }}" class="form-control mb-3">
+                        <label class="form-label" for="pb">{% translate "Biography" %}</label><textarea id="pb" name="bio" rows="4" class="form-control mb-3">{{ candidate.bio }}</textarea>
+                        <label class="form-label" for="pm">{% translate "Manifesto" %}</label><textarea id="pm" name="manifesto" rows="8" class="form-control mb-3">{{ candidate.manifesto }}</textarea>
+                        <button class="btn btn-wine">{% translate "Save profile" %}</button>
+                    </fieldset>
+                </form>
+            </div>
+            <div class="card border-0 shadow-sm rounded-4 p-4">
+                <h2 class="h5 fw-bold">{% translate "Manifesto documents (PDF)" %}</h2>
+                <ul class="small">{% for d in documents %}<li class="d-flex justify-content-between"><a href="{{ d.file.url }}">{{ d.title }}</a>{% if editable %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete_document"><input type="hidden" name="document" value="{{ d.pk }}"><button class="btn btn-sm btn-link text-danger p-0">{% translate "Remove" %}</button></form>{% endif %}</li>{% empty %}<li class="text-muted">{% translate "None yet." %}</li>{% endfor %}</ul>
+                {% if editable %}<form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2">{% csrf_token %}<input type="hidden" name="action" value="document"><label class="visually-hidden" for="dt">{% translate "Title" %}</label><input id="dt" name="title" class="form-control" placeholder="{% translate 'Title' %}" style="max-width:220px"><label class="visually-hidden" for="df">{% translate "File" %}</label><input id="df" type="file" name="document" accept="application/pdf" class="form-control" style="max-width:260px" required><button class="btn btn-outline-wine">{% translate "Upload" %}</button></form>{% endif %}
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-3">
+                <h2 class="h5 fw-bold">{% translate "Election information" %}</h2>
+                <dl class="row small mb-0">
+                    <dt class="col-5">{% translate "Status" %}</dt><dd class="col-7">{{ event.get_status_display }}</dd>
+                    <dt class="col-5">{% translate "Voting opens" %}</dt><dd class="col-7">{{ event.start_date|in_tz:event.timezone|date:"d M Y H:i" }}</dd>
+                    <dt class="col-5">{% translate "Voting closes" %}</dt><dd class="col-7">{{ event.end_date|in_tz:event.timezone|date:"d M Y H:i" }} ({{ event.timezone }})</dd>
+                    {% if candidate.category.constituency %}<dt class="col-5">{% translate "Who can vote" %}</dt><dd class="col-7">{% translate "Voters in" %} {{ candidate.category.constituency.name }}</dd>{% endif %}
+                    {% if candidate.nominee_code %}<dt class="col-5">{% translate "Nominee code" %}</dt><dd class="col-7"><span class="badge bg-dark">{{ candidate.nominee_code }}</span></dd>{% endif %}
+                </dl>
+            </div>
+            <div class="card border-0 shadow-sm rounded-4 p-4 mb-3">
+                <h2 class="h5 fw-bold">{% translate "Campaign statistics" %}</h2>
+                {% if stats.votes is not None %}
+                <dl class="row small mb-0"><dt class="col-6">{% translate "Votes" %}</dt><dd class="col-6">{{ stats.votes|number }}</dd>{% if stats.rank %}<dt class="col-6">{% translate "Current rank" %}</dt><dd class="col-6">{{ stats.rank }} / {{ stats.of }} ({{ stats.percentage|pct }})</dd>{% endif %}<dt class="col-6">{% translate "Paid vote transactions" %}</dt><dd class="col-6">{{ stats.transactions|number }}</dd></dl>
+                {% elif stats.turnout is not None %}
+                <p class="small mb-0">{% translate "Turnout" %}: {{ stats.turnout|pct }} ({{ stats.votes_cast|number }} {% translate "votes cast" %})</p>
+                {% else %}<p class="small text-muted mb-0">{% translate "Statistics appear when results are allowed to be public. Individual voter information is never shown." %}</p>{% endif %}
+            </div>
+            {% if public_results and public_results.certified %}<a href="{% url 'elections:results' event.pk %}" class="btn btn-wine w-100">{% translate "View certified results" %}</a>{% endif %}
+            <a href="{% url 'elections:candidate_profile' event.pk candidate.pk %}" class="btn btn-outline-secondary w-100 mt-2">{% translate "View public profile" %}</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

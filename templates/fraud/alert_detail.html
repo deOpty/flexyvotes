@@ -1,0 +1,36 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Alert" %} #{{ alert.pk }}{% endblock %}
+{% block console %}
+<a href="{% url 'fraud:alerts' %}" class="small text-muted">&larr; {% translate "Fraud monitoring" %}</a>
+<h1 class="h4 fw-bold text-wine">{{ alert.get_kind_display }} · {% translate "score" %} {{ alert.score }} · {{ alert.get_decision_display }}</h1>
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="panel">
+            <dl class="row small">
+                <dt class="col-4">{% translate "When" %}</dt><dd class="col-8">{{ alert.created_at|date:"d M Y H:i:s" }}</dd>
+                <dt class="col-4">{% translate "Election" %}</dt><dd class="col-8">{{ alert.event.title|default:"—" }}</dd>
+                {% if alert.candidate %}<dt class="col-4">{% translate "Candidate" %}</dt><dd class="col-8">{{ alert.candidate.name }}</dd>{% endif %}
+                {% if alert.payment %}<dt class="col-4">{% translate "Payment" %}</dt><dd class="col-8"><a class="mono" href="{% url 'payments:console_detail' alert.payment.reference %}">{{ alert.payment.reference }}</a> · {{ alert.payment.get_status_display }}{% if alert.payment.held %} · <span class="text-danger">{% translate "held" %}</span>{% endif %}</dd>{% endif %}
+                <dt class="col-4">{% translate "Subject" %}</dt><dd class="col-8">{{ alert.subject|default:"—" }}</dd>
+                <dt class="col-4">IP / {% translate "device" %}</dt><dd class="col-8 mono">{{ alert.ip_address|default:"" }} · {{ alert.device_hash|slice:":12" }}</dd>
+                <dt class="col-4">{% translate "Status" %}</dt><dd class="col-8">{{ alert.get_status_display }}{% if alert.reviewed_by %} · {{ alert.reviewed_by.username }} {{ alert.reviewed_at|date:"d M H:i" }}{% endif %}</dd>
+            </dl>
+            <h2 class="h6 fw-bold">{% translate "Signals" %}</h2>
+            <table class="table table-sm"><tbody>{% for s in alert.signals %}<tr><td class="mono">{{ s.code }}</td><td class="text-end">+{{ s.weight }}</td><td class="small">{{ s.detail }}</td></tr>{% endfor %}</tbody></table>
+            {% if alert.notes %}<p class="small"><strong>{% translate "Notes" %}:</strong> {{ alert.notes }}</p>{% endif %}
+        </div>
+        {% if related %}<div class="panel"><h2 class="h6 fw-bold">{% translate "Other alerts from this device" %}</h2><ul class="small mb-0">{% for r in related %}<li><a href="{% url 'fraud:alert' r.pk %}">{{ r.created_at|date:"d M H:i" }} · {{ r.kind }} {{ r.score }}</a></li>{% endfor %}</ul></div>{% endif %}
+    </div>
+    <div class="col-lg-5">
+        {% if can_review and alert.status == 'OPEN' %}
+        <form method="post" class="panel">{% csrf_token %}
+            <h2 class="h5 fw-bold">{% translate "Review" %}</h2>
+            <label class="form-label small" for="an">{% translate "Notes" %}</label><textarea id="an" name="notes" rows="3" class="form-control mb-2"></textarea>
+            <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="block" id="ab"><label class="form-check-label small" for="ab">{% translate "If confirmed, blocklist the device, card and email" %}</label></div>
+            <div class="d-flex gap-2"><button name="outcome" value="dismiss" class="btn btn-success flex-fill">{% translate "Legitimate (release)" %}</button><button name="outcome" value="confirm" class="btn btn-outline-danger flex-fill">{% translate "Confirm fraud" %}</button></div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

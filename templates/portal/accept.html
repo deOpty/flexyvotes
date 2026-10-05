@@ -1,0 +1,15 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Set up your candidate account" %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 520px;">
+    <h1 class="h3 fw-bold text-wine">{% translate "Candidate portal" %}</h1>
+    <p>{% blocktranslate with n=candidate.name e=candidate.event.title %}Create an account to manage {{ n }}'s profile for {{ e }}.{% endblocktranslate %}</p>
+    <p class="small">{% translate "Already have an account?" %} <a href="{% url 'login' %}?next={{ request.path|urlencode }}">{% translate "Sign in" %}</a></p>
+    <form method="post" class="card border-0 shadow-sm rounded-4 p-4">{% csrf_token %}
+        <label class="form-label" for="au">{% translate "Username" %}</label><input id="au" name="username" class="form-control mb-3" autocomplete="username" required>
+        <label class="form-label" for="ap">{% translate "Password" %}</label><input id="ap" type="password" name="password" class="form-control mb-3" autocomplete="new-password" required minlength="10">
+        <button class="btn btn-wine w-100">{% translate "Create account" %}</button>
+    </form>
+</div>
+{% endblock %}

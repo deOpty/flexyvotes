@@ -1,390 +1,196 @@
-import hashlib
-import hmac
-import json
+"""Tests for the public site, organizer tools, tickets and legacy entry points."""
 import os
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.urls import reverse
-from django.utils import timezone
 
-from .models import Candidate, Category, Event, Ticket, TicketPurchase, VoteTransaction, VotingCode, hash_voting_code
-
-
-def make_event(**kwargs):
-    now = timezone.now()
-    defaults = {
-        'title': 'Test Event',
-        'start_date': now,
-        'end_date': now + timezone.timedelta(days=1),
-    }
-    defaults.update(kwargs)
-    return Event.objects.create(**defaults)
+from core.models import AuditEvent
+from core.tests.factories import PASSWORD, add_position, grant, make_event, make_org, make_user
+from voting.models import Candidate, Category, Event, Profile, Ticket, TicketPurchase
 
 
-class RegisterViewTests(TestCase):
-    def test_weak_password_is_rejected(self):
-        # Regression: register_view used to call create_user() directly,
-        # bypassing AUTH_PASSWORD_VALIDATORS entirely.
-        url = reverse('register')
-        response = self.client.post(url, {
-            'username': 'newuser', 'email': 'new@example.com', 'password': '123',
-        })
+class PublicSiteTests(TestCase):
+    def test_home_lists_only_public_elections(self):
+        make_event(title='Draft one')
+        make_event(title='Open one', status=Event.Status.OPEN)
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, 'Open one')
+        self.assertNotContains(response, 'Draft one')
+        self.assertContains(self.client.get(reverse('home') + '?q=open'), 'Open one')
+
+    def test_paid_event_page_shows_live_counts_and_vote_links(self):
+        event = make_event(institutional=False, status=Event.Status.OPEN)
+        _, (alice, *_rest) = add_position(event, 'Best Singer')
+        response = self.client.get(reverse('event_detail', args=[event.pk]))
+        self.assertContains(response, reverse('payments:pay', args=[event.pk, alice.pk]))
+        self.assertContains(response, 'data-live-url')
+
+    def test_live_counts_hidden_for_secret_ballots(self):
+        event = make_event(status=Event.Status.OPEN)
+        self.assertEqual(self.client.get(reverse('live_counts', args=[event.pk])).status_code, 403)
+
+    def test_contact_form_creates_support_ticket(self):
+        from core.models import SupportTicket
+
+        response = self.client.post(reverse('contact'), {'name': 'Ama', 'email': 'ama@example.com', 'subject': 'Help',
+                                                         'message': 'Cannot vote', 'category': 'voting'})
+        self.assertEqual(response.status_code, 302)
+        ticket = SupportTicket.objects.get()
+        self.assertEqual(ticket.messages.get().body, 'Cannot vote')
+
+
+class OrganizerFlowTests(TestCase):
+    def setUp(self):
+        self.organizer = make_user('organizer')
+        Profile.objects.create(user=self.organizer, is_approved_organizer=False)
+
+    def test_unapproved_organizer_cannot_create(self):
+        self.client.login(username='organizer', password=PASSWORD)
+        self.assertRedirects(self.client.get(reverse('create_event')), reverse('home'), fetch_redirect_response=False)
+        self.assertRedirects(self.client.get(reverse('dashboard')), reverse('home'), fetch_redirect_response=False)
+
+    def test_approval_creates_personal_org_and_event_creation_works(self):
+        admin = make_user('platform', staff=True, superuser=True)
+        self.client.login(username='platform', password=PASSWORD)
+        profile = Profile.objects.get(user=self.organizer)
+        self.client.post(reverse('console:organizers'), {'profile': profile.pk, 'decision': 'approve'})
+        self.client.logout()
+        self.client.login(username='organizer', password=PASSWORD)
+        response = self.client.post(reverse('create_event'), {
+            'title': 'Campus Awards', 'description': 'x', 'voting_mode': 'Pay to Vote', 'timezone': 'Africa/Lagos',
+            'currency': 'NGN', 'start_date_date': '2030-01-01', 'start_date_time': '09:00',
+            'end_date_date': '2030-01-02', 'end_date_time': '18:00', 'vote_price': '50', 'platform_fee_percentage': '1',
+            'primary_color': '#800020', 'accent_color': '#FFD700'})
+        event = Event.objects.get(title='Campus Awards')
+        self.assertRedirects(response, reverse('elections:console_overview', args=[event.pk]))
+        self.assertEqual((event.status, event.currency, event.timezone), (Event.Status.DRAFT, 'NGN', 'Africa/Lagos'))
+        # The organizer cannot set the platform's commission.
+        self.assertEqual(event.platform_fee_percentage, Decimal('20.00'))
+        self.assertEqual(event.start_date.utcoffset().total_seconds(), 0)
+        self.assertEqual(event.start_date.hour, 8)  # 09:00 Lagos = 08:00 UTC
+        self.assertTrue(event.organization.is_personal)
+        self.assertTrue(AuditEvent.objects.filter(event_type='ELECTION_CREATED', election_id=event.pk).exists())
+        self.assertIsNotNone(admin)
+
+    def test_negative_and_invalid_prices_rejected(self):
+        org = make_org('Org', admin=self.organizer)
+        event = make_event(org=org, organizer=self.organizer, institutional=False)
+        self.client.login(username='organizer', password=PASSWORD)
+        response = self.client.post(reverse('create_ticket', args=[event.pk]),
+                                    {'name': 'VIP', 'price': '-5', 'quantity_available': '10'})
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(User.objects.filter(username='newuser').exists())
+        self.assertFalse(Ticket.objects.exists())
 
-    def test_strong_password_creates_user(self):
-        # Regression: register_view previously always fell through to
-        # re-render the form, even after a successful registration.
-        url = reverse('register')
-        response = self.client.post(url, {
-            'username': 'newuser2', 'email': 'new2@example.com',
-            'password': 'a-reasonably-strong-pw-93',
-        })
-        self.assertRedirects(response, reverse('home'))
-        self.assertTrue(User.objects.filter(username='newuser2').exists())
-
-
-class VotingCodeModelTests(TestCase):
-    def test_default_code_is_unique_per_instance(self):
-        # Regression: default used to be evaluated once at class-definition time,
-        # so every code without an explicit value collided on the unique constraint.
-        event = make_event()
-        code1 = VotingCode.objects.create(event=event)
-        code2 = VotingCode.objects.create(event=event)
-        self.assertNotEqual(code1.code, code2.code)
-
-
-class CastVoteWithCodeTests(TestCase):
-    def setUp(self):
-        self.event = make_event()
-        self.candidate = Candidate.objects.create(event=self.event, name='Alice')
-
-    def test_get_request_does_not_crash(self):
-        # Regression: `candidate` was only defined inside the POST branch,
-        # so a GET request raised UnboundLocalError.
-        url = reverse('cast_vote_with_code', args=[self.candidate.id])
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 302)
-
-    def test_valid_code_casts_vote(self):
-        voting_code = VotingCode.objects.create(event=self.event)
-        url = reverse('cast_vote_with_code', args=[self.candidate.id])
-        response = self.client.post(url, {'code': voting_code.code})
-        self.assertEqual(response.status_code, 302)
-        voting_code.refresh_from_db()
-        self.assertTrue(voting_code.is_used)
-
-
-class PaystackWebhookTests(TestCase):
-    def test_invalid_signature_rejected(self):
-        url = reverse('paystack_webhook')
-        response = self.client.post(
-            url, data=json.dumps({'event': 'charge.success', 'data': {}}),
-            content_type='application/json',
-            HTTP_X_PAYSTACK_SIGNATURE='not-the-real-signature',
-        )
-        self.assertEqual(response.status_code, 400)
-
-    def test_malformed_json_with_valid_signature_returns_400(self):
-        from django.conf import settings
-        body = b'not-json'
-        signature = hmac.new(
-            settings.PAYSTACK_SECRET_KEY.encode('utf-8'), body, hashlib.sha512
-        ).hexdigest()
-        url = reverse('paystack_webhook')
-        response = self.client.post(
-            url, data=body, content_type='application/json',
-            HTTP_X_PAYSTACK_SIGNATURE=signature,
-        )
-        self.assertEqual(response.status_code, 400)
-
-
-class VoteSuccessPaymentBypassTests(TestCase):
-    def setUp(self):
-        self.event = make_event()
-        self.candidate = Candidate.objects.create(event=self.event, name='Alice')
-        self.transaction = VoteTransaction.objects.create(
-            candidate=self.candidate, voter_email='v@example.com', amount=5,
-            paystack_reference='REF-UNPAID-1', status='Pending', number_of_votes=5,
-        )
-
-    def test_unverified_payment_is_not_credited(self):
-        # Regression: vote_success used to mark ANY Pending transaction as
-        # Success just because the client hit this URL with its reference,
-        # letting a voter get free votes by skipping payment entirely.
-        with patch('voting.views.verify_paystack_transaction', return_value=False):
-            url = reverse('vote_success') + '?reference=REF-UNPAID-1'
-            self.client.get(url)
-
-        self.transaction.refresh_from_db()
-        self.assertEqual(self.transaction.status, 'Pending')
-
-    def test_verified_payment_is_credited(self):
-        with patch('voting.views.verify_paystack_transaction', return_value=True):
-            url = reverse('vote_success') + '?reference=REF-UNPAID-1'
-            self.client.get(url)
-
-        self.transaction.refresh_from_db()
-        self.assertEqual(self.transaction.status, 'Success')
-
-
-class BuyTicketTests(TestCase):
-    def setUp(self):
-        self.event = make_event()
-        self.ticket = Ticket.objects.create(
-            event=self.event, name='VIP', price=10, quantity_available=1
-        )
-
-    def test_sold_out_ticket_is_rejected(self):
-        TicketPurchase.objects.create(
-            ticket=self.ticket, event=self.event, buyer_email='a@example.com',
-            quantity=1, paystack_reference='TK-AAAA01', status='Success',
-        )
-        url = reverse('buy_ticket', args=[self.ticket.id])
-        response = self.client.post(url, {
-            'name': 'Bob', 'email': 'bob@example.com', 'quantity': 1,
-        })
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(TicketPurchase.objects.filter(buyer_email='bob@example.com').count(), 0)
-
-    def test_unverified_ticket_payment_is_not_credited(self):
-        # Regression: ticket_success used to mark ANY Pending purchase as
-        # Success just because the client hit this URL, letting buyers get
-        # a free ticket by skipping payment entirely.
-        purchase = TicketPurchase.objects.create(
-            ticket=self.ticket, event=self.event, buyer_email='c@example.com',
-            quantity=1, paystack_reference='TK-UNPAID1', status='Pending',
-        )
-        with patch('voting.views.verify_paystack_transaction', return_value=False):
-            self.client.get(reverse('ticket_success') + '?reference=TK-UNPAID1')
-
-        purchase.refresh_from_db()
-        self.assertEqual(purchase.status, 'Pending')
-
-
-class ProcessScanAuthorizationTests(TestCase):
-    def setUp(self):
-        self.organizer = User.objects.create_user('organizer', password='pw')
-        self.other_user = User.objects.create_user('rando', password='pw')
-        self.event = make_event(organizer=self.organizer)
-
-    def test_non_organizer_cannot_check_in_tickets(self):
-        # Regression: process_scan had no organizer/staff check at all.
-        self.client.login(username='rando', password='pw')
-        url = reverse('process_scan', args=[self.event.id])
-        response = self.client.post(
-            url, data=json.dumps({'text': 'REF: TK-AAAA01'}),
-            content_type='application/json',
-        )
+    def test_organizer_tools_respect_rbac_and_lifecycle(self):
+        org = make_org('Org', admin=self.organizer)
+        event = make_event(org=org, organizer=self.organizer)
+        outsider = make_user('outsider')
+        self.client.login(username='outsider', password=PASSWORD)
+        response = self.client.post(reverse('add_category', args=[event.pk]), {'name': 'Hack'})
         self.assertEqual(response.status_code, 403)
+        self.client.logout()
+        self.client.login(username='organizer', password=PASSWORD)
+        self.client.post(reverse('add_category', args=[event.pk]), {'name': 'President', 'ballot_type': 'RANKED',
+                                                                    'min_select': '1', 'max_select': '3'})
+        category = Category.objects.get(name='President')
+        self.assertEqual(category.ballot_type, 'RANKED')
+        self.client.post(reverse('bulk_add_candidates', args=[event.pk]), {'bulk_names': 'A\nB\nC', 'bulk_category': category.pk})
+        self.assertEqual(Candidate.objects.filter(category=category).count(), 3)
+        Event.objects.filter(pk=event.pk).update(status=Event.Status.OPEN, ballot_frozen=True, candidates_frozen=True)
+        self.client.post(reverse('add_category', args=[event.pk]), {'name': 'Late'})
+        self.assertFalse(Category.objects.filter(name='Late').exists())
+        self.assertIsNotNone(outsider)
 
-    def test_organizer_can_access(self):
-        self.client.login(username='organizer', password='pw')
-        url = reverse('process_scan', args=[self.event.id])
-        response = self.client.post(
-            url, data=json.dumps({'text': 'REF: TK-NOTFOUND'}),
-            content_type='application/json',
-        )
-        self.assertEqual(response.status_code, 404)
-
-
-class CodeHashingTests(TestCase):
-    def test_code_is_never_stored_in_plaintext_after_use(self):
-        event = make_event()
-        candidate = Candidate.objects.create(event=event, name='Alice')
-        voting_code = VotingCode.objects.create(event=event)
-        raw_code = voting_code.code
-        self.assertEqual(voting_code.code_hash, hash_voting_code(event.id, raw_code))
-
-        url = reverse('cast_vote_with_code', args=[candidate.id])
-        self.client.post(url, {'code': raw_code})
-        voting_code.refresh_from_db()
-
-        self.assertTrue(voting_code.is_used)
-        self.assertEqual(voting_code.code, '')  # scrubbed once spent
-        self.assertEqual(voting_code.code_hash, hash_voting_code(event.id, raw_code))  # hash survives for audit
-
-    def test_lookup_works_purely_via_hash(self):
-        event = make_event()
-        voting_code = VotingCode.objects.create(event=event)
-        found = VotingCode.objects.get(event=event, code_hash=hash_voting_code(event.id, voting_code.code))
-        self.assertEqual(found.id, voting_code.id)
+    def test_edit_event_keeps_price_and_converts_timezone(self):
+        org = make_org('Org', admin=self.organizer)
+        event = make_event(org=org, organizer=self.organizer, institutional=False, vote_price=Decimal('2.50'),
+                           timezone='Africa/Accra')
+        self.client.login(username='organizer', password=PASSWORD)
+        page = self.client.get(reverse('edit_event', args=[event.pk]))
+        self.assertContains(page, 'value="2.50"')
 
 
-class BallotSecrecyTests(TestCase):
-    def test_vote_transaction_never_embeds_code_or_identifier(self):
-        event = make_event()
-        candidate = Candidate.objects.create(event=event, name='Alice')
-        voting_code = VotingCode.objects.create(event=event, voter_identifier='STD-SECRET-007')
-        raw_code = voting_code.code
-
-        url = reverse('cast_vote_with_code', args=[candidate.id])
-        self.client.post(url, {'code': raw_code, 'identifier': 'STD-SECRET-007'})
-
-        transaction = VoteTransaction.objects.get(candidate=candidate)
-        self.assertNotIn(raw_code, transaction.voter_email)
-        self.assertNotIn(raw_code, transaction.paystack_reference)
-        self.assertNotIn('STD-SECRET-007', transaction.voter_email)
-        self.assertNotIn('STD-SECRET-007', transaction.paystack_reference)
-
-
-class BallotConcurrencyTests(TestCase):
-    """Verifies the select_for_update + in-lock is_used re-check makes a
-    voting code single-use against duplicate submissions/retries. True
-    concurrent-lock contention needs a real multi-connection backend
-    (Postgres); SQLite's select_for_update is a no-op, so this exercises the
-    sequential double-submit path the atomic block guards against.
-    """
-
-    def test_same_code_cannot_cast_twice(self):
-        event = make_event()
-        category = Category.objects.create(event=event, name='President')
-        candidate = Candidate.objects.create(event=event, name='Alice', category=category)
-        voting_code = VotingCode.objects.create(event=event)
-        raw_code = voting_code.code
-
-        url = reverse('cast_ballot', args=[event.id])
-        payload = json.dumps({'code': raw_code, 'votes': {str(category.id): [str(candidate.id)]}})
-
-        first = self.client.post(url, data=payload, content_type='application/json')
-        second = self.client.post(url, data=payload, content_type='application/json')
-
-        self.assertEqual(first.json()['status'], 'success')
-        self.assertEqual(second.status_code, 400)
-        self.assertEqual(second.json()['status'], 'error')
-        self.assertEqual(VoteTransaction.objects.filter(candidate=candidate).count(), 1)
-
-
-class BallotRulesTests(TestCase):
+class TicketTests(TestCase):
     def setUp(self):
-        self.event = make_event()
-        self.category = Category.objects.create(event=self.event, name='President', max_select=1, allow_abstain=True)
-        self.candidate_a = Candidate.objects.create(event=self.event, name='Alice', category=self.category)
-        self.candidate_b = Candidate.objects.create(event=self.event, name='Bob', category=self.category)
-        self.voting_code = VotingCode.objects.create(event=self.event)
+        self.owner = make_user('owner')
+        self.org = make_org('Ticket Org', admin=self.owner)
+        self.event = make_event(org=self.org, organizer=self.owner, institutional=False, status=Event.Status.OPEN)
+        self.ticket = Ticket.objects.create(event=self.event, name='VIP', price=Decimal('10'))
+        self.purchase = TicketPurchase.objects.create(ticket=self.ticket, event=self.event, buyer_name='Ama',
+                                                      buyer_email='ama@x.com', paystack_reference='TK-ABC1234567',
+                                                      status='Success')
 
-    def cast(self, votes):
-        url = reverse('cast_ballot', args=[self.event.id])
-        return self.client.post(
-            url, data=json.dumps({'code': self.voting_code.code, 'votes': votes}),
-            content_type='application/json',
-        )
+    def test_scanner_checks_in_once_and_requires_permission(self):
+        url = reverse('process_scan', args=[self.event.pk])
+        body = '{"text": "REF: TK-ABC1234567"}'
+        make_user('intruder')
+        self.client.login(username='intruder', password=PASSWORD)
+        self.assertEqual(self.client.post(url, body, content_type='application/json').status_code, 403)
+        self.client.logout()
+        self.client.login(username='owner', password=PASSWORD)
+        self.assertEqual(self.client.post(url, body, content_type='application/json').status_code, 200)
+        self.assertEqual(self.client.post(url, body, content_type='application/json').status_code, 409)
 
-    def test_exceeding_max_select_is_rejected(self):
-        response = self.cast({str(self.category.id): [str(self.candidate_a.id), str(self.candidate_b.id)]})
-        self.assertEqual(response.status_code, 400)
-        self.voting_code.refresh_from_db()
-        self.assertFalse(self.voting_code.is_used)
+    def test_guestlist_export_is_formula_safe(self):
+        TicketPurchase.objects.create(ticket=self.ticket, event=self.event, buyer_name='=cmd|calc', buyer_email='x@x.com',
+                                      paystack_reference='TK-ZZZ1234567', status='Success')
+        self.client.login(username='owner', password=PASSWORD)
+        response = self.client.get(reverse('download_guestlist', args=[self.event.pk]))
+        self.assertIn("'=cmd|calc", response.content.decode())
 
-    def test_abstain_allowed_when_enabled(self):
-        response = self.cast({str(self.category.id): []})
-        self.assertEqual(response.json()['status'], 'success')
-        self.assertEqual(VoteTransaction.objects.filter(candidate__category=self.category).count(), 0)
-
-    def test_abstain_rejected_when_disallowed(self):
-        self.category.allow_abstain = False
-        self.category.save()
-        response = self.cast({str(self.category.id): []})
-        self.assertEqual(response.status_code, 400)
-
-
-class RetrieveCodeEmailRedirectTests(TestCase):
-    def test_resend_only_goes_to_email_on_file(self):
-        event = make_event()
-        voting_code = VotingCode.objects.create(
-            event=event, voter_identifier='STD001', voter_email='real-owner@example.com'
-        )
-        old_hash = voting_code.code_hash
-
-        url = reverse('retrieve_voting_code', args=[event.id])
-        # Attacker-supplied "email" field from the old form is no longer
-        # accepted at all - only voter_identifier is read.
-        response = self.client.post(url, {'student_id': 'STD001', 'email': 'attacker@evil.com'})
+    def test_ticket_lookup_and_retrieval(self):
+        response = self.client.post(reverse('tickets'), {'action': 'verify', 'reference': 'tk-abc1234567'})
+        self.assertEqual(response.context['ticket_found'], self.purchase)
+        response = self.client.post(reverse('retrieve_ticket'), {'phone_or_ref': 'TK-ABC1234567'})
         self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.get(response['Location']).status_code, 200)
 
-        from django.core import mail
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ['real-owner@example.com'])
+    def test_send_ticket_email_requires_csrf(self):
+        from django.test import Client
 
-        voting_code.refresh_from_db()
-        self.assertTrue(voting_code.is_used)  # old code invalidated
-        self.assertEqual(voting_code.code_hash, old_hash)
-        self.assertTrue(VotingCode.objects.filter(event=event, voter_identifier='STD001', is_used=False).exists())
-
-
-class VotingLockTests(TestCase):
-    def test_locked_event_rejects_ballot_even_before_end_date(self):
-        event = make_event(voting_locked=True)
-        candidate = Candidate.objects.create(event=event, name='Alice')
-        voting_code = VotingCode.objects.create(event=event)
-
-        url = reverse('cast_ballot', args=[event.id])
-        response = self.client.post(
-            url, data=json.dumps({'code': voting_code.code, 'votes': {}}),
-            content_type='application/json',
-        )
-        self.assertEqual(response.status_code, 400)
-        voting_code.refresh_from_db()
-        self.assertFalse(voting_code.is_used)
-
-
-class LoginViewCrlfTests(TestCase):
-    # Regression: a password copied out of a CRLF-terminated .env file (the
-    # common case when it's edited on Windows) can carry a trailing \r/\n
-    # onto the clipboard, which used to silently fail to match the stored
-    # hash and look exactly like "wrong password".
-    def setUp(self):
-        User.objects.create_user('admin', password='ChangeMe-Strong-Pw-93')
-
-    def test_trailing_crlf_on_password_is_tolerated(self):
-        response = self.client.post(reverse('login'), {
-            'username': 'admin', 'password': 'ChangeMe-Strong-Pw-93\r\n',
-        })
-        self.assertRedirects(response, reverse('home'))
-
-    def test_whitespace_around_username_is_tolerated(self):
-        response = self.client.post(reverse('login'), {
-            'username': ' admin ', 'password': 'ChangeMe-Strong-Pw-93',
-        })
-        self.assertRedirects(response, reverse('home'))
+        strict = Client(enforce_csrf_checks=True)
+        response = strict.post(reverse('send_ticket_email'), '{}', content_type='application/json')
+        self.assertEqual(response.status_code, 403)
 
 
 class SeedAdminCommandTests(TestCase):
-    # Regression: seed_admin used to skip existing accounts entirely, so
-    # rotating DJANGO_SUPERUSER_PASSWORD in .env and restarting had no
-    # effect - the account silently kept its original password forever.
-    def test_creates_superuser_from_env(self):
-        os.environ['DJANGO_SUPERUSER_USERNAME'] = 'newadmin'
-        os.environ['DJANGO_SUPERUSER_EMAIL'] = 'newadmin@example.com'
-        os.environ['DJANGO_SUPERUSER_PASSWORD'] = 'first-Password-1'
-        try:
-            call_command('seed_admin')
-        finally:
-            for key in ('DJANGO_SUPERUSER_USERNAME', 'DJANGO_SUPERUSER_EMAIL', 'DJANGO_SUPERUSER_PASSWORD'):
-                os.environ.pop(key, None)
-
+    @patch.dict(os.environ, {'DJANGO_SUPERUSER_USERNAME': 'newadmin', 'DJANGO_SUPERUSER_EMAIL': 'a@example.com',
+                             'DJANGO_SUPERUSER_PASSWORD': 'Some-strong-pass-1\r\n'})
+    def test_creates_and_syncs_superuser(self):
+        call_command('seed_admin', verbosity=0)
         user = User.objects.get(username='newadmin')
-        self.assertTrue(user.check_password('first-Password-1'))
-        self.assertTrue(user.is_superuser)
-        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser and user.check_password('Some-strong-pass-1'))
+        with patch.dict(os.environ, {'DJANGO_SUPERUSER_PASSWORD': 'Rotated-pass-2'}):
+            call_command('seed_admin', verbosity=0)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password('Rotated-pass-2'))
 
-    def test_rotated_password_is_synced_on_existing_account(self):
-        User.objects.create_user('admin', password='old-Password-1')
 
-        os.environ['DJANGO_SUPERUSER_USERNAME'] = 'admin'
-        os.environ['DJANGO_SUPERUSER_EMAIL'] = 'admin@example.com'
-        os.environ['DJANGO_SUPERUSER_PASSWORD'] = 'rotated-Password-2'
-        try:
-            call_command('seed_admin')
-        finally:
-            for key in ('DJANGO_SUPERUSER_USERNAME', 'DJANGO_SUPERUSER_EMAIL', 'DJANGO_SUPERUSER_PASSWORD'):
-                os.environ.pop(key, None)
+class LegacyRedirectTests(TestCase):
+    def test_legacy_vote_endpoints_forward(self):
+        event = make_event(institutional=False, status=Event.Status.OPEN)
+        _, (alice, *_rest) = add_position(event, 'Best')
+        response = self.client.post(reverse('initiate_vote', args=[alice.pk]), {'amount': '5'})
+        self.assertTrue(response['Location'].startswith(reverse('payments:pay', args=[event.pk, alice.pk])))
+        self.assertTrue(self.client.get(reverse('vote_success') + '?reference=FV-X')['Location'].startswith('/payments/callback/'))
 
-        user = User.objects.get(username='admin')
-        self.assertFalse(user.check_password('old-Password-1'))
-        self.assertTrue(user.check_password('rotated-Password-2'))
-        self.assertTrue(user.is_superuser)
-        self.assertTrue(user.is_staff)
+    def test_legacy_code_management_urls_require_permission(self):
+        event = make_event()
+        make_user('nobody')
+        self.client.login(username='nobody', password=PASSWORD)
+        for name in ('generate_codes', 'clear_codes', 'upload_csv', 'toggle_voting_lock'):
+            self.assertEqual(self.client.post(reverse(name, args=[event.pk])).status_code, 403, name)
+        self.assertEqual(self.client.get(reverse('download_codes', args=[event.pk])).status_code, 403)
+
+    def test_grant_role_scoping_for_officer(self):
+        org = make_org('X')
+        event = make_event(org=org)
+        officer = make_user('officer')
+        grant(officer, 'ELECTION_OFFICER', org, event=event)
+        self.client.login(username='officer', password=PASSWORD)
+        self.assertEqual(self.client.get(reverse('elections:console_voters', args=[event.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse('elections:console_settings', args=[event.pk])).status_code, 403)

@@ -1,0 +1,88 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{{ event.title }} | {% translate "Election console" %}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+
+<div class="panel">
+    <h2 class="h6 fw-bold text-uppercase text-muted mb-2">{% translate "Lifecycle" %}</h2>
+    {% with s=event.status %}
+    <ol class="lifecycle" aria-label="{% translate 'Election lifecycle' %}">
+        {% for code, label in event.Status.choices %}
+        <li class="{% if code == s %}current{% endif %}" {% if code == s %}aria-current="step"{% endif %}>{{ label }}</li>
+        {% endfor %}
+    </ol>
+    {% endwith %}
+    <p class="small text-muted mt-2 mb-0">
+        {% if event.status == 'DRAFT' %}{% translate "Configure the ballot, voters and settings, then submit the election for review." %}
+        {% elif event.status == 'REVIEW' %}{% translate "An election reviewer must approve the configuration. The approved configuration is signed." %}
+        {% elif event.status == 'APPROVED' %}{% translate "Publish & schedule: the ballot key is generated and voting opens automatically at the start time." %}
+        {% elif event.status == 'SCHEDULED' %}{% translate "Voting opens automatically at the start time (or open it now)." %}
+        {% elif event.status == 'OPEN' %}{% translate "Voting is open. The ballot, candidates and (unless self-registration is on) the voter roll are frozen." %}
+        {% elif event.status == 'CLOSED' %}{% translate "Voting has closed. Tallying starts automatically for platform-managed keys." %}
+        {% elif event.status == 'TALLYING' %}{% translate "Results are awaiting independent review and certification." %}
+        {% elif event.status == 'CERTIFIED' %}{% translate "Results are certified and signed. Publish them when ready." %}
+        {% elif event.status == 'PUBLISHED' %}{% translate "Results are public and verifiable." %}{% endif %}
+    </p>
+</div>
+
+{% if problems %}
+<div class="alert alert-warning">
+    <h2 class="h6 fw-bold">{% translate "Before this election can go ahead" %}</h2>
+    <ul class="mb-0">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Opens" %}</div><div class="fw-semibold">{{ event.start_date|in_tz:event.timezone|date:"d M Y H:i" }}</div><div class="small text-muted">{{ event.timezone }}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Closes" %}</div><div class="fw-semibold">{{ event.end_date|in_tz:event.timezone|date:"d M Y H:i" }}</div><div class="small text-muted" data-countdown="{{ event.end_date|date:'c' }}" data-ended="{% translate 'Ended' %}"></div></div></div>
+    {% if event.is_institutional %}
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Turnout" %}</div><div class="kpi-value">{{ turnout.turnout_percentage|pct }}</div><div class="small text-muted">{{ turnout.voted|number }} / {{ turnout.eligible|number }} {% translate "eligible" %}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Ballot" %}</div><div class="kpi-value">{{ position_count }}</div><div class="small text-muted">{% translate "positions" %} · {{ candidate_count }} {% translate "candidates" %}</div></div></div>
+    {% else %}
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Votes" %}</div><div class="kpi-value">{{ paid.votes|default:0|number }}</div></div></div>
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Revenue" %}</div><div class="kpi-value">{{ paid.revenue|default:0|money:event.currency }}</div>{% if held_payments %}<div class="small text-danger">{{ held_payments }} {% translate "held for review" %}</div>{% endif %}</div></div>
+    {% endif %}
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="panel h-100">
+            <h2 class="h5 fw-bold">{% translate "Security & integrity" %}</h2>
+            <dl class="row small mb-0">
+                <dt class="col-sm-5">{% translate "Dual approval" %}</dt><dd class="col-sm-7">{{ event.dual_approval_required|yesno:_("Required,Not required") }}</dd>
+                <dt class="col-sm-5">{% translate "Voter sign-in" %}</dt><dd class="col-sm-7">{{ event.auth_methods|join:", " }}{% if event.require_second_factor %} + {% translate "one-time code" %}{% endif %}</dd>
+                <dt class="col-sm-5">{% translate "Results visibility" %}</dt><dd class="col-sm-7">{{ event.get_results_visibility_display }}</dd>
+                <dt class="col-sm-5">{% translate "Freezes" %}</dt><dd class="col-sm-7">
+                    {% if event.config_frozen %}<span class="badge bg-secondary">{% translate "config" %}</span>{% endif %}
+                    {% if event.ballot_frozen %}<span class="badge bg-secondary">{% translate "ballot" %}</span>{% endif %}
+                    {% if event.candidates_frozen %}<span class="badge bg-secondary">{% translate "candidates" %}</span>{% endif %}
+                    {% if event.voter_list_frozen %}<span class="badge bg-secondary">{% translate "voter roll" %}</span>{% endif %}
+                    {% if not event.config_frozen and not event.ballot_frozen and not event.candidates_frozen and not event.voter_list_frozen %}{% translate "none" %}{% endif %}</dd>
+                {% if event.is_institutional %}
+                <dt class="col-sm-5">{% translate "Ballot key" %}</dt><dd class="col-sm-7">{% if ballot_key %}<span class="mono">{{ ballot_key.fingerprint }}</span> ({{ event.get_key_custody_display }}){% else %}{% translate "Generated when the election is scheduled" %}{% endif %}</dd>
+                {% endif %}
+                <dt class="col-sm-5">{% translate "Open disputes" %}</dt><dd class="col-sm-7">{{ open_disputes }}</dd>
+            </dl>
+            {% if pending_approvals %}<div class="alert alert-info small mt-3 mb-0">{% blocktranslate count n=pending_approvals|length %}{{ n }} request is awaiting a second approver.{% plural %}{{ n }} requests are awaiting a second approver.{% endblocktranslate %} <a href="{% url 'console:approvals' %}">{% translate "Review" %}</a></div>{% endif %}
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="panel h-100">
+            <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Recent activity" %}</h2>{% if 'audit.view' in perms %}<a class="small" href="{% url 'elections:console_audit' event.pk %}">{% translate "Full audit trail" %}</a>{% endif %}</div>
+            <ul class="list-unstyled small mb-0">
+                {% for log in recent_audit %}<li class="border-bottom py-1"><span class="text-muted">{{ log.created_at|date:"d M H:i" }}</span> · <strong>{{ log.actor_label|default:"system" }}</strong> · {{ log.summary|default:log.event_type }}</li>
+                {% empty %}<li class="text-muted">{% translate "No activity yet." %}</li>{% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+<div class="panel mt-3 d-flex flex-wrap gap-2">
+    <a href="{% url 'edit_event' event.pk %}" class="btn btn-sm btn-outline-wine">{% translate "Edit details & dates" %}</a>
+    <a href="{% url 'elections:console_ballot_preview' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Preview ballot" %}</a>
+    {% if event.is_paid %}<a href="{% url 'event_analytics' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Analytics" %}</a>{% endif %}
+    {% if event.tickets.exists %}<a href="{% url 'event_guestlist' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Guest list" %}</a><a href="{% url 'event_scanner' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Ticket scanner" %}</a>{% endif %}
+    <a href="{% url 'create_ticket' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Add ticket type" %}</a>
+    <a href="{% url 'elections:verify' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Public verification page" %}</a>
+</div>
+{% endblock %}

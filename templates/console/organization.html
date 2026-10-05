@@ -1,0 +1,39 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{{ organization.name }}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{{ organization.name }}</h1>
+<div class="d-flex gap-2 mb-3"><a class="btn btn-sm btn-outline-secondary" href="{% url 'console:team_org' organization.pk %}">{% translate "Team & roles" %}</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'elections:constituencies' organization.pk %}">{% translate "Constituencies" %}</a></div>
+<form method="post" class="row g-3">{% csrf_token %}
+    <div class="col-lg-6"><div class="panel h-100">
+        <h2 class="h5 fw-bold">{% translate "Profile & defaults" %}</h2>
+        <label class="form-label small" for="on">{% translate "Name" %}</label><input id="on" name="name" value="{{ organization.name }}" class="form-control mb-2">
+        <label class="form-label small" for="ok">{% translate "Type" %}</label><select id="ok" name="kind" class="form-select mb-2">{% for v, l in kinds %}<option value="{{ v }}" {% if v == organization.kind %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+        <label class="form-label small" for="oe">{% translate "Contact email" %}</label><input id="oe" type="email" name="contact_email" value="{{ organization.contact_email }}" class="form-control mb-2">
+        <div class="row g-2"><div class="col-5"><label class="form-label small" for="otz">{% translate "Time zone" %}</label><input id="otz" name="default_timezone" value="{{ organization.default_timezone }}" class="form-control"></div>
+            <div class="col-3"><label class="form-label small" for="ocur">{% translate "Currency" %}</label><input id="ocur" name="default_currency" value="{{ organization.default_currency }}" class="form-control" maxlength="3"></div>
+            <div class="col-4"><label class="form-label small" for="olang">{% translate "Language" %}</label><select id="olang" name="default_language" class="form-select"><option value="en">English</option><option value="fr" {% if organization.default_language == 'fr' %}selected{% endif %}>Français</option></select></div></div>
+    </div></div>
+    <div class="col-lg-6"><div class="panel h-100">
+        <h2 class="h5 fw-bold">{% translate "Institutional single sign-on (OpenID Connect)" %}</h2>
+        <p class="small text-muted">{% translate "Register this redirect URI with your identity provider" %}: <span class="mono">{{ sso_callback }}</span></p>
+        <label class="form-label small" for="sn">{% translate "Button label" %}</label><input id="sn" name="sso_name" value="{{ sso.name|default:'' }}" class="form-control mb-2" placeholder="University SSO">
+        <label class="form-label small" for="si">{% translate "Issuer URL" %}</label><input id="si" name="sso_issuer" value="{{ sso.issuer|default:'' }}" class="form-control mb-2" placeholder="https://login.example.edu/realms/main">
+        <label class="form-label small" for="sc">{% translate "Client ID" %}</label><input id="sc" name="sso_client_id" value="{{ sso.client_id|default:'' }}" class="form-control mb-2">
+        <label class="form-label small" for="ss">{% translate "Client secret (leave blank to keep)" %}</label><input id="ss" type="password" name="sso_client_secret" class="form-control mb-2" autocomplete="new-password">
+        <label class="form-label small" for="sd">{% translate "Allowed email domains" %}</label><input id="sd" name="sso_domains" value="{{ sso.allowed_domains|join:', ' }}" class="form-control mb-2">
+        {% if sso.issuer %}<div class="form-check"><input class="form-check-input" type="checkbox" name="sso_clear" id="sclear"><label class="form-check-label small" for="sclear">{% translate "Remove SSO configuration" %}</label></div>{% endif %}
+    </div></div>
+    <div class="col-lg-6"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "LDAP / Active Directory" %}</h2>
+        <label class="form-label small" for="lu">{% translate "Server URI (ldaps://)" %}</label><input id="lu" name="ldap_server_uri" value="{{ ldap.server_uri|default:'' }}" class="form-control mb-2">
+        <label class="form-label small" for="lb">{% translate "Bind DN template" %}</label><input id="lb" name="ldap_bind_dn_template" value="{{ ldap.bind_dn_template|default:'' }}" class="form-control mb-2" placeholder="{username}@example.edu">
+        <label class="form-label small" for="ls">{% translate "Search base" %}</label><input id="ls" name="ldap_search_base" value="{{ ldap.search_base|default:'' }}" class="form-control mb-2">
+        <label class="form-label small" for="lf">{% translate "Search filter" %}</label><input id="lf" name="ldap_search_filter" value="{{ ldap.search_filter|default:'' }}" class="form-control mb-2" placeholder="(sAMAccountName={username})">
+        <label class="form-label small" for="la">{% translate "Voter ID attribute" %}</label><input id="la" name="ldap_identifier_attribute" value="{{ ldap.identifier_attribute|default:'' }}" class="form-control mb-2" placeholder="employeeID">
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="ldap_start_tls" id="ltls" {% if ldap.start_tls %}checked{% endif %}><label class="form-check-label small" for="ltls">StartTLS</label></div>
+        {% if ldap.server_uri %}<div class="form-check"><input class="form-check-input" type="checkbox" name="ldap_clear" id="lclear"><label class="form-check-label small" for="lclear">{% translate "Remove LDAP configuration" %}</label></div>{% endif %}
+    </div></div>
+    <div class="col-12"><button class="btn btn-wine">{% translate "Save" %}</button> <span class="small text-muted">{% translate "Secrets are encrypted at rest." %}</span></div>
+</form>
+{% endblock %}

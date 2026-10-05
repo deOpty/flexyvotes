@@ -1,0 +1,91 @@
+# Single-host production (EC2) - TLS-terminating nginx in front of horizontally
+# scalable app containers. The database is Amazon RDS (DATABASE_URL in .env);
+# PgBouncer pools its connections. For ECS/Fargate see docs/DEPLOYMENT.md.
+#   docker compose -f docker-compose.prod.yml up -d --scale web=3 --scale worker=2
+x-app: &app
+  image: ${IMAGE:-flexyvotes:latest}
+  env_file:
+    - .env
+  environment: &app-env
+    DATABASE_URL: ${POOLED_DATABASE_URL:-postgres://flexyvotes:password@pgbouncer:6432/flexyvotes}
+    DB_CONN_MAX_AGE: "0"
+    DB_DISABLE_SERVER_SIDE_CURSORS: "True"
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/1
+    TRUSTED_PROXY_COUNT: "1"
+    FORWARDED_ALLOW_IPS: "*"
+    SECURE_SSL_REDIRECT: "True"
+    SECURE_HSTS_SECONDS: "31536000"
+    LOG_FORMAT: json
+    PRIVATE_MEDIA_ROOT: /app/private_media
+  volumes:
+    - private_media:/app/private_media
+  restart: always
+  logging:
+    driver: json-file
+    options: {max-size: "20m", max-file: "5"}
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    restart: always
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/trusted_nat.conf:/etc/nginx/trusted_nat.conf:ro
+      - ${TLS_CERT_DIR:-./deploy/nginx/certs}:/etc/nginx/certs:ro
+      - certbot_webroot:/var/www/certbot:ro
+    depends_on: [web]
+
+  web:
+    <<: *app
+    command: ["web"]
+    environment:
+      <<: *app-env
+      RUN_MIGRATIONS: "false"
+    expose: ["8000"]
+    depends_on: [redis, pgbouncer]
+
+  migrate:
+    <<: *app
+    command: ["migrate"]
+    restart: "no"
+    environment:
+      <<: *app-env
+      # Migrations take advisory locks and run DDL: connect to RDS directly.
+      DATABASE_URL: ${DATABASE_URL}
+    profiles: ["release"]
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    depends_on: [redis, pgbouncer]
+
+  beat:
+    <<: *app
+    command: ["beat"]
+    # Exactly one scheduler - never scale this service.
+    deploy: {replicas: 1}
+    depends_on: [redis, pgbouncer]
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    restart: always
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: "1000"
+      DEFAULT_POOL_SIZE: "40"
+      AUTH_TYPE: scram-sha-256
+    expose: ["6432"]
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes: [redis_data:/data]
+
+volumes:
+  redis_data:
+  private_media:
+  certbot_webroot:

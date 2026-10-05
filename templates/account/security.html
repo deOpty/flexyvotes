@@ -1,0 +1,71 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Account security" %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 980px;">
+    <h1 class="fw-bold text-wine">{% translate "Account security" %}</h1>
+    {% if enrol %}<div class="alert alert-warning">{% translate "Your role requires two-step verification. Set up an authenticator app or a passkey to continue." %}</div>{% endif %}
+
+    {% if recovery_codes %}
+    <div class="alert alert-success">
+        <h2 class="h6 fw-bold">{% translate "Your recovery codes (shown once)" %}</h2>
+        <p class="small">{% translate "Store these somewhere safe. Each code works once if you lose your authenticator." %}</p>
+        <pre class="mono mb-2" id="rc-list">{% for c in recovery_codes %}{{ c }}
+{% endfor %}</pre>
+        <button type="button" class="btn btn-sm btn-outline-success" data-copy="rc-list">{% translate "Copy" %}</button>
+    </div>
+    {% endif %}
+    {% if new_token %}
+    <div class="alert alert-success"><h2 class="h6 fw-bold">{% translate "New API token (shown once)" %}</h2><code id="tok" class="mono">{{ new_token }}</code> <button type="button" class="btn btn-sm btn-outline-success" data-copy="tok">{% translate "Copy" %}</button></div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <section class="card border-0 shadow-sm rounded-4 p-4 mb-4" aria-labelledby="totp-h">
+                <h2 id="totp-h" class="h5 fw-bold">{% translate "Authenticator app (TOTP)" %}</h2>
+                {% if security.totp_enabled %}
+                <p class="text-success">{% translate "Enabled" %} · {{ security.totp_confirmed_at|date:"d M Y" }}</p>
+                <form method="post" action="{% url 'account:security_action' %}" class="d-flex gap-2 mb-2">{% csrf_token %}<input type="hidden" name="action" value="totp_disable"><label class="visually-hidden" for="dp">{% translate "Current password" %}</label><input id="dp" type="password" name="password" class="form-control" placeholder="{% translate 'Current password' %}" required autocomplete="current-password"><button class="btn btn-outline-danger">{% translate "Turn off" %}</button></form>
+                <form method="post" action="{% url 'account:security_action' %}" data-confirm="{% translate 'Generate new recovery codes? Old ones stop working.' %}">{% csrf_token %}<input type="hidden" name="action" value="recovery_regenerate"><button class="btn btn-sm btn-link p-0">{% translate "Regenerate recovery codes" %}</button> <span class="small text-muted">({{ security.recovery_codes|length }} {% translate "left" %})</span></form>
+                {% elif totp_setup %}
+                <p class="small">{% translate "Scan this QR code with Google Authenticator, Microsoft Authenticator, 1Password or similar, then enter the 6-digit code." %}</p>
+                <img src="{{ totp_setup.qr }}" alt="{% translate 'QR code for your authenticator app' %}" width="180" height="180" class="mb-2">
+                <p class="small">{% translate "Or enter this key manually" %}: <span class="mono">{{ totp_setup.secret }}</span></p>
+                <form method="post" action="{% url 'account:security_action' %}" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="totp_confirm"><label class="visually-hidden" for="tc">{% translate "Code" %}</label><input id="tc" name="code" class="form-control mono" inputmode="numeric" required autocomplete="one-time-code"><button class="btn btn-wine">{% translate "Confirm" %}</button></form>
+                {% else %}
+                <form method="post" action="{% url 'account:security_action' %}">{% csrf_token %}<input type="hidden" name="action" value="totp_start"><button class="btn btn-wine">{% translate "Set up authenticator app" %}</button></form>
+                {% endif %}
+            </section>
+            <section class="card border-0 shadow-sm rounded-4 p-4 mb-4" aria-labelledby="pk-h">
+                <h2 id="pk-h" class="h5 fw-bold">{% translate "Passkeys & security keys" %}</h2>
+                <ul class="list-unstyled small">{% for p in passkeys %}<li class="d-flex justify-content-between border-bottom py-1"><span>{{ p.name }} · {% translate "added" %} {{ p.created_at|date:"d M Y" }}{% if p.last_used_at %} · {% translate "last used" %} {{ p.last_used_at|date:"d M Y" }}{% endif %}</span><form method="post" action="{% url 'account:security_action' %}">{% csrf_token %}<input type="hidden" name="action" value="passkey_delete"><input type="hidden" name="passkey" value="{{ p.pk }}"><button class="btn btn-sm btn-link text-danger p-0">{% translate "Remove" %}</button></form></li>{% empty %}<li class="text-muted">{% translate "No passkeys yet." %}</li>{% endfor %}</ul>
+                <div class="d-flex gap-2"><label class="visually-hidden" for="passkey-name">{% translate "Name" %}</label><input id="passkey-name" class="form-control" value="Passkey" maxlength="80"><button type="button" id="passkey-register" class="btn btn-outline-wine text-nowrap" data-options-url="{% url 'account:passkey_options' %}" data-register-url="{% url 'account:passkey_register' %}">{% translate "Add passkey" %}</button></div>
+                <noscript><p class="small text-muted mt-2">{% translate "Passkeys need JavaScript." %}</p></noscript>
+            </section>
+            <section class="card border-0 shadow-sm rounded-4 p-4" aria-labelledby="pw-h">
+                <h2 id="pw-h" class="h5 fw-bold">{% translate "Password" %}</h2>
+                <a href="{% url 'password_change' %}" class="btn btn-outline-secondary">{% translate "Change password" %}</a>
+            </section>
+        </div>
+        <div class="col-lg-6">
+            <section class="card border-0 shadow-sm rounded-4 p-4 mb-4" aria-labelledby="sess-h">
+                <div class="d-flex justify-content-between"><h2 id="sess-h" class="h5 fw-bold">{% translate "Active sessions" %}</h2>
+                <form method="post" action="{% url 'account:security_action' %}">{% csrf_token %}<input type="hidden" name="action" value="sessions_revoke_others"><button class="btn btn-sm btn-outline-danger">{% translate "Sign out other sessions" %}</button></form></div>
+                <ul class="list-unstyled small mb-0">{% for s in sessions %}<li class="border-bottom py-2 d-flex justify-content-between gap-2"><span><strong>{{ s.ip_address|default:"?" }}</strong>{% if s.session_key == current_session %} <span class="badge bg-success">{% translate "this device" %}</span>{% endif %}<div class="text-muted">{{ s.user_agent|truncatechars:70 }}</div><div class="text-muted">{% translate "last active" %} {{ s.last_seen_at|timesince }}</div></span>
+                    {% if s.session_key != current_session %}<form method="post" action="{% url 'account:security_action' %}">{% csrf_token %}<input type="hidden" name="action" value="session_revoke"><input type="hidden" name="session" value="{{ s.pk }}"><button class="btn btn-sm btn-link text-danger p-0">{% translate "Sign out" %}</button></form>{% endif %}</li>{% endfor %}</ul>
+            </section>
+            <section class="card border-0 shadow-sm rounded-4 p-4 mb-4" aria-labelledby="dev-h">
+                <h2 id="dev-h" class="h5 fw-bold">{% translate "Known devices" %}</h2>
+                <p class="small text-muted">{% translate "Sign-ins from a new device trigger an email alert and may require extra verification." %}</p>
+                <ul class="list-unstyled small mb-0">{% for d in devices %}<li class="border-bottom py-1 d-flex justify-content-between"><span>{{ d.label|truncatechars:60 }}<div class="text-muted">{{ d.ip_address }} · {{ d.last_seen_at|timesince }}</div></span><form method="post" action="{% url 'account:security_action' %}">{% csrf_token %}<input type="hidden" name="action" value="device_forget"><input type="hidden" name="device" value="{{ d.pk }}"><button class="btn btn-sm btn-link p-0">{% translate "Forget" %}</button></form></li>{% empty %}<li class="text-muted">—</li>{% endfor %}</ul>
+            </section>
+            <section class="card border-0 shadow-sm rounded-4 p-4" aria-labelledby="api-h">
+                <h2 id="api-h" class="h5 fw-bold">{% translate "API tokens" %}</h2>
+                <ul class="list-unstyled small">{% for t in tokens %}<li class="d-flex justify-content-between border-bottom py-1"><span>{{ t.name }} <span class="mono text-muted">{{ t.prefix }}…</span><div class="text-muted">{% translate "expires" %} {{ t.expires_at|date:"d M Y"|default:"never" }}</div></span><form method="post" action="{% url 'account:security_action' %}">{% csrf_token %}<input type="hidden" name="action" value="token_revoke"><input type="hidden" name="token" value="{{ t.pk }}"><button class="btn btn-sm btn-link text-danger p-0">{% translate "Revoke" %}</button></form></li>{% empty %}<li class="text-muted">{% translate "No tokens." %}</li>{% endfor %}</ul>
+                <form method="post" action="{% url 'account:security_action' %}" class="d-flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="token_create"><label class="visually-hidden" for="tn">{% translate "Token name" %}</label><input id="tn" name="name" class="form-control" placeholder="{% translate 'e.g. Results dashboard' %}" required><button class="btn btn-outline-wine text-nowrap">{% translate "Create token" %}</button></form>
+                <p class="small text-muted mt-2 mb-0"><a href="/api/v1/docs">{% translate "API documentation" %}</a></p>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}

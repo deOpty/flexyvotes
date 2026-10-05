@@ -1,0 +1,25 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{{ candidate.name }} | {{ event.title }}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 860px;">
+    <a href="{% url 'elections:candidates' event.pk %}" class="small text-muted">&larr; {% translate "All candidates" %}</a>
+    <div class="d-flex flex-wrap gap-4 align-items-center my-3">
+        {% if candidate.image and not lite_mode %}<img src="{{ candidate.image.url }}" alt="{{ candidate.name }}" class="rounded-4 shadow-sm" style="width:180px;height:180px;object-fit:cover">{% endif %}
+        <div>
+            <h1 class="fw-bold text-wine mb-1">{{ candidate.name }}</h1>
+            {% if candidate.category %}<p class="mb-1">{% translate "Candidate for" %} <strong>{{ candidate.category.name }}</strong></p>{% endif %}
+            {% if candidate.affiliation %}<p class="text-muted mb-1">{{ candidate.affiliation }}</p>{% endif %}
+            {% if candidate.status != 'ACTIVE' %}<span class="badge bg-secondary">{{ candidate.get_status_display }}</span>{% endif %}
+            {% if event.is_paid and candidate.nominee_code %}<p class="mb-0"><span class="badge bg-dark">{% translate "Nominee code" %}: {{ candidate.nominee_code }}</span></p>{% endif %}
+        </div>
+    </div>
+    {% if candidate.bio %}<section class="mb-4"><h2 class="h5 fw-bold">{% translate "Biography" %}</h2><p>{{ candidate.bio|linebreaksbr }}</p></section>{% endif %}
+    {% if candidate.manifesto %}<section class="mb-4"><h2 class="h5 fw-bold">{% translate "Manifesto" %}</h2><div>{{ candidate.manifesto|linebreaks }}</div></section>{% endif %}
+    {% if documents %}<section class="mb-4"><h2 class="h5 fw-bold">{% translate "Documents" %}</h2><ul>{% for d in documents %}<li><a href="{{ d.file.url }}" rel="noopener">{{ d.title }}</a> <span class="small text-muted mono">sha256 {{ d.sha256|slice:":12" }}…</span></li>{% endfor %}</ul></section>{% endif %}
+    {% if event.accepting_votes %}
+        {% if event.is_paid %}<a href="{% url 'payments:pay' event.pk candidate.pk %}" class="btn btn-wine btn-lg">{% blocktranslate with n=candidate.name %}Vote for {{ n }}{% endblocktranslate %}</a>
+        {% else %}<a href="{% url 'elections:vote_start' event.pk %}" class="btn btn-wine btn-lg">{% translate "Go to the ballot" %}</a>{% endif %}
+    {% endif %}
+</div>
+{% endblock %}

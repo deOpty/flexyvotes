@@ -1,0 +1,6 @@
+{% autoescape off %}{{ requested_by }} requested: {{ action }}
+
+Reason: {{ reason }}
+
+Review and approve or reject (a different person must approve): {{ link }}
+{% endautoescape %}

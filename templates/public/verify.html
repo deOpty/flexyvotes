@@ -1,0 +1,49 @@
+{% extends 'voting/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Verify" %} | {{ event.title }}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 960px;">
+    <a href="{% url 'event_detail' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+    <h1 class="fw-bold text-wine">{% translate "Election verification" %}</h1>
+    <p class="text-muted">{% translate "Anyone can check that the published result matches the certified election data, and voters can confirm their ballot is in the ballot box." %}</p>
+
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">{% translate "Election" %}</dt><dd class="col-sm-8">{{ event.title }}{% if event.organization %} · {{ event.organization.name }}{% endif %}</dd>
+            {% if turnout %}
+            <dt class="col-sm-4">{% translate "Eligible voters" %}</dt><dd class="col-sm-8">{{ turnout.eligible|number }}</dd>
+            <dt class="col-sm-4">{% translate "Votes cast" %}</dt><dd class="col-sm-8">{{ turnout.voted|number }}</dd>
+            <dt class="col-sm-4">{% translate "Turnout" %}</dt><dd class="col-sm-8">{{ turnout.turnout_percentage|pct }}</dd>
+            {% endif %}
+            <dt class="col-sm-4">{% translate "Election status" %}</dt><dd class="col-sm-8">{{ event.status|status_badge:event.get_status_display }}</dd>
+            <dt class="col-sm-4">{% translate "Ballots on bulletin board" %}</dt><dd class="col-sm-8">{{ bundle.bulletin_board.trackers|length|number }}</dd>
+            <dt class="col-sm-4">{% translate "Bulletin board root" %}</dt><dd class="col-sm-8 mono small">{{ bundle.bulletin_board.merkle_root }}</dd>
+            {% if certification %}
+            <dt class="col-sm-4">{% translate "Result hash" %}</dt><dd class="col-sm-8 mono small">{{ certification.payload.result_hash }}</dd>
+            <dt class="col-sm-4">{% translate "Certified" %}</dt><dd class="col-sm-8">✓ {{ certification.certified_at|date:"d M Y H:i" }} · {% translate "key" %} <span class="mono">{{ certification.key_id }}</span></dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    {% if checks %}
+    <div class="card border-0 shadow-sm rounded-4 p-4 mb-4">
+        <h2 class="h5 fw-bold">{% translate "Independent checks" %} {% if all_ok %}<span class="badge bg-success">{% translate "all passed" %}</span>{% else %}<span class="badge bg-danger">{% translate "problem detected" %}</span>{% endif %}</h2>
+        <ul class="list-unstyled mb-2">{% for name, ok, detail in checks %}<li>{% if ok %}<span class="text-success" aria-hidden="true">✓</span>{% else %}<span class="text-danger" aria-hidden="true">✗</span>{% endif %} {{ name }} <span class="visually-hidden">{{ ok|yesno:"passed,failed" }}</span> <span class="mono small text-muted">{{ detail|truncatechars:40 }}</span></li>{% endfor %}</ul>
+        <p class="small text-muted mb-0">{% translate "Re-run these checks yourself:" %} <a href="{% url 'elections:verify_bundle' event.pk %}">{% translate "download the verification bundle" %}</a> {% translate "and the offline verifier (tools/verify_election.py). The platform's public key is published at" %} <a href="{% url 'signing_key' %}">{% url 'signing_key' %}</a>.</p>
+    </div>
+    {% endif %}
+
+    {% if event.is_institutional %}
+    <div class="card border-0 shadow-sm rounded-4 p-4">
+        <h2 class="h5 fw-bold">{% translate "Check your ballot" %}</h2>
+        <form method="get" class="d-flex gap-2 flex-wrap"><label for="tr" class="visually-hidden">{% translate "Ballot tracker" %}</label><input id="tr" name="tracker" value="{{ tracker }}" class="form-control mono" placeholder="{% translate 'Paste your 64-character ballot tracker' %}" style="max-width: 560px;"><button class="btn btn-wine">{% translate "Check" %}</button></form>
+        {% if proof %}
+            {% if proof.invalid %}<div class="alert alert-warning mt-3 mb-0">{% translate "That is not a valid tracker." %}</div>
+            {% elif proof.included %}<div class="alert alert-success mt-3 mb-0"><strong>{% translate "Your ballot is on the bulletin board." %}</strong> {% blocktranslate with i=proof.index|add:1 n=proof.ballots %}Position {{ i }} of {{ n }}.{% endblocktranslate %}
+                <details class="mt-2"><summary>{% translate "Merkle inclusion proof" %}</summary><pre class="mono small mb-0">{{ proof.proof|pprint }}</pre><div class="small">{% translate "Root" %}: <span class="mono">{{ proof.root }}</span></div></details></div>
+            {% else %}<div class="alert alert-danger mt-3 mb-0">{% translate "No ballot with that tracker was found. If you voted, file a dispute." %} <a href="{% url 'elections:file_dispute' event.pk %}">{% translate "File a dispute" %}</a></div>{% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

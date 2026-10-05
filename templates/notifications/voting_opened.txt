@@ -1,0 +1,4 @@
+{% autoescape off %}Voting is now open for "{{ election }}" and closes {{ ends }}.
+
+Cast your ballot: {{ link }}
+{% endautoescape %}

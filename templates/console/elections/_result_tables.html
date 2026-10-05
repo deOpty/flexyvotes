@@ -1,0 +1,32 @@
+{% load i18n fv %}
+{% for position in data.positions %}
+<div class="mb-4">
+    <h3 class="h6 fw-bold mb-1">{{ position.position }} <span class="text-muted small fw-normal">· {{ position.method }}{% if position.seats and position.seats > 1 %} · {{ position.seats }} {% translate "seats" %}{% endif %}</span></h3>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-1">
+        <thead><tr><th scope="col">#</th><th scope="col">{% translate "Candidate / option" %}</th><th scope="col" class="text-end">{% translate "Votes" %}</th><th scope="col" class="text-end">%</th><th scope="col"></th></tr></thead>
+        <tbody>{% for c in position.candidates %}
+            <tr {% if c.candidate_id in position.winners %}class="table-success"{% endif %}>
+                <td>{{ c.rank }}</td><td>{{ c.name }}</td><td class="text-end">{{ c.votes|number }}{% if c.tie_breaker_votes %} <span class="small text-muted">(+{{ c.tie_breaker_votes }} TB)</span>{% endif %}</td>
+                <td class="text-end">{{ c.percentage|pct }}</td>
+                <td>{% if c.candidate_id in position.winners %}<span class="badge bg-success">{% if position.method == 'referendum' %}{% translate "Passed" %}{% else %}{% translate "Winner" %}{% endif %}</span>{% endif %}</td>
+            </tr>
+        {% endfor %}</tbody>
+    </table></div>
+    <div class="small text-muted">
+        {% translate "Valid ballots" %}: {{ position.valid_ballots|number }} · {% translate "Abstentions" %}: {{ position.abstentions|number }}{% if position.invalid_ballots %} · {% translate "Invalid" %}: {{ position.invalid_ballots }}{% endif %}
+        {% if position.quota %} · {% translate "Droop quota" %}: {{ position.quota }}{% endif %}
+        {% if position.passed is not None %} · {% translate "Threshold" %}: {{ position.threshold }}%{% endif %}
+    </div>
+    {% if position.ties %}<div class="alert alert-warning small py-1 mt-1 mb-0">{% translate "Tie affecting the outcome - resolve according to the election rules." %}</div>{% endif %}
+    {% if position.tie_breaks %}<div class="small text-muted">{% translate "Elimination ties broken by documented deterministic lot" %}: {{ position.tie_breaks|length }}</div>{% endif %}
+    {% if position.rounds %}
+    <details class="small mt-1"><summary>{% translate "Round-by-round counts" %}</summary>
+        <ol class="mb-0">{% for r in position.rounds %}<li>{% for cid, v in r.tallies.items %}{{ cid }}: {{ v }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if r.elected %} — {% translate "elected" %} {{ r.elected|join:", " }}{% endif %}{% if r.eliminated %} — {% translate "eliminated" %} {{ r.eliminated|join:", " }}{% endif %}</li>{% endfor %}</ol>
+    </details>
+    {% endif %}
+</div>
+{% endfor %}
+{% if data.constituencies %}
+<h3 class="h6 fw-bold">{% translate "By constituency" %}</h3>
+<ul class="small">{% for c in data.constituencies %}<li>{{ c.name }}: {{ c.ballots }} {% translate "ballots" %}{% if c.suppressed %} — {% translate "suppressed (below anonymity threshold)" %}{% endif %}</li>{% endfor %}</ul>
+{% endif %}

@@ -26,3 +26,8 @@ media/
 
 # Logs
 *.log
+
+# Platform
+private_media/
+backups/
+deploy/nginx/certs/

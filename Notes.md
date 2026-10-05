@@ -42,9 +42,13 @@ Add pgAdmin front so the admin can login and access the data on the server. pgAd
 
 ---
 
+1. The Voting categories in the admin dashboard can not be clicked to view the candidates of those categories. Investigate and fix the issues causing this so that the admin can click on each category and view the candidates in those categories.
+
 ---
 
 ---
+
+Using a single agent and not exhausting all tokens and also having full control to implement the full features needed for the following items listed in the file above. Do not stop it every feature is fully implemented and running correctly and also as intended. Test the project fully and make sure everything works with no errors and bugs.
 
 ---
 

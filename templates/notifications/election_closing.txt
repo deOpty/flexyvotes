@@ -1,0 +1,4 @@
+{% autoescape off %}Voting for "{{ election }}" closes {{ ends }} - this is your last chance to vote.
+
+Vote here: {{ link }}
+{% endautoescape %}

@@ -1,0 +1,43 @@
+{% extends 'voting/base.html' %}
+{% load i18n fv %}
+{% block title %}{% blocktranslate with n=candidate.name %}Vote for {{ n }}{% endblocktranslate %} | {{ event.title }}{% endblock %}
+{% block content %}
+<div class="container py-4" style="max-width: 640px;">
+    <a href="{% url 'event_detail' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+    <ol class="status-steps mt-2" aria-label="{% translate 'Payment steps' %}"><li class="active" aria-current="step">1. {% translate "Choose votes" %}</li><li>2. {% translate "Pay" %}</li><li>3. {% translate "Verified" %}</li><li>4. {% translate "Credited" %}</li></ol>
+    <div class="d-flex align-items-center gap-3 my-3">
+        {% if candidate.image and not lite_mode %}<img src="{{ candidate.image.url }}" alt="" class="rounded-circle" width="72" height="72" style="object-fit:cover">{% endif %}
+        <div><h1 class="h3 fw-bold text-wine mb-0">{% blocktranslate with n=candidate.name %}Vote for {{ n }}{% endblocktranslate %}</h1>
+            <div class="small text-muted">{{ candidate.category.name|default:"" }}{% if candidate.nominee_code %} · {% translate "code" %} {{ candidate.nominee_code }}{% endif %}</div></div>
+    </div>
+    {% if not accepting %}<div class="alert alert-secondary">{% translate "Voting is not open right now." %}</div>
+    {% elif not gateway_ready %}<div class="alert alert-warning">{% translate "Online payment is temporarily unavailable." %}</div>
+    {% else %}
+    <form method="post" data-quote-url="{% url 'payments:quote' event.pk candidate.pk %}" class="card border-0 shadow-sm rounded-4 p-4">
+        {% csrf_token %}{% bot_protection %}
+        <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+        {% if packages %}
+        <fieldset class="mb-3"><legend class="form-label fw-semibold">{% translate "Choose a bundle" %}</legend>
+            {% for p in packages %}
+            <label class="choice"><input type="radio" name="package" value="{{ p.pk }}" {% if form.package == p.pk|stringformat:"s" %}checked{% endif %}>
+                <span class="flex-grow-1"><strong>{{ p.name }}</strong> · {{ p.votes }} {% translate "votes" %}{% if p.bonus_votes %} + <span class="text-success">{{ p.bonus_votes }} {% translate "bonus" %}</span>{% endif %}{% if p.badge %} <span class="badge bg-gold text-dark">{{ p.badge }}</span>{% endif %}{% if p.is_promotional and p.ends_at %}<div class="small text-muted">{% translate "Offer ends" %} {{ p.ends_at|date:"d M H:i" }}</div>{% endif %}</span>
+                <span class="fw-bold">{{ p.price|money:event.currency }}</span></label>
+            {% endfor %}
+            <label class="choice"><input type="radio" name="package" value="" {% if not form.package %}checked{% endif %}><span>{% translate "Custom number of votes" %}</span></label>
+        </fieldset>
+        {% endif %}
+        <label class="form-label fw-semibold" for="votes">{% translate "Number of votes" %} <span class="text-muted fw-normal small">({{ unit_price|money:event.currency }} {% translate "each" %})</span></label>
+        <input id="votes" type="number" name="votes" min="{{ event.min_votes_per_transaction }}" {% if event.max_votes_per_transaction %}max="{{ event.max_votes_per_transaction }}"{% endif %} value="{{ form.votes|default:prefill_votes|default:'1' }}" class="form-control form-control-lg mb-3" inputmode="numeric">
+        <label class="form-label" for="dcode">{% translate "Discount code (optional)" %}</label>
+        <input id="dcode" name="discount_code" value="{{ form.discount_code }}" class="form-control mb-3" autocapitalize="characters">
+        <div class="row g-2">
+            <div class="col-md-6"><label class="form-label" for="pe">{% translate "Email for your receipt" %}</label><input id="pe" type="email" name="email" value="{{ form.email }}" class="form-control" autocomplete="email"></div>
+            <div class="col-md-6"><label class="form-label" for="pp">{% translate "or phone" %}</label><input id="pp" name="phone" value="{{ form.phone }}" class="form-control" autocomplete="tel" inputmode="tel"></div>
+        </div>
+        <div class="alert alert-light border mt-3 mb-3" aria-live="polite"><span id="quote-output">{% translate "Enter the number of votes to see the total." %}</span></div>
+        <button class="btn btn-wine btn-lg w-100">{% translate "Continue to secure payment" %}</button>
+        <p class="small text-muted mt-2 mb-0">{% translate "You'll pay on Paystack (card, mobile money or bank). Votes are credited only after Paystack confirms the payment to us directly." %}</p>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

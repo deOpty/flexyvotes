@@ -1,0 +1,1 @@
+{% autoescape off %}{{ election }}: {% if code %}your access code is {{ code }}. {% endif %}Vote at {{ link }}{% endautoescape %}

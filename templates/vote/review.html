@@ -1,0 +1,28 @@
+{% extends 'vote/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Review your ballot" %} | {{ event.title }}{% endblock %}
+{% block steps %}{% include 'vote/_steps.html' with step=3 %}{% endblock %}
+{% block vote %}
+<h1 class="h3 fw-bold text-wine">{% translate "Review your ballot" %}</h1>
+<p class="text-muted">{% translate "Check every choice carefully. Once cast, your ballot cannot be changed." %}</p>
+<div class="card border-0 shadow-sm rounded-4 p-4 mb-3">
+    <dl class="mb-0">
+        {% for row in rows %}
+        <dt class="text-wine">{{ row.position }}</dt>
+        <dd class="mb-3">{% if row.abstained %}<em>{% translate "Abstained" %}</em>{% else %}<ul class="mb-0">{% for choice in row.choices %}<li>{{ choice }}</li>{% endfor %}</ul>{% endif %}</dd>
+        {% endfor %}
+    </dl>
+</div>
+<form method="post" class="card border-0 shadow-sm rounded-4 p-4">
+    {% csrf_token %}
+    <input type="hidden" name="submission_id" value="{{ submission_id }}">
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="confirm" id="confirm" required>
+        <label class="form-check-label" for="confirm">{% translate "I confirm these are my final choices and I am casting my own ballot." %}</label>
+    </div>
+    <div class="d-flex justify-content-between gap-2 flex-wrap">
+        <button type="submit" name="action" value="edit" class="btn btn-outline-secondary" formnovalidate>&larr; {% translate "Change my choices" %}</button>
+        <button type="submit" name="action" value="cast" class="btn btn-success btn-lg px-4">{% translate "Cast my ballot" %}</button>
+    </div>
+</form>
+{% endblock %}

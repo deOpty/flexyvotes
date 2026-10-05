@@ -1,0 +1,91 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Dashboard" %} | {{ PLATFORM_NAME }}{% endblock %}
+{% block console %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <p class="section-eyebrow mb-1">{% translate "Election management" %}</p>
+        <h1 class="h3 fw-bold text-wine mb-0">{% blocktranslate with name=request.user.username %}Welcome, {{ name }}{% endblocktranslate %}</h1>
+        {% if organization %}<p class="text-muted mb-0 small">{% translate "Working in" %} <strong>{{ organization.name }}</strong></p>{% endif %}
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if organizations|length > 1 %}
+        <form method="post" action="{% url 'console:switch_org' %}" class="d-flex gap-1" data-autosubmit>{% csrf_token %}
+            <label for="org-switch" class="visually-hidden">{% translate "Organization" %}</label>
+            <select id="org-switch" name="organization" class="form-select form-select-sm">
+                {% for org in organizations %}<option value="{{ org.pk }}" {% if org.pk == organization.pk %}selected{% endif %}>{{ org.name }}</option>{% endfor %}
+            </select>
+        </form>
+        {% endif %}
+        <a href="{% url 'create_event' %}" class="btn btn-gold"><i class="bi bi-plus-lg" aria-hidden="true"></i> {% translate "New election" %}</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Active elections" %}</div><div class="kpi-value">{{ stats.active|number }}</div></div></div>
+    <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Votes today" %}</div><div class="kpi-value">{{ stats.votes_today|number }}</div></div></div>
+    <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Revenue (30 days)" %}</div><div class="kpi-value">{{ stats.revenue_30d|money:currency }}</div></div></div>
+    <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Voters on rolls" %}</div><div class="kpi-value">{{ stats.voters|number }}</div></div></div>
+    <div class="col-6 col-lg"><a href="{% url 'fraud:alerts' %}" class="text-decoration-none"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Fraud alerts" %}</div><div class="kpi-value {% if stats.fraud_alerts %}text-danger{% endif %}">{{ stats.fraud_alerts|number }}</div></div></a></div>
+</div>
+
+{% if stats.approvals or stats.in_review %}
+<div class="alert alert-warning d-flex flex-wrap gap-3 align-items-center">
+    <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+    {% if stats.in_review %}<span>{% blocktranslate count n=stats.in_review %}{{ n }} election awaits configuration review.{% plural %}{{ n }} elections await configuration review.{% endblocktranslate %}</span>{% endif %}
+    {% if stats.approvals %}<a href="{% url 'console:approvals' %}" class="fw-semibold">{% blocktranslate count n=stats.approvals %}{{ n }} sensitive action needs your approval{% plural %}{{ n }} sensitive actions need your approval{% endblocktranslate %}</a>{% endif %}
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="panel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h5 fw-bold mb-0">{% translate "Elections" %}</h2>
+                <div class="small text-muted">{% for status, n in status_counts.items %}<span class="me-2">{{ status|title }}: {{ n }}</span>{% endfor %}</div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th scope="col">{% translate "Election" %}</th><th scope="col">{% translate "Type" %}</th><th scope="col">{% translate "Status" %}</th><th scope="col">{% translate "Closes" %}</th><th scope="col" class="text-end">{% translate "Actions" %}</th></tr></thead>
+                    <tbody>
+                    {% for event in events %}
+                        <tr>
+                            <td><a href="{% url 'elections:console_overview' event.id %}" class="text-wine fw-semibold">{{ event.title }}</a>{% if event.organization %}<div class="small text-muted">{{ event.organization.name }}</div>{% endif %}</td>
+                            <td class="small">{% if event.is_paid %}{% translate "Paid" %}{% else %}{% translate "Institutional" %}{% endif %}</td>
+                            <td>{{ event.status|status_badge:event.get_status_display }}</td>
+                            <td class="small">{{ event.end_date|in_tz:event.timezone|date:"d M Y H:i" }}</td>
+                            <td class="text-end">
+                                <div class="d-inline-flex gap-1">
+                                    {% if event.status == 'REVIEW' %}{% can request.user 'election.review' event as can_review %}{% if can_review %}
+                                    <form action="{% url 'approve_event' event.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success" title="{% translate 'Approve configuration' %}">{% translate "Approve" %}</button></form>
+                                    {% endif %}{% endif %}
+                                    <a href="{% url 'elections:console_overview' event.id %}" class="btn btn-sm btn-outline-wine">{% translate "Manage" %}</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted p-5">{% translate "No elections yet. Create your first election to get started." %}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        {% if notifications %}
+        <div class="panel">
+            <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Notifications" %}</h2><a href="{% url 'console:notifications' %}" class="small">{% translate "All" %}</a></div>
+            <ul class="list-unstyled mb-0 small">{% for n in notifications %}<li class="border-bottom py-2"><strong>{{ n.subject }}</strong><div class="text-muted">{{ n.created_at|timesince }} {% translate "ago" %}</div></li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+        <div class="panel">
+            <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Recent activity" %}</h2><a href="{% url 'console:audit' %}" class="small">{% translate "Audit log" %}</a></div>
+            <ul class="list-unstyled mb-0 small">
+                {% for log in logs %}
+                <li class="border-bottom py-2"><div class="d-flex justify-content-between"><span class="fw-semibold">{{ log.actor_label|default:"system" }}</span><span class="text-muted">{{ log.created_at|timesince }}</span></div><div>{{ log.summary|default:log.event_type }}</div></li>
+                {% empty %}<li class="text-muted">{% translate "No activity yet." %}</li>{% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

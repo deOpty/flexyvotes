@@ -1,0 +1,7 @@
+{% autoescape off %}A new organizer registered and is awaiting approval.
+
+Username: {{ username }}
+Email: {{ email }}
+
+Review: {{ site_url }}/console/organizers/
+{% endautoescape %}

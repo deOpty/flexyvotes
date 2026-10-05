@@ -1,528 +1,355 @@
-# FlexyVotes — Technical Requirements & Design Document
+# Technical Requirements & Design (TRD)
 
-## 1. System Overview
+This document explains how FlexyVotes meets the requirements in [PRD.md](PRD.md) and why it
+was built that way. For component diagrams see [ARCHITECTURE.md](ARCHITECTURE.md); for the
+schema see [DATABASE.md](DATABASE.md).
 
-FlexyVotes is a Django 6.0.7 web application that lets event organizers run
-paid or code-based voting competitions (e.g. "Best Male", "Best Female"
-pageant-style contests), sell event tickets, and run a small merchandise
-store. It supports three voter-facing channels:
+## 1. Constraints and decisions
 
-- **Web** — browse events, vote for a candidate by paying via Paystack, buy
-  tickets, redeem voting codes.
-- **USSD** — a full menu-driven flow (via Africa's Talking) that lets a
-  feature-phone user vote for a candidate or buy a ticket using only a USSD
-  session (`*XXX#`), with no internet access required.
-- **Admin/Organizer dashboard** — Django views (not the Django admin) for
-  approved organizers to create events, candidates, categories, tickets,
-  voting codes, and view analytics; the Django admin site itself is used for
-  superuser tasks (approving organizers, direct record editing).
+| Decision | Reason |
+|---|---|
+| Django monolith split into apps (`core`, `voting`, `elections`, `payments`, `fraud`, `notifications`, `billing`, `api`) | One deployable unit and one database transaction across ledger and audit, with clear module boundaries. The election engine never imports payments. |
+| PostgreSQL in production | Row locks (`SELECT … FOR UPDATE`), partial unique constraints, triggers and PITR. SQLite works for development, and the tests that need PostgreSQL skip themselves on SQLite. |
+| Server-rendered HTML plus a REST API | The voting flow must work without JavaScript on low-end phones. The API (django-ninja) serves integrations and future apps. |
+| Celery + Redis | Notifications, reconciliation, scheduled transitions and scans run off the request path. Without a broker, tasks run inline (eager), so development needs no worker. |
+| `Event` stays the election model | Existing data, URLs and organizer workflows keep working. Migrations 0036–0038 moved legacy data onto the new model (statuses, organizations, roles, encrypted voter rolls). |
 
-The project is a single Django project (`vote_fund`) with a single Django
-app (`voting`) that contains all models, views, and integration code.
+## 2. Election engine
 
-## 2. Technology Stack
+### 2.1 Lifecycle (`elections/lifecycle.py`)
 
-| Layer | Technology | Version (requirements.txt) |
+The lifecycle is a table of `Action(name, sources, target, permission, guard, effect)`.
+`transition()`:
+1. checks the permission;
+2. locks the `Event` row;
+3. checks that the source state is allowed;
+4. runs the guard, then the effect;
+5. writes an audit event, all in one transaction.
+
+| Action | From → To | Permission | Guard / effect |
+|---|---|---|---|
+| submit | DRAFT → REVIEW | `election.submit` | `configuration_problems()` must be empty |
+| withdraw / reject | REVIEW → DRAFT | submit / review | |
+| approve | REVIEW → APPROVED | `election.review` | Approver ≠ submitter; stores a signed config snapshot |
+| schedule / unschedule | APPROVED ⇄ SCHEDULED | `election.publish` | End date in the future; creates election keys |
+| open | SCHEDULED → OPEN | `election.publish` | End date not passed |
+| pause / resume | OPEN ⇄ PAUSED | `election.pause` | Can't resume after the end date |
+| close | OPEN/PAUSED → CLOSED | `election.close` | |
+| start_tally | CLOSED → TALLYING | `results.tally` | |
+| certify | TALLYING → CERTIFIED | `results.certify` | System-only: done by `approve_and_certify()` |
+| publish | CERTIFIED → PUBLISHED | `results.publish` | |
+| archive | PUBLISHED/CLOSED/DRAFT → ARCHIVED | `election.archive` | No legal hold; no open disputes |
+| decertify, reopen_voting | — | — | System-only, run through dual approval |
+
+`lifecycle_tick` (every 60 s) opens SCHEDULED elections whose start has passed and closes
+OPEN or PAUSED ones whose end has passed. It uses `skip_guard` and `system=True`.
+
+`edit_policy(event, scope)` decides whether a scope can change in the current state; see
+[ARCHITECTURE.md §4.4](ARCHITECTURE.md#44-configuration-changes-during-an-election). Every
+editing view calls `require_editable()`, which can also send an approved election back to
+DRAFT.
+
+### 2.2 Ballot rules (`elections/ballot.py`)
+
+| Type | Valid selection | Tally |
 |---|---|---|
-| Language / runtime | Python | 3.12.4 (`runtime.txt`) |
-| Web framework | Django | 6.0.7 |
-| WSGI server | gunicorn | 26.0.0 |
-| ASGI/WSGI glue | asgiref | 3.12.1 |
-| Database driver (Postgres) | psycopg2-binary | 2.9.12 |
-| Database URL parsing | dj-database-url | 3.1.2 |
-| Static file serving | whitenoise | 6.12.0 |
-| Media storage | cloudinary + django-cloudinary-storage | 1.45.0 / 0.3.0 |
-| Payments | Paystack (HTTP API via `requests`) | requests 2.34.2 |
-| USSD / mobile money | africastalking | 2.0.2 |
-| QR codes | qrcode | 8.2 |
-| Image processing | pillow | 12.3.0 |
-| Env config | python-dotenv | 1.2.2 |
-| Misc | certifi, charset-normalizer, idna, urllib3, packaging, colorama, PyYAML, responses, schema, six, sqlparse, tzdata | pinned, transitive/test deps |
+| SINGLE / FPTP | Exactly one candidate (or abstain) | Plurality |
+| MULTIPLE | `min_select`..`max_select` distinct candidates | Plurality, `seats` winners |
+| APPROVAL | Any subset up to `max_select` | Plurality over approvals |
+| RANKED | Distinct ranks 1..k, no gaps | IRV (1 seat, majority of continuing ballots) or STV (several seats) |
+| SCORE | Integer 0..`max_score` per candidate | Sum of scores |
+| REFERENDUM | YES or NO | Passes if YES% of valid votes > `referendum_threshold` |
 
-Database: SQLite (`db.sqlite3`) for local development, Postgres in
-production via `DATABASE_URL` (see §7). Caching: Django `LocMemCache` (see
-§8).
+`validate_ballot()` runs on the server for every cast, whatever the client sent. A position
+outside the voter's ballot style, an unknown candidate, a duplicate, or a count out of range
+rejects the whole ballot.
 
-## 3. Application Architecture
+### 2.3 Tally algorithms (`elections/tally.py`)
 
-FlexyVotes follows Django's standard MVT (Model-View-Template) pattern.
+The tally functions are pure: no database access, and deterministic.
 
-- **Project (`vote_fund/`)**: `settings.py`, `urls.py`, `wsgi.py`, `asgi.py`.
-  `wsgi.py` is what gunicorn serves in production per the `Procfile`
-  (`gunicorn vote_fund.wsgi:application --log-file -`); `asgi.py` exists
-  (Django's default scaffold) but is not referenced by the Procfile or any
-  deployment config — the app runs as a synchronous WSGI app end to end.
-- **App (`voting/`)**: `models.py` (all data models), `views.py` (all
-  request handlers — a single ~1500-line module covering web pages, the
-  Paystack webhook, and the USSD callback), `services.py` (Paystack HTTP
-  client), `at_service.py` (Africa's Talking mobile-money helper, currently
-  unused — see §10), `admin.py` (Django admin customization + organizer
-  approval emails), `urls.py` (app-level routes, included from the project
-  `urls.py`).
-- **Routing**: `vote_fund/urls.py` mounts `voting.urls` at `/`, registers
-  `/admin/`, and separately registers `/ussd/callback/` twice (once directly
-  in the project urls and once again inside `voting/urls.py` — both point at
-  the same `views.ussd_callback`, so the route is effectively duplicated;
-  worth cleaning up).
-- **Templates**: `django.contrib.staticfiles`-style app templates dir plus a
-  project-level `templates/` directory (`TEMPLATES.DIRS`).
-- **No REST framework / API layer**: all "API-like" endpoints
-  (`live_vote_counts`, `send_ticket_email`, `process_scan`, `ussd_callback`,
-  `paystack_webhook`) are plain Django views returning `JsonResponse` or
-  `HttpResponse`, not DRF.
+- **Ties:** a tie that decides a seat is reported in `ties` and never broken silently.
+- **Forced tie-breaks:** IRV and STV eliminations must continue, so they break ties with a
+  documented lot: SHA-256 of `election_id:candidate_id`. Anyone re-running the count gets
+  the same result, and every lot is recorded in `tie_breaks`.
+- **STV quota:** Droop, computed exactly with `Fraction` as valid ÷ (seats + 1). A candidate
+  is elected on reaching the quota.
+- **STV surplus:** transferred with Gregory fractional weights.
+- **IRV:** needs more than half of the continuing ballots.
+- **Invalid ballots:** a ballot whose ciphertext fails to decrypt or validate counts as
+  invalid. It is reported, and never dropped silently.
 
-Full entity/relationship documentation lives in the companion
-[`DATABASE.md`](./DATABASE.md) — this document only summarizes the model
-set (see §5).
+### 2.4 Results (`elections/results.py`)
 
-## 4. Request Lifecycle — Key Flows
+1. **Tally.** `run_tally()` decrypts every ballot of the election, tallies each position
+   (respecting each ballot's style) and stores an `ElectionResult` with:
+   - `result_hash`: SHA-256 of the canonical result JSON;
+   - `bulletin_root`: Merkle root over the sorted ballot trackers.
+2. **Certify.** `approve_and_certify()` needs a different user from the tallier. It signs
+   the canonical JSON of the following with the platform Ed25519 key, producing a
+   `ResultCertification`:
+   - election id and title, organization;
+   - `result_hash` and `bulletin_root`;
+   - ballots counted, votes cast, eligible voters;
+   - the latest config-snapshot hash;
+   - the ballot-key fingerprint;
+   - `certified_at`.
+3. **Recount.** `recount()` re-tallies and compares the outcome with the certified result.
+   Results are `matches` or a list of differences.
+4. **Publish.** `public_results()` respects `results_visibility`, and hides
+   constituency breakdowns smaller than `min_anonymity_set`.
+5. **Verify.** `verification_bundle()` and `verify_bundle()` produce and check the public
+   bundle. The offline verifier `tools/verify_election.py` re-checks:
+   - the certification signature;
+   - the result hash;
+   - the Merkle root from the trackers.
 
-### 4.1 Paystack Pay-to-Vote Flow
+## 3. Ballot secrecy and cryptography
 
-1. Voter is on `event_detail.html`, submits a POST to
-   `initiate_vote(request, candidate_id)` (`voting/urls.py` →
-   `vote/<int:candidate_id>/`) with a whole-number `amount` (1 GHS = 1 vote).
-2. `initiate_vote` blocks staff/approved-organizer accounts from voting,
-   validates `amount >= 1`, and calls
-   `services.initialize_paystack_payment(voter_email, amount, candidate_id)`
-   with a hardcoded placeholder voter email (`anonymous@FlexyVotes.com` —
-   the app does not currently collect a real voter email for web pay-to-vote).
-3. `services._paystack_initialize` generates a random UUID4 `reference`,
-   POSTs to `https://api.paystack.co/transaction/initialize` with a Bearer
-   token (`PAYSTACK_SECRET_KEY`), amount converted to kobo/pesewas
-   (`int(amount * 100)`), and a `callback_url` of
-   `f"{SITE_URL}/vote/success/"`. On any `requests.RequestException` or a
-   falsy `status` in Paystack's JSON response it logs and returns
-   `(None, None)` — the caller then just redirects back to `event_detail`
-   with no vote recorded (no user-facing error message is shown in that
-   path, only a page redirect).
-4. On success, `initiate_vote` creates a `VoteTransaction` row with
-   `status='Pending'` and the Paystack `reference`, then redirects the
-   browser to Paystack's hosted `authorization_url`.
-5. The voter completes payment on Paystack's site. Two independent paths can
-   mark the transaction `Success`:
-   - **Webhook** (`paystack_webhook`, `POST /webhook/paystack/`,
-     `@csrf_exempt`): verifies `X-Paystack-Signature` via
-     `hmac.new(secret, request.body, hashlib.sha512)` compared with
-     `hmac.compare_digest`; rejects with HTTP 400 on mismatch or invalid
-     JSON. On `event == 'charge.success'` it looks up the transaction (or
-     `TicketPurchase` if `metadata.type == 'ticket_purchase'`) by reference
-     and flips `Pending → Success`. Missing records are silently ignored
-     (`DoesNotExist` swallowed).
-   - **Browser redirect fallback** (`vote_success`, `GET /vote/success/`):
-     reads `?reference=`, and if the matching `VoteTransaction` is still
-     `Pending`, marks it `Success` directly — with **no signature or
-     payment-status verification against Paystack**. This is explicitly
-     commented as "Fallback for local testing" but ships in the same code
-     path used in production, meaning anyone who guesses/observes a pending
-     reference and hits this URL can mark it successful without ever
-     paying. This is a real technical-debt/security item (see §10).
-6. Vote counts are derived, not stored — `Candidate` has no vote counter
-   field; `event_detail`/`live_vote_counts`/`event_analytics` all recompute
-   `Sum('transactions__number_of_votes', filter=Q(status='Success', ...))`
-   on every request.
+### 3.1 Unlinkability
 
-### 4.2 USSD Voting State Machine
-
-1. Africa's Talking POSTs to `/ussd/callback/` (`views.ussd_callback`,
-   `@csrf_exempt`, since AT is an external caller with no Django session/
-   CSRF token) on every keypress in the session, with `sessionId`,
-   `serviceCode`, `phoneNumber`, and a cumulative `text` field containing
-   every input the user has typed so far, separated by `*`
-   (e.g. `"1*TE025*5*1"`).
-2. The handler splits `text` on `*` into `inputs` and branches purely on
-   `len(inputs)` and `inputs[0]` — there is no server-side session storage;
-   the entire state machine is reconstructed from the AT-supplied `text` on
-   every request (this is the standard AT USSD pattern, but it means every
-   step re-queries the DB for lookups already performed in prior steps,
-   e.g. re-fetching the event/ticket list at levels 2–6 of the ticket flow).
-3. **Menu (text == "")**: returns `CON` (continue-session) response
-   `"1. Vote for Candidate\n2. Buy Event Ticket"`.
-4. **Voting branch (`inputs[0] == "1"`)**: level 1 asks for a nominee code;
-   level 2 looks up `Candidate.objects.filter(nominee_code=code_input)` and
-   asks for a vote count; level 3 computes `total_cost = votes * 1` (hardcoded
-   1 GHS/vote) and asks for confirmation; level 4, on confirm, immediately
-   creates a `VoteTransaction` with `status='Success'` and a synthetic
-   reference `USSD_<hex8>` — **no Paystack or Africa's Talking mobile-money
-   charge is actually triggered**; the vote is recorded as paid without any
-   real payment collection. (`at_service.trigger_mobile_money_checkout`
-   exists for this purpose but is never called from `ussd_callback` — see
-   §10.)
-5. **Ticket branch (`inputs[0] == "2"`)**: levels 1–5 walk the user through
-   selecting an event (by list index, re-queried and re-indexed at every
-   step), a ticket type, a quantity, and a name, ending in a confirmation
-   prompt. Level 6, on confirm, creates a `TicketPurchase` with
-   `status='Success'` and `purchase_method='USSD'`, again with **no real
-   payment step** — the reference is synthesized client-side
-   (`TK-<2 letters><4 digits>`) the same way `services.initialize_ticket_payment`
-   does for the web flow, but here it's assigned success status unconditionally.
-6. All terminal responses use `END` (closes the USSD session); all
-   intermediate ones use `CON` (keeps the session open for another digit).
-7. Because USSD-originated `VoteTransaction`/`TicketPurchase` rows use a
-   synthetic buyer email of `"{phone_number}@ussd.vote"`, downstream code
-   (`send_ticket_email`, ticket retrieval by phone) specifically checks for
-   and skips/handles this sentinel domain.
-
-## 5. Data Model Summary
-
-Core entities defined in `voting/models.py`:
-
-- `Profile` (1:1 with `User`) — `is_approved_organizer` gate.
-- `Event` — voting mode (`Pay to Vote` / `Code Voting`), code-voting
-  sub-mode (`Standard` / `Student ID`), tie-breaker toggle, theming fields,
-  `platform_fee_percentage`, `organizer` FK, and derived helpers
-  `get_total_revenue()` / `get_organizer_payout()` (computed on read, not
-  persisted or paid out automatically — see §10).
-- `Category` — grouping of candidates within an `Event`.
-- `Candidate` — auto-generates a unique `nominee_code` (2 letters + 3
-  digits) on save if not supplied, used by the USSD flow.
-- `VoteTransaction` — the single source of truth for both paid and
-  code/ticket-based votes; `status` (`Pending`/`Success`/`Failed`),
-  `vote_type` (`Main`/`Tie-Breaker`), `number_of_votes`,
-  `paystack_reference` (unique — doubles as an idempotency key even for
-  non-Paystack-originated rows such as USSD or code votes, which use
-  synthetic prefixes like `USSD_`, `TIE_`, `code_...`).
-- `ActivityLog` — free-text audit trail of organizer/admin actions.
-- `ProductCategory` / `Product` — simple merch store, no checkout/payment
-  wiring visible in `views.py` beyond listing.
-- `VotingCode` — single-use code (optionally bound to a `voter_identifier`
-  i.e. student ID, and a `voter_email` for reset/resend) for `Code Voting`
-  events. `code` holds the plaintext only transiently (blank once used or
-  reset); every live lookup/uniqueness check goes through `code_hash`
-  (HMAC-SHA256 of the code, keyed by `SECRET_KEY`, scoped per-event) — see
-  `docs/API.md`'s "Voting code security model" for the full rationale.
-- `Category` (an election "position") additionally carries `min_select`/
-  `max_select`/`allow_abstain` — the per-position ballot rules enforced
-  server-side by `cast_ballot`.
-- `Event.voting_locked` — an explicit organizer/admin kill-switch that closes
-  voting immediately, independent of the scheduled `start_date`/`end_date`.
-- `Ticket` / `TicketPurchase` — ticket types per event and purchase records,
-  with QR-code check-in fields (`is_checked_in`, `checked_in_at`) and a
-  `has_voted` flag used to gate the tie-breaker free-vote flow.
-
-Full field-by-field schema, relationships, and constraints are documented
-separately in `docs/DATABASE.md`.
-
-## 6. Third-Party Integrations
-
-### 6.1 Paystack
-
-- **Purpose**: card/mobile-money payment collection for votes and ticket
-  purchases (web only).
-- **Auth**: `Authorization: Bearer <PAYSTACK_SECRET_KEY>` header on the
-  `POST /transaction/initialize` call (`voting/services.py`). Webhook
-  authenticity is verified independently via HMAC-SHA512 of the raw request
-  body using the same secret key, compared with `hmac.compare_digest`
-  (timing-safe) in `views.paystack_webhook`.
-- **Env vars**: `PAYSTACK_SECRET_KEY`, `SITE_URL` (used to build the
-  `callback_url` passed to Paystack).
-- **Failure modes / fallbacks in code**:
-  - Network error or non-2xx from Paystack on initialize →
-    `_paystack_initialize` logs (`logger.exception`) and returns
-    `(None, None)`; callers redirect back to the event/ticket page with no
-    transaction row created (silent failure from the voter's perspective —
-    no explicit error message on the vote path, though `buy_ticket` does
-    show `messages.error`).
-  - Webhook signature mismatch → HTTP 400, no state change.
-  - Webhook for an unknown reference → `DoesNotExist` is caught and
-    ignored; returns HTTP 200 anyway (matches Paystack's expectation that
-    webhooks always ack, but means a mismatched reference is silently
-    dropped rather than logged).
-  - **No webhook retry/idempotency guard beyond the natural
-    `Pending → Success` gate** — re-delivery of the same webhook event is
-    idempotent because the code only flips status if currently `Pending`.
-  - As noted in §4.1, `vote_success` provides an unauthenticated
-    fallback path that can also flip `Pending → Success`, bypassing
-    Paystack verification entirely.
-
-### 6.2 Africa's Talking (AT)
-
-- **Purpose**: (a) USSD callback endpoint for the feature-phone voting/
-  ticket flow (actively used), (b) mobile-money checkout initiation via
-  `voting/at_service.py` (present but **not wired into any view or URL** —
-  dead code / available-but-unused integration).
-- **Auth**: SDK-level initialization — `africastalking.initialize(username=
-  settings.AT_USERNAME, api_key=settings.AT_API_KEY)` executed at **module
-  import time** in `at_service.py`. Because this runs on import rather than
-  lazily, if `AT_API_KEY` is unset/invalid the SDK call itself may still
-  succeed at import (the actual API key is validated to Africa's Talking's
-  servers only when a call like `mobile_checkout` is made), but any consumer
-  importing `at_service` pays this initialization cost even though nothing
-  currently calls into it.
-- **Env vars**: `AT_USERNAME` (default `'sandbox'`), `AT_API_KEY`.
-- **USSD callback auth**: none beyond `@csrf_exempt` — the endpoint trusts
-  any POST with the expected fields; there is no verification that the
-  request actually originated from Africa's Talking (e.g. no shared-secret
-  or IP allowlist check). This is a gap worth addressing before production
-  hardening.
-- **Failure modes / fallbacks**:
-  - `trigger_mobile_money_checkout` wraps the AT SDK call in a bare
-    `try/except Exception`, `print()`s the error, and returns `None` — since
-    it's unused, this failure path is currently inert, but if wired in it
-    would need proper logging instead of `print`.
-  - `ussd_callback` itself has no interaction with `at_service` at all; USSD
-    votes/tickets are recorded as `Success` unconditionally (see §4.2) — the
-    "failure mode" for money collection on USSD is effectively "there is
-    none; payment is not actually collected."
-
-### 6.3 Cloudinary
-
-- **Purpose**: durable object storage for all `ImageField` uploads
-  (`Event.background_image`, `Event.event_image`, `Candidate.image`,
-  `Product.image`, `Ticket.image`) across all environments — `settings.py`
-  sets `STORAGES['default']` (and the legacy `DEFAULT_FILE_STORAGE`, kept in
-  sync for third-party code that still reads it directly) to
-  `cloudinary_storage.storage.MediaCloudinaryStorage` unconditionally (not
-  gated behind `DEBUG`), so local dev also uploads to Cloudinary unless
-  credentials are absent. Note: this Django version (`Django==6.0.7`) only
-  resolves `default_storage` from `STORAGES` — defining only the legacy
-  `DEFAULT_FILE_STORAGE` setting silently falls back to Django's built-in
-  `FileSystemStorage` instead of Cloudinary, which is a real bug that was
-  found and fixed during this review (uploads were landing on local disk and
-  404ing/getting wiped on restart). Both settings must be kept present and
-  in agreement.
-- **Auth**: API key/secret pair read into `CLOUDINARY_STORAGE` dict from
-  `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-  env vars; the `django-cloudinary-storage` backend + `cloudinary` SDK
-  handle the actual signed upload requests.
-- **Env vars**: `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`,
-  `CLOUDINARY_API_SECRET`.
-- **Failure modes / fallbacks**: none implemented in application code — if
-  credentials are missing/invalid, image upload calls (`ImageField.save()`
-  during model `.save()`) will raise at the storage-backend level and
-  propagate as an unhandled exception through the view (e.g.
-  `create_event`, `add_candidate`, `create_ticket` would 500). There is no
-  try/except around image saves, and `MEDIA_URL`/`MEDIA_ROOT` local
-  filesystem storage is only used when `DEBUG` is on and the URLconf serves
-  it directly (`vote_fund/urls.py`) — this is dead weight in production
-  since `STORAGES['default']` always points at Cloudinary regardless of
-  `DEBUG`.
-
-### 6.4 Gmail SMTP
-
-- **Purpose**: transactional email — organizer-approval notifications
-  (`admin.py: approve_organizers`), new-organizer-registration alerts to
-  superusers (`views.register_view`), voting-code retrieval emails
-  (`views.retrieve_voting_code`), and e-ticket delivery with a base64
-  PNG/JPEG QR-code attachment (`views.send_ticket_email`).
-- **Auth**: `EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'`,
-  `EMAIL_HOST = 'smtp.gmail.com'`, port 587, `EMAIL_USE_TLS = True`,
-  credentials from `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` (a Gmail App
-  Password is required since Gmail disallows plain account passwords over
-  SMTP for third-party apps).
-- **Env vars**: `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`;
-  `DEFAULT_FROM_EMAIL` is derived from `EMAIL_HOST_USER` (no separate
-  "from" address is configurable).
-- **Failure modes / fallbacks**: every call site uses `fail_silently=True`
-  (or wraps `.send()` in a bare `try/except: pass`), so an SMTP outage,
-  auth failure, or quota limit **never surfaces to the user or the logs** —
-  the request completes as if the email were sent. This is a deliberate
-  choice to not block the primary flow (e.g. registration, ticket purchase)
-  on email delivery, but it means email delivery failures are invisible
-  operationally; there is currently no monitoring, retry, or dead-letter
-  mechanism for failed sends. All sends are also **synchronous**, executed
-  inline in the request/response cycle (see §10 — no task queue).
-
-## 7. Configuration & Environment Variables
-
-All configuration is environment-driven via `python-dotenv` (`load_dotenv()`
-at the top of `settings.py`) plus `os.getenv`. Reference: `.env.example`.
-
-| Variable | Used for | Default if unset |
+| Record | Knows the voter? | Knows the choices? |
 |---|---|---|
-| `SECRET_KEY` | Django cryptographic signing | none — required |
-| `DEBUG` | Toggles debug mode, security-cookie flags, HSTS opt-in | `'False'` |
-| `ALLOWED_HOSTS` | Comma-separated allowed Host headers | `localhost,127.0.0.1,0.0.0.0,flexyvotes.onrender.com` |
-| `CSRF_TRUSTED_ORIGINS` | Comma-separated trusted origins (scheme required) | empty |
-| `SITE_URL` | Base URL used to build the Paystack `callback_url` | `http://127.0.0.1:8000` |
-| `DATABASE_URL` | Postgres connection string (via `dj_database_url.config(conn_max_age=600, ssl_require=True)`) | falls back to local SQLite if unset |
-| `PAYSTACK_SECRET_KEY` | Paystack API auth + webhook signature verification | none — required for payments |
-| `AT_USERNAME` | Africa's Talking SDK username | `'sandbox'` |
-| `AT_API_KEY` | Africa's Talking SDK API key | none |
-| `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` | Gmail SMTP auth; `EMAIL_HOST_USER` also becomes `DEFAULT_FROM_EMAIL` | none |
-| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary storage credentials | none |
-| `DJANGO_LOG_LEVEL` | Root logger level | `'INFO'` |
-| `SECURE_SSL_REDIRECT` | (non-DEBUG only) force HTTPS redirect | `'False'` |
-| `SECURE_HSTS_SECONDS` | (non-DEBUG only) HSTS max-age; also drives `INCLUDE_SUBDOMAINS`/`PRELOAD` flags (`> 0`) | `'0'` |
+| `Voter` | yes | no |
+| `VoteAuthorization` | yes (FK) | no; holds only `HMAC(token)` and the ballot style |
+| `Ballot` | **no** (random UUID, no FK, no timestamp, no token) | only as ciphertext |
+| `AuditEvent VOTER_VOTED` | yes | no; the tracker is deliberately not logged |
+| Voter's session | yes | raw token, removed after casting |
 
-Notable settings not driven by env vars: `TIME_ZONE = 'Africa/Accra'`,
-`SESSION_COOKIE_SAMESITE = 'Lax'`, `X_FRAME_OPTIONS = 'DENY'`,
-`SESSION_COOKIE_SECURE`/`CSRF_COOKIE_SECURE` are tied directly to
-`not DEBUG` (not independently configurable).
+`cast_ballot()` locks the authorization by token hash. In one transaction it checks the
+state, validates the ballot, seals it and inserts the `Ballot`, then marks the authorization
+CONSUMED and the voter VOTED. Before sealing, the plaintext is padded with a 128-bit random
+nonce, so identical choices produce unrelated ciphertexts and trackers.
 
-## 8. Caching & Rate Limiting
+`record_constituency_on_ballot` (off by default) stores the constituency on the ballot so
+results can be broken down by constituency. Small groups stay hidden by `min_anonymity_set`.
 
-`CACHES['default']` is `django.core.cache.backends.locmem.LocMemCache`
-(`settings.py`). It's used purely for basic IP-based rate limiting, not for
-general query/page caching:
+**Residual risk.** A database superuser can still compare physical insertion order (or WAL)
+with `Voter.voted_at`. This is mitigated by database access controls and audit, not by
+cryptography. See [SECURITY.md](SECURITY.md#2-threat-model).
 
-- `login_view`: keys `login_attempts_{ip}`, blocks after 5 failed attempts
-  within a 60-second TTL window (counter reset on successful login).
-- `register_view`: keys `register_attempts_{ip}`, blocks after 3 attempts
-  within 60 seconds (counter increments on every POST, success or not).
-- `send_ticket_email`: keys `send_ticket_email_{ip}`, blocks after 10 calls
-  within 60 seconds — protects the open (`@csrf_exempt`, unauthenticated)
-  email-sending endpoint from being used as a spam relay.
-- `cast_vote_with_code`: keys `cast_vote_with_code_{ip}`, 20/minute.
-- `validate_ballot_code` / `cast_ballot`: keys `validate_ballot_code_{ip}` /
-  `cast_ballot_{ip}`, 15/minute each — throttles brute-forcing of voting
-  codes through the Digital Ballot wizard (returns HTTP 429 once exceeded).
-- `retrieve_voting_code`: keys `retrieve_voting_code_{ip}`, 5/minute —
-  throttles the public code-reset/resend form.
-All four share the `is_rate_limited()` helper in `voting/views.py` (same
-cache-counter shape as `login_view`/`register_view`).
+### 3.2 Primitives (`core/crypto.py`)
 
-**Known limitation**: `LocMemCache` is per-process, in-memory, and not
-shared across workers. Gunicorn typically runs multiple worker processes
-(and in a containerized/multi-instance AWS deployment, multiple containers
-behind a load balancer), so:
-- Rate-limit counters are tracked independently per worker/container — an
-  attacker can trivially get `N × workers × instances` attempts instead of
-  `N`, defeating the intended limit.
-- Nothing is shared between deploys/restarts (cache is wiped on every
-  process restart, which also resets all rate limits).
+| Use | Algorithm |
+|---|---|
+| Field encryption (PII, secrets) | AES-256-GCM with per-field AAD `app.model.field`; format `fv1$<data_key_id>$<base64(nonce‖ct)>` |
+| Data keys | 256-bit, stored wrapped in `DataKey`; wrapped by a KEK from `FIELD_ENCRYPTION_KEYS` (AES-GCM) or AWS KMS |
+| Blind indexes (lookup without decrypting) | HMAC-SHA256 with `BLIND_INDEX_KEY`, input normalized and scoped by purpose |
+| Tokens, OTPs, access codes, recovery codes, device IDs | HMAC-SHA256 keyed by `SECRET_KEY`, compared in constant time |
+| Ballot sealing | ECIES: ephemeral X25519 → HKDF-SHA256 → AES-256-GCM; AAD = `election_id:style_hash`; tracker = SHA-256 of the sealed blob |
+| Election key custody | SYSTEM: the private key is envelope-encrypted. TRUSTEES: Shamir k-of-n over the prime field GF(2^521 − 1), with a SHA-256 checksum so a wrong combination is detected |
+| Signatures | Ed25519 platform key (`SIGNING_PRIVATE_KEY`); public key at `/.well-known/flexyvotes-signing-key.json`; older keys trusted through `SIGNING_PREVIOUS_PUBLIC_KEYS` |
+| Bulletin board | Binary Merkle tree (SHA-256) with inclusion proofs per tracker |
+| Key backups | scrypt-derived key, then AES-GCM (`manage.py keys backup`) |
 
-This should move to a shared backend (Redis or Memcached) before scaling to
-multiple gunicorn workers or multiple container instances — this is the
-single most important scaling-correctness fix identified in this review.
+**Development fallbacks.** Without dedicated keys, the KEK, signing key and blind-index key
+are derived from `SECRET_KEY` with HKDF. `manage.py check --deploy` warns about this
+(`flexyvotes.W001`–`W003`). The derived KEK always remains available for **unwrapping**, so
+data written before real keys were configured stays readable and moves onto the new KEK with
+`manage.py keys rewrap`. Data keys remember which provider wrapped them (local or KMS), so
+switching to KMS also works. The procedure is in
+[OPERATIONS.md](OPERATIONS.md#key-management).
 
-## 9. Logging
+### 3.3 Audit chain (`core/audit.py`)
 
-`settings.py` defines a minimal `LOGGING` dict:
+- **Chains:** one per organization (`org:<id>`) and one for the platform.
+- **Hashing:** each event's hash is
+  `SHA-256(prev_hash ‖ canonical_json(hashed fields))`. The hashed fields include sequence,
+  type, actor, target, summary, changes, metadata, result, IP and timestamp.
+- **Appending:** locks the chain's `AuditChainHead` row, so concurrent appends can't fork
+  the chain. A concurrency test checks this.
+- **Append-only:** the ORM queryset refuses update and delete. On PostgreSQL, triggers block
+  `UPDATE` and `DELETE` on `core_auditevent`, `elections_ballot`, `elections_evidenceitem`
+  and `payments_paymentevent`.
+- **Verification:** `verify_chain()` and `verify_all()` detect modified, deleted or
+  reordered entries. They run every 6 hours and on `manage.py verify_integrity`.
 
-- Single `console` handler (`logging.StreamHandler`) — no file handler, no
-  rotation, no external log-shipping configured in code (any Cloud
-  aggregation would rely on stdout/stderr capture by the hosting platform,
-  e.g. CloudWatch Logs when containerized on AWS).
-  - `root` logger level is controlled by `DJANGO_LOG_LEVEL` (default
-    `INFO`).
-- `django.request` logger explicitly set to `ERROR` with
-  `propagate: False` — this suppresses Django's default noisy per-request
-  warning logs (e.g. 404s) at anything below ERROR, and stops them
-  double-logging via the root logger.
-- Application code only explicitly logs from `voting/services.py`
-  (`logger = logging.getLogger(__name__)`) — a `logger.exception` on
-  Paystack request failures and a `logger.warning` when Paystack rejects an
-  initialize call. No other module (`views.py`, `at_service.py`,
-  `admin.py`) uses the logging framework — `at_service.py` uses a bare
-  `print()` for its error path, and most `except Exception: pass` blocks in
-  `views.py`/`admin.py` swallow errors with no log record at all (e.g. the
-  email-sending `try/except` blocks). This makes silent email failures and
-  swallowed exceptions effectively invisible in production logs.
-- Gunicorn is started with `--log-file -` (per `Procfile`), sending
-  gunicorn's own access/error logs to stdout, which composes reasonably
-  with a containerized deployment where the platform captures container
-  stdout.
+## 4. Authentication
 
-## 10. Scalability Considerations & Known Bottlenecks
+| Mechanism | Implementation |
+|---|---|
+| Passwords | Argon2id (`PASSWORD_HASHERS`), Django validators (min length 10, common, numeric, similarity) |
+| Lockout | `LOGIN_MAX_FAILURES` failures → locked for `LOGIN_LOCKOUT_SECONDS`; plus per-IP rate limits |
+| TOTP | `pyotp`; secret encrypted; each time step accepted only once (replay protection); 10 recovery codes stored as HMACs |
+| Passkeys | WebAuthn (`webauthn` 3.x), resident or roaming; sign-count checked |
+| Step-up | A new device or risky sign-in → email OTP; staff with `ENFORCE_STAFF_MFA` must enroll MFA |
+| SSO | OIDC authorization code with PKCE, `state` and `nonce`, JWKS signature check, `iss`/`aud`/`exp`; Google, Microsoft, or per-organization config |
+| LDAP | `ldap3` bind as the user over LDAPS/StartTLS; per-organization config (encrypted) |
+| Voter OTP | 6 digits, 10-minute expiry, 5 attempts, issue rate limited; sent to the address on the roll only |
+| Sessions | `UserSession` per login; list, revoke and sign-out-others; revoked sessions are refused by middleware |
+| API tokens | Random prefix + secret; only the SHA-256 is stored; optional expiry; revocable |
 
-- **SQLite as the effective default**: `DATABASES['default']` is SQLite
-  unless `DATABASE_URL` is present in the environment. SQLite does not
-  support concurrent writers well and is unsuitable for any real deployment
-  with multiple gunicorn workers hitting the same file — production must
-  always set `DATABASE_URL` to Postgres (the code does support this via
-  `dj_database_url.config(conn_max_age=600, ssl_require=True)`, which also
-  gives Postgres connection pooling via persistent connections).
-- **LocMemCache per-process rate limiting** (detailed in §8) — breaks down
-  under multi-worker/multi-instance deployment; needs Redis/Memcached.
-- **Vote counts computed on every request**: `event_detail`,
-  `live_vote_counts` (polled — likely on an interval from the frontend for
-  "live" updates), and `event_analytics` all run `Sum(...)` aggregate
-  queries across `VoteTransaction` on every hit rather than maintaining a
-  denormalized counter or a cached aggregate. For high-traffic events with
-  many transactions this is the most likely per-request DB bottleneck,
-  especially since `live_vote_counts` is designed to be polled repeatedly.
-  There are no DB indexes declared beyond Django's implicit FK indexes and
-  the `unique=True` constraints on `paystack_reference`/`code`/
-  `nominee_code` — no explicit index on `VoteTransaction.status` or
-  `(candidate, status, vote_type)`, which is the exact filter combination
-  used by every vote-count query.
-- **No pagination anywhere**: every list-returning view
-  (`home`, `dashboard`, `store_view`, `manage_store`, `event_guestlist`,
-  `tickets_view`'s event listing, `download_codes`/`download_guestlist` CSV
-  exports) loads the entire queryset with `.all()`/`.filter()` and no
-  `Paginator`. This will degrade linearly as `Event`, `Product`,
-  `TicketPurchase`, and `VotingCode` tables grow.
-- **Synchronous email, no task queue**: there is no Celery (or any async
-  task runner) in `requirements.txt` or `settings.py`. Every
-  `send_mail`/`EmailMultiAlternatives`/`EmailMessage.send()` call — approve-
-  organizer notification, registration alert, voting-code retrieval email,
-  e-ticket email with QR attachment — executes synchronously inside the
-  request/response cycle on the same gunicorn worker. Under Gmail SMTP
-  latency or an SMTP outage, this directly slows down (or, without
-  `fail_silently`, could fail) unrelated user-facing requests, and ties up a
-  worker thread/process for the duration of the SMTP round trip. Moving
-  email dispatch to Celery + Redis/SQS (or at minimum Django's
-  `send_mail` with a queued backend) is recommended before scaling traffic.
-- **Single WSGI process model, ASGI unused**: `asgi.py` exists but nothing
-  in the Procfile or settings uses it; there's no `Channels`/websocket
-  usage. `live_vote_counts` implements "live" updates via polling a
-  JSON endpoint rather than websockets/SSE, which is consistent with a pure
-  WSGI deployment but means live-count freshness is bounded by client poll
-  interval and adds recurring read load per open page (see aggregate-query
-  bottleneck above).
-- **No CDN/cache-control strategy beyond Whitenoise** for static assets
-  (Whitenoise's `CompressedManifestStaticFilesStorage` does provide
-  cache-busted, gzip/brotli-compressed static files, which is good for a
-  single-container deployment, but there's no CloudFront/CDN layer
-  described in the current code/config).
+## 5. Payments (`payments/`)
 
-## 11. Known Technical Debt / TODOs
+- **State machine:** `ALLOWED_TRANSITIONS` in `payments/service.py`. Every transition writes
+  an append-only `PaymentEvent`.
 
-1. **Africa's Talking mobile-money integration is unused.**
-   `voting/at_service.py`'s `trigger_mobile_money_checkout` is fully
-   implemented but never imported/called from `views.py` or any URL. USSD
-   votes and USSD ticket purchases are instead recorded as `Success`
-   unconditionally with no real payment collection (see §4.2). Either wire
-   this in to actually charge mobile-money users on USSD, or remove the
-   dead code.
-2. **Unauthenticated "success" fallback in `vote_success`.** The
-   `GET /vote/success/` view flips a `Pending` `VoteTransaction` to
-   `Success` purely from a client-supplied `?reference=`, without
-   verifying against Paystack. Combined with the webhook being the "real"
-   confirmation path, this fallback (labeled in-code as being for local
-   testing) is a live bypass in production — anyone who learns/guesses a
-   pending reference can mark it paid. Should call Paystack's
-   `GET /transaction/verify/:reference` before flipping status, or remove
-   the fallback and rely solely on the webhook (showing a "processing,
-   check back" state instead).
-3. **No USSD callback origin verification.** `ussd_callback` is
-   `@csrf_exempt` (necessarily, since AT doesn't send a CSRF token) but has
-   no compensating check (shared secret, IP allowlist) that the request
-   actually came from Africa's Talking.
-4. **No task queue** — all email sends are synchronous in the request path
-   (see §10). Recommend Celery + Redis/SQS, or at minimum an async email
-   backend.
-5. **No pagination** on any list view (`home`, `dashboard`, `store_view`,
-   `manage_store`, guestlist, ticket listings) — will degrate as data
-   volume grows.
-6. **No automated payout mechanism.** `Event.get_organizer_payout()` only
-   *computes* the organizer's share (`total_revenue - platform_fee`) for
-   display (e.g. in analytics); there is no integration that actually
-   transfers funds to organizers (e.g. via Paystack Transfers) — this is
-   presumably a manual, off-platform process today.
-7. **Per-process rate limiting via `LocMemCache`** — not correct once
-   deployed with more than one worker/instance (see §8); needs a shared
-   cache backend.
-8. **Duplicated USSD route.** `/ussd/callback/` is registered both directly
-   in `vote_fund/urls.py` and again via the included `voting/urls.py`,
-   pointing at the same view — redundant and worth removing one.
-9. **Silent, unlogged failures.** Widespread `except Exception: pass` (or
-   `fail_silently=True`) around email sends and a few other operations
-   means operational issues (SMTP outages, Cloudinary errors) leave no log
-   trace. Combined with the minimal `LOGGING` config (console-only, no
-   structured logging/error tracking service wired in), diagnosing
-   production issues after the fact will be difficult. Consider adding
-   Sentry (or similar) plus turning silent excepts into at least
-   `logger.warning`/`logger.exception` calls.
-10. **`ASGI` scaffold unused** — `vote_fund/asgi.py` exists from Django's
-    project template but nothing in the deployment (`Procfile`, gunicorn
-    invocation) uses it. Harmless, but dead weight/config drift risk if
-    someone assumes async support exists.
-11. **No image-upload error handling.** Cloudinary credential or network
-    failures during an `ImageField` save (`create_event`, `add_candidate`,
-    `create_ticket`, etc.) will raise an unhandled exception straight
-    through the view (500) rather than a friendly form error.
-12. **Merch store has no checkout flow.** `Product`/`ProductCategory` and
-    `store_view` only support browsing; there's no visible purchase/payment
-    integration for the store in `views.py`, unlike votes and tickets.
+  ```
+  INITIALIZED → PENDING | SUCCESS | FAILED | ABANDONED
+  PENDING → SUCCESS | FAILED | ABANDONED      ABANDONED → SUCCESS | FAILED
+  FAILED → SUCCESS                            SUCCESS → REFUNDED | PARTIALLY_REFUNDED | REVERSED | DISPUTED
+  PARTIALLY_REFUNDED → REFUNDED | DISPUTED | REVERSED     DISPUTED → SUCCESS | REVERSED | REFUNDED
+  ```
+
+- **Single entry point:** `apply_gateway_result(reference, data, source)` handles webhooks,
+  callbacks and reconciliation. It:
+  1. locks the payment;
+  2. requires the gateway amount (in pesewas) and currency to equal the quote exactly;
+  3. runs `fraud.assess()`;
+  4. credits votes once. `VoteTransaction.payment` is a OneToOne, so a second credit is
+     impossible even under concurrency.
+- **Quotes:** price per vote comes from the position, else the event. Bundles add bonus
+  votes. Discount codes check window, minimum amount, total and per-payer redemptions. Limits
+  cover min/max per transaction, max votes per voter and max spend per voter (counted by
+  blind index of the payer's email or phone).
+- **Webhooks:** HMAC-SHA512 over the raw body, compared in constant time. Then a dedupe on
+  the SHA-256 of the payload. Events: `charge.success`, `charge.failed`, `refund.*`,
+  `charge.dispute.*`.
+- **Refunds:** a refund above `REFUND_DUAL_APPROVAL_THRESHOLD` becomes an `ApprovalRequest`.
+  If `reverse_votes` is set, a proportional number of votes is reversed.
+- **Chargebacks:** reverse the credited votes and raise a fraud event with weight 100.
+- **Reconciliation:** lists the gateway's transactions for the window, compares them with
+  local payments, records every mismatch as a `ReconciliationItem`, and fixes the safe ones
+  automatically (a missed success, for example).
+- **Development simulator:** `PAYMENTS_FAKE_GATEWAY` is allowed only with `DEBUG=True`.
+
+## 6. Fraud engine (`fraud/engine.py`)
+
+Signals are added to the score, capped at 100. A decision comes from thresholds that can be
+configured.
+
+| Score | Decision | Effect |
+|---|---|---|
+| 0–30 | ALLOW | Credit |
+| 31–60 | MONITOR | Credit and flag |
+| 61–80 | CHALLENGE | Hold; the analyst can verify the payer |
+| 81–100 | HOLD | Hold; not credited until an analyst approves |
+
+| Signal | Weight |
+|---|---|
+| Blocklisted IP / device / email / card / phone | 60 |
+| Blocklisted email domain | 60 |
+| Tor / VPN / proxy range (anonymizer) | 25 |
+| Open-proxy headers | 10 |
+| Disposable email domain | 35 |
+| Missing user agent | 15 |
+| Automation user agent | 30 |
+| IP velocity (10 min), high / normal | 35 / 20 |
+| Device velocity | 20 |
+| Email velocity | 15 |
+| Failed payments in the last hour, repeated / some | 25 / 15 |
+| One device used by many payer emails (account farm) | 25 |
+| One IP used by many payer emails | 15 |
+| Previous chargeback | 50 |
+| One card used by many emails in 24 h | 30 |
+| Card over the event's vote limit | 85 |
+| Unexpected country | 20 |
+| High amount | 10 |
+| Burst of payment attempts for one candidate | 15 |
+
+The anomaly scan runs every 5 minutes and raises alerts for vote bursts (50), coordinated
+campaigns (55) and unusual geography (45).
+
+## 7. Idempotency, rate limiting and concurrency
+
+- **Idempotency.** `IdempotencyRecord(scope, key, request_hash, state, response)` with a
+  unique `(scope, key)`.
+  - `begin()` claims the key.
+  - Replaying the same key with the same request returns the stored response.
+  - Replaying it with a *different* body returns 422.
+  - The API reads the `Idempotency-Key` header; payment creation also stores it on
+    `Payment.idempotency_key`, which is unique.
+- **Rate limits.** These are fixed-window counters in the cache. With `REDIS_URL` set they
+  are shared across all replicas. The main limits:
+
+  | Limit | Window |
+  |---|---|
+  | login | 10 / min / IP |
+  | voter login | `VOTER_LOGIN_PER_IP_PER_MIN` per IP (default 120, campus-NAT friendly), plus 10 / 10 min per identifier when one is given |
+  | voter OTP entry | `VOTER_OTP_PER_IP_PER_5MIN` per IP (default 100); each OTP allows 5 attempts |
+  | OTP issue | 6 per subject per hour, plus a 60 s resend cooldown |
+  | payments | 20 / min / IP |
+  | registration | 5 / 5 min |
+  | dispute filing and tracker lookups | rate limited |
+  | API | per principal and scope |
+
+  Exceeding a limit returns 429 with `Retry-After`.
+- **Concurrency.** Every hot path takes one row lock: the ballot authorization, the voter,
+  the payment, and the audit chain head. Unique constraints are the last line of defence:
+  one consumed authorization per voter, one `VoteTransaction` per payment, one idempotency
+  key per payment.
+
+## 8. Notifications (`notifications/`)
+
+`notify(channel, template, recipient, context, dedupe_key=…)` writes a `Notification` with
+the recipient and context encrypted. The flow:
+
+1. After commit, Celery delivers it on the `notifications` queue.
+2. Channel adapters: SMTP email (HTML + text), Africa's Talking SMS, WhatsApp Cloud API,
+   and in-app.
+3. Failures retry with exponential backoff, from the 10-minute retry job.
+4. Once a message is sent, its context is wiped.
+5. The `dedupe_key` (unique) stops a message being sent twice. Each template has `.txt`,
+   `.html` and `.sms.txt` variants.
+
+## 9. Billing (`billing/`)
+
+| Plan | Monthly (GHS) | Active elections | Voters / election | Staff |
+|---|---|---|---|---|
+| Free | 0 | 3 | 1,000 | 3 |
+| Professional | 500 | 10 | 20,000 | 15 |
+| Enterprise | 2,500 | 100 | 250,000 | 200 |
+| High Assurance | 7,500 | unlimited | unlimited | unlimited |
+
+- **Plans:** seeded and synced after `migrate`. Limits are enforced when creating elections,
+  importing voters and adding staff. Features (SSO, LDAP, SMS, trustees, API…) are gated
+  per plan, with per-organization overrides.
+- **Invoices:** subtotal (plan + per-election + voters above the included amount) − coupon,
+  then:
+  - levy = 6% of the discounted subtotal (`BILLING_LEVY_RATE`);
+  - VAT = 15% of (subtotal + levy) (`BILLING_VAT_RATE`).
+
+  Invoices are paid through Paystack (`Payment.purpose = INVOICE`).
+
+## 10. Internationalization, accessibility, time
+
+- `LocaleMiddleware` picks the language from the `django_language` cookie, then the
+  `Accept-Language` header. English and French are available; voter-facing strings are
+  translated in `locale/fr`.
+- Times are stored in UTC. Each election has its own `timezone`, and pages render in the
+  election's zone unless the voter picks another (`/prefs/timezone/`).
+- Accessibility preferences (high contrast, large text, low bandwidth) are stored in a
+  cookie and applied as `<html>` classes. Low-bandwidth mode drops web fonts, icons and
+  images.
+
+## 11. Observability
+
+- **Metrics.** Prometheus multiprocess mode. Metrics include HTTP and database latency,
+  vote submissions by outcome, vote latency, payments by status, webhooks, reconciliation
+  discrepancies, fraud alerts, logins, rate-limit hits, notifications and queue depth (full
+  list in [OPERATIONS.md](OPERATIONS.md#monitoring)). `/metrics` requires either
+  `Authorization: Bearer $METRICS_TOKEN` or a signed-in platform admin.
+- **Health.**
+  - `/healthz/live`: process up.
+  - `/healthz/ready`: database, cache and broker reachable, and migrations applied.
+- **Logs.** JSON (`LOG_FORMAT=json`) with `request_id`, user and path. Secrets and PII are
+  never logged.
+- **Tracing and errors.** Sentry (`SENTRY_DSN`) and OpenTelemetry (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+- **Alerting.** Prometheus rules live in `deploy/monitoring/alert_rules.yml`:
+  `HighServerErrorRate`, `PaymentSuccessRateLow`, `VoteSubmissionFailures`,
+  `VoteLatencyHigh`, `DatabaseSlow`, `QueueBacklog`, `WebhookFailures`, `FraudAlertSpike`,
+  `RateLimitingSpike` and `AppDown`. An audit-chain break is reported differently: it is
+  logged at CRITICAL, written to the audit log and sent to every platform admin.
+
+## 12. Known limitations
+
+- **No coercion resistance:** a voter can be watched while voting, and re-voting is not
+  supported.
+- **Tally decryption is not verifiable:** there are no zero-knowledge decryption proofs.
+  Integrity of the tally rests on signed results, recounts and trustee custody.
+- **Insertion-order linkability:** a database superuser could compare ballot insertion order
+  with `voted_at` (§3.1).
+- **`SECRET_KEY` rotation invalidates live credentials:** outstanding access codes, OTPs,
+  ballot sessions and recovery codes stop working. Rotate it between elections and reissue
+  credentials afterwards.
+- **USSD needs Paystack mobile-money charge support** for the payer's network.

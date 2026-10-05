@@ -1,0 +1,27 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Constituencies" %} | {{ organization.name }}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Constituencies" %} · {{ organization.name }}</h1>
+<p class="text-muted">{% translate "Model your structure (university → faculty → department, or company → region → branch). Positions can be restricted to a unit and everything beneath it." %}</p>
+<div class="row g-3">
+    <div class="col-lg-7"><div class="panel">
+        <ul class="list-unstyled mb-0">{% for node in nodes %}
+            <li class="d-flex justify-content-between align-items-center border-bottom py-2" style="padding-left: {{ node.depth }}rem;">
+                <span>{% if node.depth %}↳ {% endif %}<strong>{{ node.name }}</strong> <span class="mono small text-muted">{{ node.code }}</span> <span class="badge bg-light text-dark border">{{ node.get_kind_display }}</span> <span class="small text-muted">{{ node.voter_count }} {% translate "voters" %}</span></span>
+                <form method="post" data-confirm="{% translate 'Delete this unit?' %}">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="node" value="{{ node.pk }}"><button class="btn btn-sm btn-outline-danger">{% translate "Delete" %}</button></form>
+            </li>
+        {% empty %}<li class="text-muted">{% translate "No units yet." %}</li>{% endfor %}</ul>
+    </div></div>
+    <div class="col-lg-5"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "Add unit" %}</h2>
+        <form method="post">{% csrf_token %}
+            <label class="form-label small" for="cn">{% translate "Name" %}</label><input id="cn" name="name" class="form-control mb-2" required>
+            <label class="form-label small" for="cc">{% translate "Code (used in voter import files)" %}</label><input id="cc" name="code" class="form-control mb-2" required>
+            <label class="form-label small" for="ck">{% translate "Kind" %}</label><select id="ck" name="kind" class="form-select mb-2">{% for v, l in kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+            <label class="form-label small" for="cp">{% translate "Parent" %}</label><select id="cp" name="parent" class="form-select mb-3"><option value="">{% translate "(top level)" %}</option>{% for node in nodes %}<option value="{{ node.pk }}">{{ node.name }}</option>{% endfor %}</select>
+            <button class="btn btn-wine w-100">{% translate "Add" %}</button>
+        </form>
+    </div></div>
+</div>
+{% endblock %}

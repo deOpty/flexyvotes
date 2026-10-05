@@ -1,0 +1,25 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{{ invoice.number }}{% endblock %}
+{% block console %}
+<a href="{% url 'billing:home' %}" class="small text-muted">&larr; {% translate "Billing" %}</a>
+<div class="panel" style="max-width: 820px;">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+        <div><h1 class="h4 fw-bold text-wine mb-0">{% translate "Invoice" %} {{ invoice.number }}</h1><div class="small text-muted">{{ invoice.organization.name }} · {{ invoice.period_start|date:"d M Y" }} &ndash; {{ invoice.period_end|date:"d M Y" }}</div></div>
+        <div class="text-end"><span class="badge bg-{% if invoice.status == 'PAID' %}success{% elif invoice.status == 'OPEN' %}warning text-dark{% else %}secondary{% endif %}">{{ invoice.get_status_display }}</span>{% if invoice.due_at and invoice.status == 'OPEN' %}<div class="small">{% translate "Due" %} {{ invoice.due_at|date:"d M Y" }}</div>{% endif %}</div>
+    </div>
+    <table class="table mt-3"><thead><tr><th>{% translate "Description" %}</th><th class="text-end">{% translate "Qty" %}</th><th class="text-end">{% translate "Unit" %}</th><th class="text-end">{% translate "Amount" %}</th></tr></thead>
+    <tbody>{% for line in lines %}<tr><td>{{ line.description }}</td><td class="text-end">{{ line.quantity|floatformat:"-2" }}</td><td class="text-end">{{ line.unit_price|floatformat:"-4" }}</td><td class="text-end">{{ line.amount|money:invoice.currency }}</td></tr>{% endfor %}</tbody>
+    <tfoot>
+        <tr><th colspan="3" class="text-end">{% translate "Subtotal" %}</th><td class="text-end">{{ invoice.subtotal|money:invoice.currency }}</td></tr>
+        {% if invoice.discount %}<tr><th colspan="3" class="text-end">{% translate "Discount" %}{% if invoice.coupon %} ({{ invoice.coupon.code }}){% endif %}</th><td class="text-end">-{{ invoice.discount|money:invoice.currency }}</td></tr>{% endif %}
+        <tr><th colspan="3" class="text-end">{% translate "Levies" %} ({{ invoice.levy_rate }}%)</th><td class="text-end">{{ invoice.levy|money:invoice.currency }}</td></tr>
+        <tr><th colspan="3" class="text-end">{% translate "VAT" %} ({{ invoice.vat_rate }}%)</th><td class="text-end">{{ invoice.vat|money:invoice.currency }}</td></tr>
+        <tr><th colspan="3" class="text-end fs-5">{% translate "Total" %}</th><td class="text-end fs-5 fw-bold">{{ invoice.total|money:invoice.currency }}</td></tr>
+    </tfoot></table>
+    <div class="d-flex gap-2">
+        <a href="?format=pdf" class="btn btn-outline-secondary">{% translate "Download PDF" %}</a>
+        {% if invoice.status == 'OPEN' %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="pay"><button class="btn btn-wine">{% translate "Pay with Paystack" %}</button></form>{% endif %}
+    </div>
+</div>
+{% endblock %}

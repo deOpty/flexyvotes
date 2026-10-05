@@ -1,0 +1,27 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Candidates" %} | {{ event.title }}{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <a href="{% url 'event_detail' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+    <h1 class="fw-bold text-wine mb-4">{% translate "Candidates" %}</h1>
+    {% for position in positions %}
+    <section class="mb-5" aria-labelledby="pos-{{ position.pk }}">
+        <h2 id="pos-{{ position.pk }}" class="h4 fw-bold">{{ position.name }}</h2>
+        {% if position.description %}<p class="text-muted">{{ position.description }}</p>{% endif %}
+        {% if position.is_referendum %}<p>{% translate "Referendum question: vote YES or NO." %}</p>{% endif %}
+        <div class="row g-3">
+            {% for c in position.candidates.all %}{% if c.status == 'ACTIVE' %}
+            <div class="col-sm-6 col-lg-4">
+                <a href="{% url 'elections:candidate_profile' event.pk c.pk %}" class="card h-100 border-0 shadow-sm rounded-4 text-decoration-none text-reset">
+                    {% if c.image and not lite_mode %}<img src="{{ c.image.url }}" class="card-img-top" alt="{{ c.name }}" style="height:220px;object-fit:cover">{% endif %}
+                    <div class="card-body"><h3 class="h5 fw-bold mb-1">{{ c.name }}</h3>{% if c.affiliation %}<div class="small text-muted">{{ c.affiliation }}</div>{% endif %}<p class="small mt-2 mb-0">{{ c.bio|truncatewords:30 }}</p></div>
+                </a>
+            </div>
+            {% endif %}{% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+    {% if uncategorized %}<div class="row g-3">{% for c in uncategorized %}<div class="col-sm-6 col-lg-4"><a href="{% url 'elections:candidate_profile' event.pk c.pk %}" class="card p-3 border-0 shadow-sm rounded-4 text-reset text-decoration-none"><strong>{{ c.name }}</strong></a></div>{% endfor %}</div>{% endif %}
+</div>
+{% endblock %}

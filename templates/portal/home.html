@@ -1,0 +1,11 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Candidate portal" %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 860px;">
+    <h1 class="fw-bold text-wine">{% translate "Candidate portal" %}</h1>
+    <div class="list-group">{% for c in candidacies %}
+        <a class="list-group-item list-group-item-action d-flex justify-content-between" href="{% url 'portal:candidate' c.pk %}"><span><strong>{{ c.name }}</strong> · {{ c.category.name|default:_("Contestant") }}<div class="small text-muted">{{ c.event.title }}</div></span><span class="small">{{ c.event.get_status_display }}</span></a>
+    {% empty %}<div class="list-group-item text-muted">{% translate "You are not linked to any candidacy. Use the invitation link from your election officials." %}</div>{% endfor %}</div>
+</div>
+{% endblock %}

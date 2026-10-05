@@ -1,0 +1,32 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Audit log" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Audit log" %}</h1>
+<p class="text-muted">{% translate "Append-only and hash-chained: each entry includes the hash of the previous one, so any edit or deletion is detectable." %}</p>
+<form method="get" class="panel row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small" for="et">{% translate "Event type" %}</label><input id="et" name="event_type" value="{{ filters.event_type }}" class="form-control" placeholder="ELECTION_"></div>
+    <div class="col-md-3"><label class="form-label small" for="ac">{% translate "Actor" %}</label><input id="ac" name="actor_label" value="{{ filters.actor_label }}" class="form-control"></div>
+    <div class="col-md-2"><label class="form-label small" for="rs">{% translate "Result" %}</label><select id="rs" name="result" class="form-select"><option value="">{% translate "Any" %}</option><option {% if filters.result == 'SUCCESS' %}selected{% endif %}>SUCCESS</option><option {% if filters.result == 'FAILURE' %}selected{% endif %}>FAILURE</option><option {% if filters.result == 'DENIED' %}selected{% endif %}>DENIED</option></select></div>
+    <div class="col-md-2"><label class="form-label small" for="el">{% translate "Election id" %}</label><input id="el" name="election" value="{{ filters.election }}" class="form-control"></div>
+    <div class="col-md-2 d-flex gap-1"><button class="btn btn-wine">{% translate "Filter" %}</button><a href="?verify=1" class="btn btn-outline-secondary">{% translate "Verify" %}</a></div>
+</form>
+{% if verification %}
+<div class="panel">
+    <h2 class="h6 fw-bold">{% translate "Chain verification" %}</h2>
+    <ul class="mb-0">{% for chain, result in verification.items %}<li><span class="mono">{{ chain }}</span>: {% if result.0 %}<span class="text-success">{% blocktranslate with n=result.1 %}intact ({{ n }} entries){% endblocktranslate %}</span>{% else %}<span class="text-danger fw-bold">{% translate "BROKEN" %} — {{ result.3 }} (seq {{ result.2 }})</span>{% endif %}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+<div class="panel">
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>{% translate "When" %}</th><th>{% translate "Event" %}</th><th>{% translate "Actor" %}</th><th>{% translate "Election" %}</th><th>{% translate "Summary" %}</th><th>{% translate "Result" %}</th><th>{% translate "Request" %}</th></tr></thead>
+        <tbody>{% for e in page %}
+        <tr><td class="small text-nowrap">{{ e.created_at|date:"d M Y H:i:s" }}</td><td class="mono small">{{ e.event_type }}</td><td>{{ e.actor_label|default:"system" }}</td><td>{% if e.election_id %}<a href="{% url 'elections:console_overview' e.election_id %}">#{{ e.election_id }}</a>{% endif %}</td>
+            <td class="small">{{ e.summary }}{% if e.changes %}<details><summary class="text-muted">{% translate "changes" %}</summary><pre class="mono small mb-0">{{ e.changes|pprint }}</pre></details>{% endif %}{% if e.reason %}<div class="text-muted">{{ e.reason }}</div>{% endif %}</td>
+            <td><span class="badge bg-{% if e.result == 'SUCCESS' %}success{% elif e.result == 'DENIED' %}warning text-dark{% else %}danger{% endif %}">{{ e.result }}</span></td>
+            <td class="small mono">{{ e.ip_address|default:"" }}<div class="text-muted">{{ e.correlation_id|slice:":12" }}</div></td></tr>
+        {% empty %}<tr><td colspan="7" class="text-muted">—</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% include 'console/includes/pagination.html' %}
+</div>
+{% endblock %}

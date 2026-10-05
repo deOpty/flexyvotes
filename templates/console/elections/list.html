@@ -1,0 +1,27 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Elections" %}{% endblock %}
+{% block console %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 fw-bold text-wine mb-0">{% translate "Elections" %}</h1>
+    <a href="{% url 'create_event' %}" class="btn btn-gold">{% translate "New election" %}</a>
+</div>
+<form method="get" class="panel row g-2 align-items-end">
+    <div class="col-md-5"><label class="form-label small" for="q">{% translate "Search" %}</label><input id="q" name="q" value="{{ query }}" class="form-control"></div>
+    <div class="col-md-4"><label class="form-label small" for="status">{% translate "Status" %}</label>
+        <select id="status" name="status" class="form-select"><option value="">{% translate "Any" %}</option>{% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><button class="btn btn-wine w-100">{% translate "Filter" %}</button></div>
+</form>
+<div class="panel">
+    <div class="table-responsive"><table class="table align-middle">
+        <thead><tr><th>{% translate "Election" %}</th><th>{% translate "Type" %}</th><th>{% translate "Status" %}</th><th>{% translate "Voting window" %}</th></tr></thead>
+        <tbody>{% for event in page %}
+            <tr><td><a class="fw-semibold text-wine" href="{% url 'elections:console_overview' event.pk %}">{{ event.title }}</a><div class="small text-muted">{{ event.organization.name }}</div></td>
+                <td class="small">{% if event.is_paid %}{% translate "Paid" %}{% else %}{% translate "Institutional" %}{% endif %}</td>
+                <td>{{ event.status|status_badge:event.get_status_display }}</td>
+                <td class="small">{{ event.start_date|in_tz:event.timezone|date:"d M Y H:i" }} &ndash; {{ event.end_date|in_tz:event.timezone|date:"d M Y H:i" }} <span class="text-muted">({{ event.timezone }})</span></td></tr>
+        {% empty %}<tr><td colspan="4" class="text-muted text-center p-4">{% translate "No elections match." %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% include 'console/includes/pagination.html' %}
+</div>
+{% endblock %}

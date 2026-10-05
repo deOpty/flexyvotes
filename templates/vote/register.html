@@ -1,0 +1,23 @@
+{% extends 'vote/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Register to vote" %} | {{ event.title }}{% endblock %}
+{% block vote %}
+<h1 class="h3 fw-bold text-wine">{% translate "Register to vote" %}</h1>
+{% if pending %}
+<p class="text-muted">{% blocktranslate with h=pending.hint %}Enter the 6-digit code we sent to {{ h }} to finish registering.{% endblocktranslate %}</p>
+<form method="post" class="card border-0 shadow-sm rounded-4 p-4">{% csrf_token %}
+    <input type="hidden" name="action" value="verify">
+    <label class="form-label" for="rc">{% translate "Verification code" %}</label>
+    <input id="rc" name="code" class="form-control form-control-lg mono mb-3" inputmode="numeric" autocomplete="one-time-code" required>
+    <button class="btn btn-wine btn-lg w-100">{% translate "Complete registration" %}</button>
+</form>
+{% else %}
+<p class="text-muted">{% if domains %}{% blocktranslate with d=domains|join:", @" %}Use your institutional email address (@{{ d }}). We'll send a code to verify it.{% endblocktranslate %}{% else %}{% translate "We'll send a code to verify your email address." %}{% endif %}</p>
+<form method="post" class="card border-0 shadow-sm rounded-4 p-4">{% csrf_token %}{% bot_protection %}
+    <label class="form-label" for="rn">{% translate "Full name" %}</label><input id="rn" name="name" class="form-control mb-3" autocomplete="name" required>
+    <label class="form-label" for="ri">{% translate "Student / staff / member ID (if you have one)" %}</label><input id="ri" name="identifier" class="form-control mb-3">
+    <label class="form-label" for="re">{% translate "Institutional email" %}</label><input id="re" type="email" name="email" class="form-control mb-3" autocomplete="email" required>
+    <button class="btn btn-wine btn-lg w-100">{% translate "Send verification code" %}</button>
+</form>
+{% endif %}
+{% endblock %}

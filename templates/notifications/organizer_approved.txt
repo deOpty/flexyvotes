@@ -1,0 +1,5 @@
+{% autoescape off %}Hi {{ username }},
+
+Your organizer account on {{ platform }} has been approved. You can now sign in
+and create elections: {{ site_url }}/login/
+{% endautoescape %}

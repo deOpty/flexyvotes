@@ -1,0 +1,7 @@
+{% load i18n %}
+<ol class="status-steps mt-2" aria-label="{% translate 'Voting steps' %}">
+    <li class="{% if step == 1 %}active{% elif step > 1 %}done{% endif %}" {% if step == 1 %}aria-current="step"{% endif %}>1. {% translate "Verify" %}</li>
+    <li class="{% if step == 2 %}active{% elif step > 2 %}done{% endif %}" {% if step == 2 %}aria-current="step"{% endif %}>2. {% translate "Choose" %}</li>
+    <li class="{% if step == 3 %}active{% elif step > 3 %}done{% endif %}" {% if step == 3 %}aria-current="step"{% endif %}>3. {% translate "Review" %}</li>
+    <li class="{% if step == 4 %}active{% endif %}" {% if step == 4 %}aria-current="step"{% endif %}>4. {% translate "Done" %}</li>
+</ol>

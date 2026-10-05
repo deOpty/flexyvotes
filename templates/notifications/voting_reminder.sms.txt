@@ -1,0 +1,1 @@
+{% autoescape off %}Reminder: vote in {{ election }} before {{ ends }}. {{ link }}{% endautoescape %}

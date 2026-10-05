@@ -1,0 +1,41 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Eligibility" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Eligibility rules" %}</h2>
+            <p class="small text-muted">{% translate "A voter must satisfy every active rule for the election, plus the rules (and constituency) of each position to see it on their ballot." %}</p>
+            <table class="table table-sm align-middle"><thead><tr><th>{% translate "Rule" %}</th><th>{% translate "Applies to" %}</th><th></th></tr></thead>
+                <tbody>{% for rule in rules %}<tr>
+                    <td><strong>{{ rule.get_kind_display }}</strong>{% if rule.attribute %} <span class="mono">{{ rule.attribute }}</span>{% endif %}{% if rule.values %}: {{ rule.values|join:", " }}{% endif %}{% if rule.constituency %}: {{ rule.constituency.name }}{% endif %}{% if rule.description %}<div class="small text-muted">{{ rule.description }}</div>{% endif %}</td>
+                    <td class="small">{{ rule.position.name|default:_("Whole election") }}</td>
+                    <td class="text-end">{% if 'election.edit' in perms %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="rule" value="{{ rule.pk }}"><button class="btn btn-sm btn-outline-danger">{% translate "Remove" %}</button></form>{% endif %}</td>
+                </tr>{% empty %}<tr><td colspan="3" class="text-muted">{% translate "No extra rules: everyone on the roll may vote (subject to position constituencies)." %}</td></tr>{% endfor %}</tbody>
+            </table>
+        </div>
+    </div>
+    <div class="col-xl-5">
+        {% if 'election.edit' in perms %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Add rule" %}</h2>
+            <form method="post">{% csrf_token %}
+                <label class="form-label small" for="r-kind">{% translate "Type" %}</label>
+                <select id="r-kind" name="kind" class="form-select mb-2">{% for v, l in kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+                <label class="form-label small" for="r-pos">{% translate "Applies to" %}</label>
+                <select id="r-pos" name="position" class="form-select mb-2"><option value="">{% translate "Whole election" %}</option>{% for p in positions %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select>
+                <label class="form-label small" for="r-attr">{% translate "Attribute (from the import file)" %}</label><input id="r-attr" name="attribute" class="form-control mb-2" placeholder="level, faculty, membership_status">
+                <label class="form-label small" for="r-vals">{% translate "Values (comma-separated)" %}</label><input id="r-vals" name="values" class="form-control mb-2" placeholder="400, 300">
+                <label class="form-label small" for="r-cons">{% translate "Constituency" %}</label>
+                <select id="r-cons" name="constituency" class="form-select mb-2"><option value="">—</option>{% for c in constituencies %}<option value="{{ c.pk }}">{{ c.name }} ({{ c.code }})</option>{% endfor %}</select>
+                <label class="form-label small" for="r-desc">{% translate "Message shown to ineligible voters" %}</label><input id="r-desc" name="description" class="form-control mb-3">
+                <button class="btn btn-wine w-100">{% translate "Add rule" %}</button>
+            </form>
+        </div>
+        {% endif %}
+        {% if event.organization %}<a class="btn btn-outline-secondary w-100" href="{% url 'elections:constituencies' event.organization.pk %}">{% translate "Manage faculties / departments / regions" %}</a>{% endif %}
+    </div>
+</div>
+{% endblock %}

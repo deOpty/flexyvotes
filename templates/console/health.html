@@ -1,0 +1,40 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "System health" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "System health" %} <span class="small text-muted">v{{ version }}</span></h1>
+<div class="row g-3 mb-3">
+    {% for name, check in checks.items %}
+    <div class="col-6 col-lg-3"><div class="card kpi p-3 h-100"><div class="kpi-label">{{ name }}</div>
+        <div class="kpi-value {% if check.ok %}text-success{% else %}text-danger{% endif %}">{% if check.ok %}OK{% else %}{% translate "DOWN" %}{% endif %}</div>
+        <div class="small text-muted">{% if check.latency_ms %}{{ check.latency_ms }} ms{% endif %}{% if check.mode %}{{ check.mode }}{% endif %}{% if check.pending %} {{ check.pending }} {% translate "pending migrations" %}{% endif %}{% if check.error %}{{ check.error }}{% endif %}</div>
+        {% if check.queue_depth %}<div class="small">{% for q, d in check.queue_depth.items %}{{ q }}: {{ d }} {% endfor %}</div>{% endif %}</div></div>
+    {% endfor %}
+</div>
+<div class="row g-3">
+    <div class="col-lg-6"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "Business signals" %}</h2>
+        <dl class="row small mb-0">
+            <dt class="col-7">{% translate "Payments in the last hour" %}</dt><dd class="col-5">{{ payments_hour }}</dd>
+            <dt class="col-7">{% translate "Payment success rate (1h)" %}</dt><dd class="col-5">{% if payment_success_rate is None %}—{% else %}{{ payment_success_rate }}%{% endif %}</dd>
+            <dt class="col-7">{% translate "Webhooks (24h) / failed" %}</dt><dd class="col-5">{{ webhooks_24h }} / <span class="{% if webhooks_failed_24h %}text-danger fw-bold{% endif %}">{{ webhooks_failed_24h }}</span></dd>
+            <dt class="col-7">{% translate "Ballots cast in the last hour" %}</dt><dd class="col-5">{{ ballots_hour }}</dd>
+            <dt class="col-7">{% translate "Open fraud alerts" %}</dt><dd class="col-5">{{ fraud_open }}</dd>
+            <dt class="col-7">{% translate "Notifications queued / failed" %}</dt><dd class="col-5">{{ notifications_queued }} / {{ notifications_failed }}</dd>
+        </dl>
+    </div></div>
+    <div class="col-lg-6"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "Integrations" %}</h2>
+        <dl class="row small">{% for name, value in settings_flags.items %}<dt class="col-7">{{ name }}</dt><dd class="col-5">{% if value is True %}<span class="text-success">{% translate "yes" %}</span>{% elif value is False %}<span class="text-danger">{% translate "no" %}</span>{% else %}{{ value }}{% endif %}</dd>{% endfor %}</dl>
+        <h3 class="h6 fw-bold">{% translate "Circuit breakers" %}</h3>
+        <p class="small mb-0">{% for name, state in breakers.items %}<span class="badge bg-{% if state == 'open' %}danger{% else %}success{% endif %} me-1">{{ name }}: {{ state }}</span>{% empty %}<span class="text-muted">{% translate "No outbound calls yet in this process." %}</span>{% endfor %}</p>
+    </div></div>
+    <div class="col-12"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "Audit chains" %}</h2>
+        <p class="small mb-1">{% for c in chains %}<span class="mono me-3">{{ c.chain }}: {{ c.seq }}</span>{% endfor %}</p>
+        <a href="{% url 'console:audit' %}?verify=1" class="btn btn-sm btn-outline-secondary">{% translate "Verify all chains" %}</a>
+        <a href="/metrics" class="btn btn-sm btn-outline-secondary">{% translate "Prometheus metrics" %}</a>
+        <a href="/healthz/ready" class="btn btn-sm btn-outline-secondary">{% translate "Readiness probe" %}</a>
+    </div></div>
+</div>
+{% endblock %}

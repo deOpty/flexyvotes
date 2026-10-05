@@ -1,0 +1,4 @@
+{% autoescape off %}The certified results of "{{ election }}" have been published.
+
+View the results and verify them: {{ link }}
+{% endautoescape %}

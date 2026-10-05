@@ -1,0 +1,4 @@
+[tool.bandit]
+exclude_dirs = ["tests", "migrations", ".venv", "staticfiles"]
+# B101: asserts are only used in tests (excluded) and the offline verifier.
+skips = ["B101"]

@@ -1,0 +1,7 @@
+{% autoescape off %}Hello{% if name %} {{ name }}{% endif %},
+
+Your registration for "{{ election }}" is confirmed.{% if code %}
+Your access code: {{ code }}{% endif %}
+
+Vote here when voting opens: {{ link }}
+{% endautoescape %}

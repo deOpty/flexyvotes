@@ -12,10 +12,10 @@
 
     <!-- Action Buttons -->
     <div class="d-flex flex-wrap justify-content-center gap-3 mb-4 reveal reveal-delay-1">
-        <button class="btn btn-outline-wine fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#verifyCollapse" aria-expanded="false" aria-controls="verifyCollapse" onclick="hideOther('retrieveCollapse')">
+        <button class="btn btn-outline-wine fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#verifyCollapse" aria-expanded="false" aria-controls="verifyCollapse" data-hide-other="retrieveCollapse">
             <i class="bi bi-shield-check me-2"></i> Verify a Ticket
         </button>
-        <button class="btn btn-outline-wine fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#retrieveCollapse" aria-expanded="false" aria-controls="retrieveCollapse" onclick="hideOther('verifyCollapse')">
+        <button class="btn btn-outline-wine fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#retrieveCollapse" aria-expanded="false" aria-controls="retrieveCollapse" data-hide-other="verifyCollapse">
             <i class="bi bi-phone me-2"></i> Retrieve USSD Ticket
         </button>
     </div>
@@ -126,13 +126,12 @@
     </div>
 </div>
 
-<script>
-    // Simple JS to close the other collapse when one is clicked
-    function hideOther(idToHide) {
-        const el = document.getElementById(idToHide);
-        if (el.classList.contains('show')) {
-            el.classList.remove('show');
-        }
-    }
+<script nonce="{{ csp_nonce }}">
+    document.querySelectorAll('[data-hide-other]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            var el = document.getElementById(button.dataset.hideOther);
+            if (el) el.classList.remove('show');
+        });
+    });
 </script>
 {% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Reports" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Reports & exports" %}</h1>
+<div class="row g-3">
+    <div class="col-lg-4"><div class="panel h-100"><h2 class="h5 fw-bold">{% translate "Finance" %}</h2><ul class="mb-0">
+        <li><a href="{% url 'payments:revenue' %}">{% translate "Revenue report" %}</a> (<a href="{% url 'payments:revenue' %}?format=csv">CSV</a>)</li>
+        <li><a href="{% url 'payments:reconciliation' %}">{% translate "Reconciliation runs" %}</a></li>
+        <li><a href="{% url 'payments:refunds' %}">{% translate "Refunds" %}</a></li></ul></div></div>
+    <div class="col-lg-4"><div class="panel h-100"><h2 class="h5 fw-bold">{% translate "Integrity" %}</h2><ul class="mb-0">
+        <li><a href="{% url 'console:audit' %}">{% translate "Audit log" %}</a></li>
+        <li><a href="{% url 'fraud:alerts' %}">{% translate "Fraud alerts" %}</a></li>
+        <li><a href="{% url 'console:approvals' %}">{% translate "Approval history" %}</a></li></ul></div></div>
+    <div class="col-lg-4"><div class="panel h-100"><h2 class="h5 fw-bold">{% translate "API" %}</h2><p class="small mb-1">{% translate "Machine-readable data for every report is available from the REST API." %}</p><a href="/api/v1/docs">{% translate "OpenAPI documentation" %}</a></div></div>
+</div>
+<div class="panel"><h2 class="h5 fw-bold">{% translate "Election results & rolls" %}</h2>
+<table class="table table-sm align-middle"><thead><tr><th>{% translate "Election" %}</th><th>{% translate "Status" %}</th><th>{% translate "Results" %}</th><th>{% translate "Voter roll" %}</th></tr></thead>
+<tbody>{% for e in events %}<tr><td>{{ e.title }}</td><td>{{ e.status|status_badge:e.get_status_display }}</td>
+<td class="small"><a href="{% url 'elections:console_results_export' e.pk 'csv' %}">CSV</a> · <a href="{% url 'elections:console_results_export' e.pk 'xlsx' %}">Excel</a> · <a href="{% url 'elections:console_results_export' e.pk 'pdf' %}">PDF</a></td>
+<td class="small">{% if e.is_institutional %}<a href="{% url 'elections:console_voters_export' e.pk %}">CSV</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

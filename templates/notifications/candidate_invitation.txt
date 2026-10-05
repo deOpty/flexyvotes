@@ -1,0 +1,8 @@
+{% autoescape off %}Hello {{ name }},
+
+You have been added as a candidate in "{{ election }}". Set up your candidate
+profile (photo, biography, manifesto) here:
+{{ link }}
+
+This link is personal and expires in 7 days.
+{% endautoescape %}

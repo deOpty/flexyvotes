@@ -1,0 +1,6 @@
+{% extends 'core/error_base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Access denied" %}{% endblock %}
+{% block code %}403{% endblock %}
+{% block heading %}{% translate "You don't have access to this page" %}{% endblock %}
+{% block message %}{% translate "Your role does not include the permission needed here. If you think this is a mistake, ask your organization administrator." %}{% endblock %}

@@ -1,0 +1,28 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Revenue" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Revenue report" %}</h1>
+<form method="get" class="panel row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small" for="rf">{% translate "From" %}</label><input id="rf" type="date" name="from" value="{{ start|date:'Y-m-d' }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label small" for="rt">{% translate "To" %}</label><input id="rt" type="date" name="to" value="{{ end|date:'Y-m-d' }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label small" for="re">{% translate "Election" %}</label><select id="re" name="event" class="form-select"><option value="">{% translate "All paid elections" %}</option>{% for e in events %}<option value="{{ e.pk }}" {% if request.GET.event == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.title }}</option>{% endfor %}</select></div>
+    <div class="col-md-3 d-flex gap-1"><button class="btn btn-wine">{% translate "Apply" %}</button><a class="btn btn-outline-secondary" href="?{{ request.GET.urlencode }}&amp;format=csv">CSV</a></div>
+</form>
+<div class="row g-3 mb-3">
+    <div class="col-6 col-lg-2"><div class="card kpi p-3"><div class="kpi-label">{% translate "Gross" %}</div><div class="kpi-value small">{{ report.gross|money }}</div></div></div>
+    <div class="col-6 col-lg-2"><div class="card kpi p-3"><div class="kpi-label">{% translate "Refunds" %}</div><div class="kpi-value small">{{ report.refunds|money }}</div></div></div>
+    <div class="col-6 col-lg-2"><div class="card kpi p-3"><div class="kpi-label">{% translate "Net" %}</div><div class="kpi-value small">{{ report.net|money }}</div></div></div>
+    <div class="col-6 col-lg-2"><div class="card kpi p-3"><div class="kpi-label">{% translate "Gateway fees" %}</div><div class="kpi-value small">{{ report.fees|money }}</div></div></div>
+    <div class="col-6 col-lg-2"><div class="card kpi p-3"><div class="kpi-label">{% translate "Success rate" %}</div><div class="kpi-value small">{{ report.success_rate }}%</div></div></div>
+    <div class="col-6 col-lg-2"><div class="card kpi p-3"><div class="kpi-label">{% translate "Held" %}</div><div class="kpi-value small">{{ report.held }}</div></div></div>
+</div>
+<div class="panel"><h2 class="h5 fw-bold">{% translate "By election" %}</h2>
+<table class="table table-sm"><thead><tr><th>{% translate "Election" %}</th><th class="text-end">{% translate "Payments" %}</th><th class="text-end">{% translate "Votes" %}</th><th class="text-end">{% translate "Gross" %}</th><th class="text-end">{% translate "Refunds" %}</th><th class="text-end">{% translate "Platform fee" %}</th><th class="text-end">{% translate "Organizer payout" %}</th></tr></thead>
+<tbody>{% for row in report.by_event %}<tr><td>{{ row.event.title }}</td><td class="text-end">{{ row.payments }}</td><td class="text-end">{{ row.votes|number }}</td><td class="text-end">{{ row.gross|money:row.event.currency }}</td><td class="text-end">{{ row.refunds|money:row.event.currency }}</td><td class="text-end">{{ row.platform_fee|money:row.event.currency }}</td><td class="text-end fw-semibold">{{ row.organizer_payout|money:row.event.currency }}</td></tr>{% empty %}<tr><td colspan="7" class="text-muted">—</td></tr>{% endfor %}</tbody></table></div>
+<div class="row g-3">
+    <div class="col-lg-6"><div class="panel"><h2 class="h5 fw-bold">{% translate "By day" %}</h2><table class="table table-sm"><tbody>{% for d in report.by_day %}<tr><td>{{ d.day|date:"d M Y" }}</td><td class="text-end">{{ d.payments }}</td><td class="text-end">{{ d.amount|money }}</td></tr>{% empty %}<tr><td class="text-muted">—</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-lg-6"><div class="panel"><h2 class="h5 fw-bold">{% translate "By channel" %}</h2><table class="table table-sm"><tbody>{% for c in report.by_channel %}<tr><td>{{ c.channel|default:"unknown" }}</td><td class="text-end">{{ c.payments }}</td><td class="text-end">{{ c.amount|money }}</td></tr>{% empty %}<tr><td class="text-muted">—</td></tr>{% endfor %}</tbody></table>
+        <h3 class="h6 fw-bold mt-3">{% translate "Status mix" %}</h3><p class="small mb-0">{% for s, n in report.status_counts.items %}{{ s }}: {{ n }} · {% endfor %}</p></div></div>
+</div>
+{% endblock %}

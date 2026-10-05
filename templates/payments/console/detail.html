@@ -1,0 +1,49 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{{ payment.reference }}{% endblock %}
+{% block console %}
+<a href="{% url 'payments:console_list' %}" class="small text-muted">&larr; {% translate "Payments" %}</a>
+<h1 class="h4 fw-bold text-wine mono">{{ payment.reference }}</h1>
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="panel">
+            <div class="d-flex justify-content-between"><div>{{ payment.status|status_badge:payment.get_status_display }}{% if payment.held %} <span class="badge bg-danger">{% translate "held" %}: {{ payment.hold_reason }}</span>{% endif %}</div><div class="fs-4 fw-bold">{{ payment.amount|money:payment.currency }}</div></div>
+            <dl class="row small mt-3 mb-0">
+                <dt class="col-sm-4">{% translate "Election" %}</dt><dd class="col-sm-8">{{ payment.event.title|default:"—" }}</dd>
+                <dt class="col-sm-4">{% translate "Candidate" %}</dt><dd class="col-sm-8">{{ payment.candidate.name|default:"—" }}</dd>
+                <dt class="col-sm-4">{% translate "Votes" %}</dt><dd class="col-sm-8">{{ payment.votes }}{% if payment.bonus_votes %} + {{ payment.bonus_votes }} {% translate "bonus" %}{% endif %} · {% if payment.votes_credited %}{% translate "credited" %} {{ payment.credited_at|date:"d M H:i" }}{% else %}{% translate "not credited" %}{% endif %}</dd>
+                <dt class="col-sm-4">{% translate "Pricing" %}</dt><dd class="col-sm-8">{{ payment.gross_amount }} − {{ payment.discount_amount }}{% if payment.discount %} ({{ payment.discount.code }}){% endif %}{% if payment.package %} · {{ payment.package.name }}{% endif %}</dd>
+                <dt class="col-sm-4">{% translate "Channel / card" %}</dt><dd class="col-sm-8">{{ payment.channel|default:"—" }} {% if payment.card_last4 %}· {{ payment.card_brand }} ****{{ payment.card_last4 }} {{ payment.card_bank }} {{ payment.card_country }}{% endif %}</dd>
+                <dt class="col-sm-4">{% translate "Fees" %}</dt><dd class="col-sm-8">{{ payment.fees|default:"—" }}</dd>
+                <dt class="col-sm-4">{% translate "Refunded" %}</dt><dd class="col-sm-8">{{ payment.refunded_amount }}</dd>
+                <dt class="col-sm-4">{% translate "Risk" %}</dt><dd class="col-sm-8">{{ payment.risk_score|default:"—" }} {{ payment.risk_decision }}</dd>
+                <dt class="col-sm-4">{% translate "Origin" %}</dt><dd class="col-sm-8 mono">{{ payment.ip_address|default:"" }} · dev {{ payment.device_hash|slice:":10" }}</dd>
+                <dt class="col-sm-4">{% translate "Gateway" %}</dt><dd class="col-sm-8">{{ payment.gateway_status|default:"—" }} {{ payment.gateway_id }}{% if payment.gateway_paid_at %} · {{ payment.gateway_paid_at|date:"d M H:i" }}{% endif %}</dd>
+            </dl>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Payment audit trail" %}</h2>
+            <ol class="small mb-0">{% for h in history %}<li class="mb-1"><span class="text-muted">{{ h.created_at|date:"d M H:i:s" }}</span> · <strong>{{ h.source }}</strong>{% if h.to_status %} · {{ h.from_status|default:"∅" }} → {{ h.to_status }}{% endif %} · {{ h.message }}{% if h.actor %} ({{ h.actor.username }}){% endif %}</li>{% endfor %}</ol>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Actions" %}</h2>
+            <form method="post" class="mb-3">{% csrf_token %}<input type="hidden" name="action" value="verify"><button class="btn btn-outline-secondary w-100">{% translate "Re-verify with Paystack" %}</button></form>
+            {% if payment.held and payment.status == 'SUCCESS' %}
+            <form method="post" class="mb-3">{% csrf_token %}<label class="form-label small" for="rn">{% translate "Review notes" %}</label><input id="rn" name="notes" class="form-control mb-2">
+                <div class="d-flex gap-2"><button name="action" value="release" class="btn btn-success flex-fill">{% translate "Release & credit votes" %}</button><button name="action" value="reject" class="btn btn-outline-danger flex-fill">{% translate "Reject (refund)" %}</button></div></form>
+            {% endif %}
+            {% if payment.status == 'SUCCESS' or payment.status == 'PARTIALLY_REFUNDED' or payment.status == 'DISPUTED' %}
+            <form method="post" data-confirm="{% translate 'Request this refund?' %}">{% csrf_token %}<input type="hidden" name="action" value="refund">
+                <label class="form-label small" for="ra">{% translate "Refund amount" %}</label><input id="ra" name="amount" type="number" step="0.01" min="0.01" value="{{ payment.amount }}" class="form-control mb-2">
+                <label class="form-label small" for="rr">{% translate "Reason" %}</label><input id="rr" name="reason" class="form-control mb-2" required>
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="reverse_votes" id="rv" checked><label class="form-check-label small" for="rv">{% translate "Reverse the credited votes" %}</label></div>
+                <button class="btn btn-outline-danger w-100">{% translate "Request refund" %}</button></form>
+            {% endif %}
+        </div>
+        {% if refunds %}<div class="panel"><h2 class="h5 fw-bold">{% translate "Refunds" %}</h2><ul class="list-unstyled small">{% for r in refunds %}<li class="border-bottom py-1">{{ r.amount }} · {{ r.get_status_display }} · {{ r.requested_by.username }}{% if r.approved_by %} / {{ r.approved_by.username }}{% endif %}<div class="text-muted">{{ r.reason }}</div>{% if r.status == 'REQUESTED' and r.requested_by_id != request.user.pk %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve_refund"><input type="hidden" name="refund" value="{{ r.pk }}"><button class="btn btn-sm btn-outline-success">{% translate "Approve" %}</button></form>{% endif %}</li>{% endfor %}</ul></div>{% endif %}
+        {% if fraud_events %}<div class="panel"><h2 class="h5 fw-bold">{% translate "Risk assessments" %}</h2><ul class="list-unstyled small">{% for f in fraud_events %}<li class="border-bottom py-1"><a href="{% url 'fraud:alert' f.pk %}">{{ f.kind }} {{ f.score }} {{ f.decision }}</a> · {{ f.get_status_display }}</li>{% endfor %}</ul></div>{% endif %}
+    </div>
+</div>
+{% endblock %}

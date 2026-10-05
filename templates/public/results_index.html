@@ -1,0 +1,19 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Published results" %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 900px;">
+    <h1 class="fw-bold text-wine">{% translate "Published results" %}</h1>
+    <p class="text-muted">{% translate "Certified results of past elections. Every result carries a digital signature you can verify independently." %}</p>
+    <form method="get" class="d-flex gap-2 mb-4" role="search"><label for="rq" class="visually-hidden">{% translate "Search" %}</label><input id="rq" name="q" value="{{ query }}" class="form-control" placeholder="{% translate 'Search elections' %}"><button class="btn btn-wine">{% translate "Search" %}</button></form>
+    <div class="list-group">
+        {% for e in page %}
+        <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div><strong>{{ e.title }}</strong><div class="small text-muted">{{ e.organization.name }} · {% translate "published" %} {{ e.published_at|date:"d M Y"|default:e.end_date|date:"d M Y" }}</div></div>
+            <div class="d-flex gap-2"><a class="btn btn-sm btn-wine" href="{% url 'elections:results' e.pk %}">{% translate "Results" %}</a><a class="btn btn-sm btn-outline-secondary" href="{% url 'elections:verify' e.pk %}">{% translate "Verify" %}</a></div>
+        </div>
+        {% empty %}<div class="list-group-item text-muted">{% translate "No published results yet." %}</div>{% endfor %}
+    </div>
+    {% include 'console/includes/pagination.html' %}
+</div>
+{% endblock %}

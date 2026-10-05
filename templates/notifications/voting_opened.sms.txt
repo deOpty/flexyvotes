@@ -1,0 +1,1 @@
+{% autoescape off %}Voting is open for {{ election }}. Vote at {{ link }}{% endautoescape %}

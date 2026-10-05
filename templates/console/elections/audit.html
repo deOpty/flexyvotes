@@ -1,0 +1,28 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Audit trail" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<form method="get" class="panel d-flex flex-wrap gap-2 align-items-end">
+    <div><label class="form-label small" for="t">{% translate "Event type starts with" %}</label><input id="t" name="type" value="{{ type }}" class="form-control" placeholder="VOTER_"></div>
+    <button class="btn btn-wine">{% translate "Filter" %}</button>
+    <a href="?verify=1" class="btn btn-outline-secondary">{% translate "Verify hash chain" %}</a>
+</form>
+{% if verification %}
+<div class="alert {% if verification.0 %}alert-success{% else %}alert-danger{% endif %}">
+    {% if verification.0 %}{% blocktranslate with n=verification.1 %}Hash chain intact: {{ n }} entries verified.{% endblocktranslate %}{% else %}{% translate "TAMPERING DETECTED" %}: {{ verification.3 }} (seq {{ verification.2 }}){% endif %}
+</div>
+{% endif %}
+<div class="panel">
+    <div class="table-responsive"><table class="table table-sm align-middle">
+        <thead><tr><th>{% translate "When" %}</th><th>{% translate "Event" %}</th><th>{% translate "Actor" %}</th><th>{% translate "Summary" %}</th><th>{% translate "Result" %}</th><th>IP</th></tr></thead>
+        <tbody>{% for e in page %}
+            <tr><td class="small text-nowrap">{{ e.created_at|date:"d M Y H:i:s" }}</td><td class="mono small">{{ e.event_type }}</td><td>{{ e.actor_label|default:"system" }}</td>
+                <td class="small">{{ e.summary }}{% if e.changes %}<details><summary class="text-muted">{% translate "before / after" %}</summary><pre class="mono small mb-0">{{ e.changes|pprint }}</pre></details>{% endif %}{% if e.reason %}<div class="text-muted">{% translate "Reason" %}: {{ e.reason }}</div>{% endif %}</td>
+                <td><span class="badge bg-{% if e.result == 'SUCCESS' %}success{% elif e.result == 'DENIED' %}warning text-dark{% else %}danger{% endif %}">{{ e.result }}</span></td>
+                <td class="small mono">{{ e.ip_address|default:"" }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="text-muted">—</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% include 'console/includes/pagination.html' %}
+</div>
+{% endblock %}

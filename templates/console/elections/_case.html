@@ -1,0 +1,26 @@
+{% load i18n %}
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Timeline" %}</h2>
+            <ul class="list-unstyled">{% for note in notes %}<li class="border-bottom py-2"><div class="small text-muted">{{ note.author.username|default:"system" }} · {{ note.created_at|date:"d M Y H:i" }}</div>{{ note.body|linebreaksbr }}</li>{% empty %}<li class="text-muted">{% translate "No notes yet." %}</li>{% endfor %}</ul>
+            {% if can_manage %}
+            <form method="post">{% csrf_token %}<input type="hidden" name="action" value="note"><label class="form-label small" for="note">{% translate "Add note" %}</label><textarea id="note" name="body" rows="3" class="form-control mb-2" required></textarea><button class="btn btn-sm btn-wine">{% translate "Add note" %}</button></form>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Preserved evidence" %}</h2>
+            <ul class="list-unstyled small">{% for item in evidence %}<li class="border-bottom py-2"><a href="{% url 'elections:console_evidence' event.pk item.pk %}">{{ item.title }}</a> <span class="text-muted">({{ item.size|filesizeformat }})</span><div class="mono text-muted">sha256 {{ item.sha256 }}</div><div class="text-muted">{{ item.uploaded_by.username }} · {{ item.uploaded_at|date:"d M Y H:i" }}</div></li>{% empty %}<li class="text-muted">{% translate "None." %}</li>{% endfor %}</ul>
+            {% if can_manage %}
+            <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="action" value="evidence">
+                <input name="title" class="form-control form-control-sm mb-1" placeholder="{% translate 'Title' %}" aria-label="{% translate 'Title' %}">
+                <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" class="form-control form-control-sm mb-1" required aria-label="{% translate 'File' %}">
+                <button class="btn btn-sm btn-outline-wine">{% translate "Preserve evidence" %}</button>
+                <div class="form-text">{% translate "Files are stored privately, hashed, and can never be modified or deleted." %}</div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>

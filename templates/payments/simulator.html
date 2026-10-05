@@ -1,0 +1,17 @@
+{% extends 'voting/base.html' %}
+{% load i18n %}
+{% block title %}Payment simulator{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 520px;">
+    <div class="alert alert-warning"><strong>Development payment simulator.</strong> This page replaces Paystack checkout because no Paystack key is configured. It is disabled in production.</div>
+    <div class="card border-0 shadow-sm rounded-4 p-4">
+        <h1 class="h4 fw-bold">{{ store.currency }} {{ amount }}</h1>
+        <p class="mono small">{{ reference }}</p>
+        <form method="post">{% csrf_token %}
+            <label class="form-label small" for="card">Card signature (for fraud testing)</label><input id="card" name="card" value="SIG_FAKE_CARD" class="form-control mb-2">
+            <label class="form-label small" for="country">Card country</label><input id="country" name="country" value="GH" class="form-control mb-3" maxlength="2">
+            <div class="d-flex gap-2"><button name="outcome" value="pay" class="btn btn-success flex-fill">Pay</button><button name="outcome" value="fail" class="btn btn-outline-danger flex-fill">Decline</button><button name="outcome" value="abandon" class="btn btn-outline-secondary flex-fill">Cancel</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

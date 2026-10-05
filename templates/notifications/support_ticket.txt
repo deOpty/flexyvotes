@@ -1,0 +1,4 @@
+{% autoescape off %}We received your request {{ reference }}: "{{ subject }}".
+
+Our support team will get back to you shortly.
+{% endautoescape %}

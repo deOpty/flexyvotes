@@ -1,0 +1,75 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Settings" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+{% if not editable %}<div class="alert alert-secondary">{{ edit_reason }}</div>{% elif resets %}<div class="alert alert-warning">{{ edit_reason }}</div>{% endif %}
+<form method="post" class="row g-3">
+    {% csrf_token %}
+    <fieldset class="col-lg-6" {% if not editable %}disabled{% endif %}>
+        <div class="panel h-100">
+            <legend class="h5 fw-bold">{% translate "Visibility & results" %}</legend>
+            <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if event.is_active %}checked{% endif %}><label class="form-check-label" for="is_active">{% translate "List publicly on the home page" %}</label></div>
+            <label class="form-label" for="results_visibility">{% translate "Results visibility" %}</label>
+            <select id="results_visibility" name="results_visibility" class="form-select mb-2">{% for v, l in visibility_choices %}<option value="{{ v }}" {% if v == event.results_visibility %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+            <div class="form-text mb-3">{% translate "Secret-ballot elections always keep results hidden until they are certified and published." %}</div>
+            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="dual" name="dual_approval_required" {% if event.dual_approval_required %}checked{% endif %}><label class="form-check-label" for="dual">{% translate "Require dual approval (separation of duties)" %}</label></div>
+            <div class="form-text">{% translate "When on: the submitter cannot approve, the tallier cannot certify, and unfreezes, extensions, re-openings and bulk credential resets need a second official." %}</div>
+        </div>
+    </fieldset>
+    {% if event.is_institutional %}
+    <fieldset class="col-lg-6" {% if not editable %}disabled{% endif %}>
+        <div class="panel h-100">
+            <legend class="h5 fw-bold">{% translate "Voter authentication" %}</legend>
+            {% for value, label in auth_choices %}
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="auth_methods" value="{{ value }}" id="am-{{ value }}" {% if value in event.auth_methods %}checked{% endif %}><label class="form-check-label" for="am-{{ value }}">{{ label }}</label></div>
+            {% endfor %}
+            <div class="form-check form-switch mt-3"><input class="form-check-input" type="checkbox" id="mfa" name="require_second_factor" {% if event.require_second_factor %}checked{% endif %}><label class="form-check-label" for="mfa">{% translate "Require a one-time code (email/SMS) as a second factor" %}</label></div>
+            <div class="form-check form-switch mt-3"><input class="form-check-input" type="checkbox" id="selfreg" name="allow_self_registration" {% if event.allow_self_registration %}checked{% endif %}><label class="form-check-label" for="selfreg">{% translate "Allow self-registration with an institutional email" %}</label></div>
+            <label class="form-label mt-2" for="domains">{% translate "Allowed email domains" %}</label>
+            <input id="domains" name="registration_email_domains" value="{{ event.registration_email_domains }}" class="form-control" placeholder="st.ug.edu.gh, ug.edu.gh">
+        </div>
+    </fieldset>
+    <fieldset class="col-lg-6" {% if not editable %}disabled{% endif %}>
+        <div class="panel h-100">
+            <legend class="h5 fw-bold">{% translate "Ballot secrecy & keys" %}</legend>
+            <label class="form-label" for="custody">{% translate "Ballot key custody" %}</label>
+            <select id="custody" name="key_custody" class="form-select mb-2">{% for v, l in custody_choices %}<option value="{{ v }}" {% if v == event.key_custody %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+            <label class="form-label" for="threshold">{% translate "Trustee threshold (k of n)" %}</label>
+            <input id="threshold" type="number" min="0" name="trustee_threshold" value="{{ event.trustee_threshold }}" class="form-control mb-1">
+            <div class="form-text mb-3"><a href="{% url 'elections:console_trustees' event.pk %}">{% translate "Manage trustees" %}</a></div>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="cons" name="record_constituency_on_ballot" {% if event.record_constituency_on_ballot %}checked{% endif %}><label class="form-check-label" for="cons">{% translate "Publish constituency-level results" %}</label></div>
+            <label class="form-label mt-2" for="anon">{% translate "Minimum ballots per published constituency" %}</label>
+            <input id="anon" type="number" min="1" name="min_anonymity_set" value="{{ event.min_anonymity_set }}" class="form-control">
+            <div class="form-text">{% translate "Constituencies with fewer ballots are suppressed so small groups can't be identified." %}</div>
+        </div>
+    </fieldset>
+    {% else %}
+    <fieldset class="col-lg-6" {% if not editable %}disabled{% endif %}>
+        <div class="panel h-100">
+            <legend class="h5 fw-bold">{% translate "Vote limits" %}</legend>
+            <div class="row g-2">
+                <div class="col-6"><label class="form-label small" for="mvv">{% translate "Max votes per voter (election)" %}</label><input id="mvv" type="number" min="0" name="max_votes_per_voter" value="{{ event.max_votes_per_voter|default_if_none:'' }}" class="form-control"></div>
+                <div class="col-6"><label class="form-label small" for="msv">{% translate "Max spend per voter" %} ({{ event.currency }})</label><input id="msv" type="number" step="0.01" min="0" name="max_spend_per_voter" value="{{ event.max_spend_per_voter|default_if_none:'' }}" class="form-control"></div>
+                <div class="col-6"><label class="form-label small" for="minv">{% translate "Min votes per payment" %}</label><input id="minv" type="number" min="1" name="min_votes_per_transaction" value="{{ event.min_votes_per_transaction }}" class="form-control"></div>
+                <div class="col-6"><label class="form-label small" for="maxv">{% translate "Max votes per payment" %}</label><input id="maxv" type="number" min="0" name="max_votes_per_transaction" value="{{ event.max_votes_per_transaction|default_if_none:'' }}" class="form-control"></div>
+            </div>
+            <div class="form-text">{% translate "Per-voter limits apply to the payer's email/phone, and to the card used (checked after payment; excess is held for review)." %}</div>
+        </div>
+    </fieldset>
+    <fieldset class="col-lg-6" {% if not editable %}disabled{% endif %}>
+        <div class="panel h-100">
+            <legend class="h5 fw-bold">{% translate "Payment channels & regions" %}</legend>
+            {% for value, label in payment_channel_choices %}
+            <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="payment_channels" value="{{ value }}" id="pc-{{ value }}" {% if value in event.payment_channels %}checked{% endif %}><label class="form-check-label" for="pc-{{ value }}">{{ label }}</label></div>
+            {% endfor %}
+            <div class="form-text mb-3">{% translate "Leave all unticked to offer every channel Paystack supports for the currency." %}</div>
+            <label class="form-label" for="countries">{% translate "Expected countries (ISO codes)" %}</label>
+            <input id="countries" name="allowed_countries" class="form-control" value="{{ event.allowed_countries|join:', ' }}" placeholder="GH, NG">
+            <div class="form-text">{% translate "Payments from elsewhere raise the fraud score; they are not blocked automatically." %}</div>
+        </div>
+    </fieldset>
+    {% endif %}
+    {% if editable %}<div class="col-12"><button type="submit" class="btn btn-wine">{% translate "Save settings" %}</button></div>{% endif %}
+</form>
+{% endblock %}

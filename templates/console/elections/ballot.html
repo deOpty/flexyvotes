@@ -1,0 +1,106 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Ballot" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+{% if not ballot_policy.0 %}<div class="alert alert-secondary">{{ ballot_policy.2 }}</div>{% elif ballot_policy.1 %}<div class="alert alert-warning">{{ ballot_policy.2 }}</div>{% endif %}
+
+<div class="row g-3">
+    <div class="col-xl-8">
+        {% for position in positions %}
+        <div class="panel">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                    <h2 class="h5 fw-bold mb-1">{{ position.name }}</h2>
+                    <div class="small text-muted">{{ position.get_ballot_type_display }} · {% translate "select" %} {{ position.min_select }}&ndash;{{ position.max_select }} · {{ position.seats }} {% translate "seat(s)" %}{% if position.allow_abstain %} · {% translate "abstain allowed" %}{% endif %}{% if position.constituency %} · {% translate "voters in" %} {{ position.constituency.name }}{% endif %}</div>
+                </div>
+                <div class="d-flex gap-1">
+                    <a href="{% url 'edit_category' position.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Edit" %}</a>
+                    <form method="post" action="{% url 'delete_category' position.pk %}" data-confirm="{% translate 'Delete this position and its candidates?' %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger">{% translate "Delete" %}</button></form>
+                </div>
+            </div>
+            {% if position.is_referendum %}
+            <p class="mt-2 mb-0">{% translate "Options: YES / NO" %} · {% translate "passes above" %} {{ position.referendum_threshold }}%</p>
+            {% else %}
+            <ul class="list-group list-group-flush mt-2">
+                {% for c in position.candidates.all %}
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                    <span>{% if c.image and not lite_mode %}<img src="{{ c.image.url }}" alt="" class="rounded-circle me-2" width="32" height="32" style="object-fit:cover">{% endif %}<strong>{{ c.name }}</strong>{% if c.affiliation %} <span class="text-muted small">· {{ c.affiliation }}</span>{% endif %} {% if c.status != 'ACTIVE' %}{{ c.status|status_badge:c.get_status_display }}{% endif %} {% if c.nominee_code %}<span class="badge bg-dark">{{ c.nominee_code }}</span>{% endif %}</span>
+                    <span class="d-flex gap-1">
+                        {% if c.email and not c.user %}<form method="post" action="{% url 'elections:console_candidate_invite' event.pk c.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-secondary" title="{% translate 'Invite to the candidate portal' %}">{% translate "Invite" %}</button></form>{% elif c.user %}<span class="badge bg-success align-self-center">{% translate "Portal linked" %}</span>{% endif %}
+                        <a href="{% url 'edit_candidate' c.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Edit" %}</a>
+                    </span>
+                </li>
+                {% empty %}<li class="list-group-item px-0 text-muted">{% translate "No candidates yet." %}</li>{% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="panel text-muted">{% translate "No positions yet. Add the first one on the right." %}</div>
+        {% endfor %}
+        {% if uncategorized %}
+        <div class="panel"><h2 class="h5 fw-bold">{% translate "Contestants without a category" %}</h2>
+            <ul class="list-group list-group-flush">{% for c in uncategorized %}<li class="list-group-item d-flex justify-content-between px-0"><span>{{ c.name }} {% if c.nominee_code %}<span class="badge bg-dark">{{ c.nominee_code }}</span>{% endif %}</span><a href="{% url 'edit_candidate' c.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Edit" %}</a></li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+    </div>
+    <div class="col-xl-4">
+        {% if ballot_policy.0 %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% if event.is_paid %}{% translate "Add category" %}{% else %}{% translate "Add position / race" %}{% endif %}</h2>
+            <form method="post" action="{% url 'add_category' event.pk %}">
+                {% csrf_token %}
+                <label class="form-label small" for="p-name">{% translate "Name" %}</label><input id="p-name" name="name" class="form-control mb-2" required maxlength="100">
+                {% if event.is_institutional %}
+                <label class="form-label small" for="p-type">{% translate "Ballot type" %}</label>
+                <select id="p-type" name="ballot_type" class="form-select mb-2">{% for v, l in ballot_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+                <div class="row g-2">
+                    <div class="col-4"><label class="form-label small" for="p-min">{% translate "Min" %}</label><input id="p-min" type="number" min="0" name="min_select" value="1" class="form-control"></div>
+                    <div class="col-4"><label class="form-label small" for="p-max">{% translate "Max" %}</label><input id="p-max" type="number" min="1" name="max_select" value="1" class="form-control"></div>
+                    <div class="col-4"><label class="form-label small" for="p-seats">{% translate "Seats" %}</label><input id="p-seats" type="number" min="1" name="seats" value="1" class="form-control"></div>
+                    <div class="col-6"><label class="form-label small" for="p-score">{% translate "Max score" %}</label><input id="p-score" type="number" min="1" max="100" name="max_score" value="10" class="form-control"></div>
+                    <div class="col-6"><label class="form-label small" for="p-th">{% translate "Referendum %" %}</label><input id="p-th" type="number" min="0" max="100" step="0.01" name="referendum_threshold" value="50" class="form-control"></div>
+                </div>
+                {% if constituencies %}
+                <label class="form-label small mt-2" for="p-cons">{% translate "Only voters in" %}</label>
+                <select id="p-cons" name="constituency" class="form-select"><option value="">{% translate "Everyone eligible" %}</option>{% for c in constituencies %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}</select>
+                {% endif %}
+                <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="p-abs" name="allow_abstain" checked><label class="form-check-label small" for="p-abs">{% translate "Allow abstain" %}</label></div>
+                {% else %}
+                <label class="form-label small" for="p-price">{% translate "Campaign price per vote (optional)" %}</label><input id="p-price" type="number" step="0.01" min="0" name="vote_price" class="form-control">
+                <input type="hidden" name="allow_abstain" value="on">
+                {% endif %}
+                <button class="btn btn-wine w-100 mt-3">{% translate "Add" %}</button>
+            </form>
+        </div>
+        {% endif %}
+        {% if candidate_policy.0 %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% if event.is_paid %}{% translate "Add contestant" %}{% else %}{% translate "Add candidate" %}{% endif %}</h2>
+            <form method="post" action="{% url 'add_candidate' event.pk %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label class="form-label small" for="c-name">{% translate "Name" %}</label><input id="c-name" name="name" class="form-control mb-2" required maxlength="100">
+                <label class="form-label small" for="c-cat">{% translate "Position" %}</label>
+                <select id="c-cat" name="category" class="form-select mb-2">{% if event.is_paid %}<option value="">{% translate "None" %}</option>{% endif %}{% for p in positions %}{% if not p.is_referendum %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endif %}{% endfor %}</select>
+                <label class="form-label small" for="c-aff">{% translate "Affiliation / party" %}</label><input id="c-aff" name="affiliation" class="form-control mb-2" maxlength="120">
+                <label class="form-label small" for="c-email">{% translate "Email (for the candidate portal)" %}</label><input id="c-email" type="email" name="email" class="form-control mb-2">
+                <label class="form-label small" for="c-bio">{% translate "Biography" %}</label><textarea id="c-bio" name="bio" rows="2" class="form-control mb-2"></textarea>
+                <label class="form-label small" for="c-img">{% translate "Photo (PNG/JPEG, max 2 MB)" %}</label><input id="c-img" type="file" name="image" accept="image/png,image/jpeg" class="form-control mb-2">
+                <button class="btn btn-wine w-100">{% translate "Add" %}</button>
+            </form>
+        </div>
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Bulk add" %}</h2>
+            <form method="post" action="{% url 'bulk_add_candidates' event.pk %}">
+                {% csrf_token %}
+                <label class="form-label small" for="b-cat">{% translate "Position" %}</label>
+                <select id="b-cat" name="bulk_category" class="form-select mb-2">{% if event.is_paid %}<option value="">{% translate "None" %}</option>{% endif %}{% for p in positions %}{% if not p.is_referendum %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endif %}{% endfor %}</select>
+                <label class="form-label small" for="b-names">{% translate "One name per line" %}</label><textarea id="b-names" name="bulk_names" rows="4" class="form-control mb-2" required></textarea>
+                <button class="btn btn-outline-wine w-100">{% translate "Add all" %}</button>
+            </form>
+        </div>
+        {% else %}<div class="alert alert-secondary small">{{ candidate_policy.2 }}</div>{% endif %}
+        <a href="{% url 'elections:console_ballot_preview' event.pk %}" class="btn btn-outline-secondary w-100">{% translate "Preview the ballot" %}</a>
+    </div>
+</div>
+{% endblock %}

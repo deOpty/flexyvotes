@@ -1,4 +1,5 @@
 {% extends 'voting/base.html' %}
+{% load fv %}
 
 {% block content %}
 <div class="row justify-content-center align-items-center py-5 my-md-4">
@@ -15,26 +16,26 @@
                 </div>
 
                 <form method="POST">
-                    {% csrf_token %}
+                    {% csrf_token %}{% bot_protection %}
                     <div class="mb-3">
                         <label class="form-label">Username</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-person-fill text-wine"></i></span>
-                            <input type="text" name="username" class="form-control border-start-0 ps-0" required>
+                            <input type="text" name="username" value="{{ form.username }}" class="form-control border-start-0 ps-0" autocomplete="username" required>
                         </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Email</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-envelope-fill text-wine"></i></span>
-                            <input type="email" name="email" class="form-control border-start-0 ps-0" required>
+                            <input type="email" name="email" value="{{ form.email }}" class="form-control border-start-0 ps-0" autocomplete="email" required>
                         </div>
                     </div>
                     <div class="mb-4">
                         <label class="form-label">Password</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-lock-fill text-wine"></i></span>
-                            <input type="password" name="password" class="form-control border-start-0 ps-0" required>
+                            <input type="password" name="password" class="form-control border-start-0 ps-0" autocomplete="new-password" minlength="10" required aria-describedby="pw-help"><div id="pw-help" class="form-text w-100">At least 10 characters; not a common password.</div>
                         </div>
                     </div>
                     <button type="submit" class="btn btn-wine w-100 py-2 fw-bold">Register</button>

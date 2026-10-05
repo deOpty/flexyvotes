@@ -1,0 +1,29 @@
+{% load i18n fv %}
+<div class="col-sm-6 col-lg-4 col-xl-3">
+    <div class="card h-100 border-0 shadow-sm rounded-4 {% if candidate.status != 'ACTIVE' %}opacity-75{% endif %}">
+        {% if candidate.image and not lite_mode %}<img src="{{ candidate.image.url }}" class="card-img-top" alt="{{ candidate.name }}" style="height: 220px; object-fit: cover;">{% endif %}
+        <div class="card-body d-flex flex-column">
+            <h3 class="h5 fw-bold mb-1"><a href="{% url 'elections:candidate_profile' event.pk candidate.pk %}" class="text-reset">{{ candidate.name }}</a></h3>
+            {% if candidate.nominee_code %}<div class="mb-2"><span class="badge bg-dark">{% translate "Nominee code" %}: {{ candidate.nominee_code }}</span></div>{% endif %}
+            {% if candidate.status != 'ACTIVE' %}<span class="badge bg-secondary align-self-start mb-2">{{ candidate.get_status_display }}</span>{% endif %}
+            {% if show_counts %}
+            <div class="small mb-1"><span id="vote-count-{{ candidate.pk }}">{{ candidate.vote_count|number }}</span> {% translate "votes" %} · <span id="percentage-{{ candidate.pk }}">{{ candidate.percentage }}%</span></div>
+            <div class="progress mb-2" style="height: 8px;" role="progressbar" aria-label="{{ candidate.name }}" aria-valuenow="{{ candidate.percentage }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-wine" id="progress-{{ candidate.pk }}" style="width: {{ candidate.percentage }}%"></div></div>
+            {% endif %}
+            <div class="mt-auto">
+                {% if accepting_votes and candidate.status == 'ACTIVE' %}
+                <a href="{% url 'payments:pay' event.pk candidate.pk %}" class="btn w-100 fw-semibold" style="background-color: {{ event.primary_color }}; color: {{ event.accent_color }};">{% blocktranslate with n=candidate.name %}Vote for {{ n }}{% endblocktranslate %}</a>
+                {% if event.enable_tie_breaker %}
+                <details class="mt-2 small"><summary>{% translate "Have a ticket? Cast your free vote" %}</summary>
+                    <form method="post" action="{% url 'cast_vote_with_code' candidate.pk %}" class="d-flex gap-1 mt-1">{% csrf_token %}
+                        <label class="visually-hidden" for="tk-{{ candidate.pk }}">{% translate "Ticket reference" %}</label>
+                        <input id="tk-{{ candidate.pk }}" name="code" class="form-control form-control-sm mono" placeholder="TK-…" required>
+                        <button class="btn btn-sm btn-outline-dark">{% translate "Vote" %}</button>
+                    </form>
+                </details>
+                {% endif %}
+                {% elif is_expired %}<p class="small text-muted mb-0">{% translate "Voting has ended." %}</p>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,19 @@
+{% extends 'console/base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Reconciliation" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Payment reconciliation" %}</h1>
+<p class="text-muted">{% translate "Compares our records with Paystack's to catch missed, duplicated or delayed webhooks and downtime. Runs automatically every 15 minutes." %}</p>
+{% if platform %}<form method="post" class="panel d-flex gap-2 align-items-end">{% csrf_token %}<input type="hidden" name="action" value="run">
+    <div><label class="form-label small" for="hrs">{% translate "Look back (hours)" %}</label><input id="hrs" type="number" name="hours" value="24" min="1" max="720" class="form-control"></div>
+    <button class="btn btn-wine">{% translate "Run now" %}</button></form>
+{% elif last_run %}<p class="small text-muted">{% translate "Last run" %}: {{ last_run.started_at|date:"d M H:i" }} · {{ last_run.get_status_display }}</p>
+{% endif %}<div class="panel"><h2 class="h5 fw-bold">{% translate "Needs review" %}</h2>
+<table class="table table-sm align-middle"><thead><tr><th>{% translate "Reference" %}</th><th>{% translate "Issue" %}</th><th>{% translate "Ours / theirs" %}</th><th>{% translate "Note" %}</th><th></th></tr></thead>
+<tbody>{% for i in open_items %}<tr><td class="mono small">{% if i.payment %}<a href="{% url 'payments:console_detail' i.reference %}">{{ i.reference }}</a>{% else %}{{ i.reference }}{% endif %}</td><td>{{ i.get_kind_display }}</td><td class="small">{{ i.local_status|default:"—" }} {{ i.local_amount|default:"" }} / {{ i.gateway_status }} {{ i.gateway_amount|default:"" }}</td><td class="small">{{ i.note }}</td>
+<td>{% if platform or i.payment.event_id in resolvable_ids %}<form method="post" class="d-flex gap-1">{% csrf_token %}<input type="hidden" name="action" value="resolve"><input type="hidden" name="item" value="{{ i.pk }}"><input name="note" class="form-control form-control-sm" placeholder="{% translate 'Resolution' %}" required aria-label="{% translate 'Resolution' %}"><button class="btn btn-sm btn-outline-success">{% translate "Resolve" %}</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="5" class="text-muted">{% translate "Nothing needs review." %}</td></tr>{% endfor %}</tbody></table></div>
+{% if platform %}<div class="panel"><h2 class="h5 fw-bold">{% translate "Runs" %}</h2>
+<table class="table table-sm"><thead><tr><th>{% translate "Started" %}</th><th>{% translate "Window" %}</th><th>{% translate "Status" %}</th><th>{% translate "Checked" %}</th><th>{% translate "Discrepancies" %}</th><th>{% translate "Auto-resolved" %}</th></tr></thead>
+<tbody>{% for r in runs %}<tr><td class="small">{{ r.started_at|date:"d M H:i" }}{% if r.triggered_by %} · {{ r.triggered_by.username }}{% endif %}</td><td class="small">{{ r.window_start|date:"d M H:i" }} – {{ r.window_end|date:"d M H:i" }}</td><td>{{ r.get_status_display }}{% if r.error %}<div class="small text-danger">{{ r.error|truncatechars:80 }}</div>{% endif %}</td><td>{{ r.checked_count }}</td><td>{{ r.discrepancy_count }}</td><td>{{ r.resolved_count }}</td></tr>{% empty %}<tr><td colspan="6" class="text-muted">—</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% endblock %}

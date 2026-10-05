@@ -75,7 +75,7 @@
 
         <!-- Action Buttons (Hidden initially, shown after 2.5s) -->
         <div id="action-buttons" class="text-center mt-4" style="display: none;">
-            <button onclick="downloadTicket()" class="btn btn-wine px-4 py-2 fw-bold"><i class="bi bi-download me-2"></i> Download Ticket</button>
+            <button type="button" id="download-ticket-btn" class="btn btn-wine px-4 py-2 fw-bold"><i class="bi bi-download me-2"></i> Download Ticket</button>
             <a href="{% url 'event_detail' purchase.ticket.event.id %}" class="btn btn-outline-secondary px-4 py-2 ms-2">Back to Event</a>
         </div>
 
@@ -90,8 +90,8 @@
 </div>
 
 <!-- html2canvas library -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" nonce="{{ csp_nonce }}"></script>
+<script nonce="{{ csp_nonce }}">
     // 1. Capture and Download the Ticket
     function downloadTicket() {
         const ticketElement = document.getElementById('ticket-download');
@@ -104,6 +104,7 @@
     }
 
     // 2. Automatically send the email ONLY IF just_paid is true
+    document.getElementById('download-ticket-btn').addEventListener('click', downloadTicket);
     window.onload = function() {
         const ticketElement = document.getElementById('ticket-download');
         const reference = '{{ purchase.paystack_reference }}';

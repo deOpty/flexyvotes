@@ -1,0 +1,43 @@
+{% extends 'voting/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Payment" %} {{ payment.reference }}{% endblock %}
+{% block extra_head %}{% if pending %}<meta http-equiv="refresh" content="6;url={{ request.path }}?check=1">{% endif %}{% endblock %}
+{% block content %}
+<div class="container py-5" style="max-width: 640px;">
+    <ol class="status-steps" aria-label="{% translate 'Payment steps' %}">
+        <li class="done">1. {% translate "Choose votes" %}</li>
+        <li class="{% if pending %}active{% else %}done{% endif %}">2. {% translate "Pay" %}</li>
+        <li class="{% if payment.verified_at %}done{% elif not pending %}active{% endif %}">3. {% translate "Verified" %}</li>
+        <li class="{% if payment.votes_credited %}active{% endif %}">4. {% translate "Credited" %}</li>
+    </ol>
+    <div class="card border-0 shadow-sm rounded-4 p-4 mt-3 text-center" aria-live="polite">
+        {% if payment.purpose == 'INVOICE' %}
+            <h1 class="h4 fw-bold text-wine">{% if payment.status == 'SUCCESS' %}{% translate "Invoice paid" %}{% elif pending %}{% translate "Confirming your payment…" %}{% else %}{% translate "Payment not completed" %}{% endif %}</h1>
+            {% if payment.invoice %}<a href="{% url 'billing:invoice' payment.invoice.pk %}">{{ payment.invoice.number }}</a>{% endif %}
+        {% elif payment.votes_credited %}
+            <div class="display-5 text-success" aria-hidden="true"><i class="bi bi-check-circle-fill"></i></div>
+            <h1 class="h4 fw-bold text-wine">{% translate "Votes credited!" %}</h1>
+            <p>{% blocktranslate with v=payment.total_votes n=payment.candidate.name %}{{ v }} vote(s) for {{ n }} have been counted.{% endblocktranslate %}</p>
+        {% elif payment.status == 'SUCCESS' and payment.held %}
+            <h1 class="h4 fw-bold text-wine">{% translate "Payment received — under review" %}</h1>
+            <p>{% translate "Your payment was successful. As a security precaution it is being reviewed before the votes are counted. This usually takes a short while; if it can't be approved you will be refunded." %}</p>
+        {% elif pending %}
+            <div class="spinner-border text-wine mb-3" role="status"><span class="visually-hidden">{% translate "Loading" %}</span></div>
+            <h1 class="h4 fw-bold text-wine">{% translate "Confirming your payment with Paystack…" %}</h1>
+            <p class="text-muted">{% translate "This page refreshes automatically. If you approved a mobile-money prompt it can take a minute." %}</p>
+            <a href="?check=1" class="btn btn-outline-secondary">{% translate "Check again" %}</a>
+        {% elif payment.status == 'REFUNDED' or payment.status == 'PARTIALLY_REFUNDED' %}
+            <h1 class="h4 fw-bold text-wine">{% translate "Refunded" %}</h1>
+        {% else %}
+            <h1 class="h4 fw-bold text-danger">{% translate "Payment not completed" %}</h1>
+            <p>{% translate "No money was taken, or the payment failed. You can try again." %}</p>
+            {% if payment.event %}<a class="btn btn-wine" href="{% url 'payments:pay' payment.event.pk payment.candidate.pk %}">{% translate "Try again" %}</a>{% endif %}
+        {% endif %}
+        <dl class="row small text-start mt-3 mb-0">
+            <dt class="col-5">{% translate "Reference" %}</dt><dd class="col-7 mono">{{ payment.reference }}</dd>
+            <dt class="col-5">{% translate "Amount" %}</dt><dd class="col-7">{{ payment.amount|money:payment.currency }}</dd>
+            {% if payment.event %}<dt class="col-5">{% translate "Election" %}</dt><dd class="col-7"><a href="{% url 'event_detail' payment.event.pk %}">{{ payment.event.title }}</a></dd>{% endif %}
+        </dl>
+    </div>
+</div>
+{% endblock %}

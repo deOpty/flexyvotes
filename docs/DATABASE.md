@@ -1,408 +1,244 @@
-# FlexyVotes Database Schema Reference
+# Database Schema
 
-This document describes the database schema defined in `voting/models.py`, the
-schema's evolution via `voting/migrations/`, and how the database is
-configured in `vote_fund/settings.py`.
+- **Engine:** PostgreSQL 16 in production and CI; SQLite works for local development.
+- **Primary keys:** `BigAutoField` by default. Tables whose ids must not be guessable or
+  ordered use a UUID: `Ballot`, `VoteAuthorization`, `Payment`, `Refund`, `OTPChallenge`
+  and `Notification`.
+- **Model source:** each app's `models.py`. This page summarizes the tables and documents
+  the constraints that the integrity guarantees depend on.
 
-All models live in the single Django app `voting`. `Profile` and `Event` also
-relate to Django's built-in `auth.User` model (not defined in this app, but
-included below for context since several relationships point to it).
+## 1. Entity overview
 
-## 1. Entity-Relationship Overview
+```
+Organization ─┬─< RoleAssignment >── Role          User ─┬─ UserSecurity, WebAuthnCredential, UserSession,
+              │        └─ (optional) Event               │   KnownDevice, ApiToken
+              ├─< Constituency (tree, materialized path) └─ Profile (legacy organizer flag)
+              ├── Subscription ── Plan ;  Invoice ─< InvoiceLine ;  UsageRecord ;  FeatureOverride
+              └─< Event ─┬─< Category (position) ─< Candidate ─< CandidateDocument
+                         │                 └─< VoteTransaction ── Payment (1:1, paid votes)
+                         ├─< Voter ─< VoteAuthorization            (identity side)
+                         ├─< Ballot                                (anonymous side - no FK to Voter)
+                         ├── ElectionKey ;  TrusteeShare ;  ElectionConfigSnapshot
+                         ├─< ElectionResult ─< ResultCertification ;  Recount
+                         ├─< ApprovalRequest ;  Dispute / Incident ─< CaseNote, EvidenceItem
+                         ├─< VotePackage ;  DiscountCode ;  Payment ─< PaymentEvent, Refund
+                         └─< Ticket ─< TicketPurchase
 
-```mermaid
-erDiagram
-    USER ||--o| PROFILE : "has profile (1:1)"
-    USER ||--o{ EVENT : "organizes (SET_NULL)"
-    USER ||--o{ ACTIVITYLOG : "performed (SET_NULL)"
-
-    EVENT ||--o{ CATEGORY : "has (CASCADE)"
-    EVENT ||--o{ CANDIDATE : "has (CASCADE)"
-    EVENT ||--o{ VOTINGCODE : "has (CASCADE)"
-    EVENT ||--o{ TICKET : "has (CASCADE)"
-    EVENT ||--o{ TICKETPURCHASE : "has (CASCADE)"
-    EVENT ||--o{ ACTIVITYLOG : "logged for (SET_NULL)"
-
-    CATEGORY ||--o{ CANDIDATE : "groups (CASCADE)"
-
-    CANDIDATE ||--o{ VOTETRANSACTION : "receives (CASCADE)"
-
-    PRODUCTCATEGORY ||--o{ PRODUCT : "groups (SET_NULL)"
-
-    TICKET ||--o{ TICKETPURCHASE : "sold as (CASCADE)"
-
-    PROFILE {
-        int id PK
-        int user_id FK "OneToOne -> User, CASCADE"
-        bool is_approved_organizer
-    }
-
-    EVENT {
-        int id PK
-        string voting_mode "choices: Pay to Vote, Code Voting"
-        string code_voting_mode "choices: Standard, Student ID"
-        bool enable_tie_breaker
-        string title
-        text description
-        datetime start_date
-        datetime end_date
-        bool is_active
-        string primary_color
-        string accent_color
-        image background_image "nullable"
-        image event_image "nullable"
-        decimal platform_fee_percentage "default 20.00"
-        int organizer_id FK "-> User, SET_NULL, null/blank"
-    }
-
-    CATEGORY {
-        int id PK
-        int event_id FK "-> Event, CASCADE"
-        string name
-    }
-
-    CANDIDATE {
-        int id PK
-        int category_id FK "-> Category, CASCADE, null/blank"
-        int event_id FK "-> Event, CASCADE"
-        string name
-        text bio
-        string nominee_code "unique, auto-generated"
-        image image "nullable"
-    }
-
-    VOTETRANSACTION {
-        int id PK
-        int candidate_id FK "-> Candidate, CASCADE"
-        string voter_email
-        decimal amount
-        string paystack_reference "unique"
-        string status "Pending, Success, Failed"
-        string vote_type "Main, Tie-Breaker"
-        int number_of_votes "default 1"
-        datetime created_at "auto_now_add"
-    }
-
-    ACTIVITYLOG {
-        int id PK
-        int user_id FK "-> User, SET_NULL, null"
-        int event_id FK "-> Event, SET_NULL, null/blank"
-        string action
-        datetime created_at "auto_now_add"
-    }
-
-    PRODUCTCATEGORY {
-        int id PK
-        string name
-    }
-
-    PRODUCT {
-        int id PK
-        int category_id FK "-> ProductCategory, SET_NULL, null/blank"
-        string name
-        text description
-        decimal price
-        decimal old_price "nullable"
-        image image "nullable"
-        bool is_active
-        datetime created_at "auto_now_add"
-    }
-
-    VOTINGCODE {
-        int id PK
-        int event_id FK "-> Event, CASCADE"
-        string code "unique, default via generate_voting_code()"
-        string voter_identifier "nullable"
-        bool is_used
-        datetime used_at "nullable"
-        datetime created_at "auto_now_add"
-    }
-
-    TICKET {
-        int id PK
-        int event_id FK "-> Event, CASCADE"
-        string name
-        decimal price
-        decimal old_price "nullable"
-        int quantity_available "default 100"
-        image image "nullable"
-        bool is_active
-    }
-
-    TICKETPURCHASE {
-        int id PK
-        int ticket_id FK "-> Ticket, CASCADE"
-        int event_id FK "-> Event, CASCADE"
-        string buyer_name "nullable"
-        string buyer_email
-        int quantity "default 1"
-        string paystack_reference "unique"
-        string status "default Pending"
-        string purchase_method "Web, USSD"
-        bool is_checked_in
-        datetime checked_in_at "nullable"
-        bool has_voted
-        datetime purchased_at "auto_now_add"
-    }
+AuditChainHead ─< AuditEvent (hash chain per organization)     DataKey (wrapped encryption keys)
+WebhookEvent ; ReconciliationRun ─< ReconciliationItem ; FraudEvent ; BlocklistEntry ; Notification
+IdempotencyRecord ; OTPChallenge ; SupportTicket ─< SupportMessage ; ProductCategory ─< Product ─< ProductImage
 ```
 
-Notes on cardinality/on_delete not obvious from the diagram shorthand:
+## 2. Tables by app
 
-- `Profile.user`: `OneToOneField(User, on_delete=CASCADE)` — deleting a `User`
-  deletes their `Profile`.
-- `Event.organizer`: `ForeignKey(User, on_delete=SET_NULL, null=True, blank=True, related_name='events')`
-  — deleting the organizer user leaves the event intact with `organizer=NULL`.
-- `Category.event`, `Candidate.event`, `VotingCode.event`, `Ticket.event`,
-  `TicketPurchase.event`: all `CASCADE` — deleting an `Event` deletes all its
-  categories, candidates, voting codes, tickets, and ticket purchases.
-- `Candidate.category`: `CASCADE`, but `null=True, blank=True` — a candidate
-  can exist without a category, but if its category is deleted, the candidate
-  row is deleted too (not just the FK nulled).
-- `VoteTransaction.candidate`: `CASCADE` — deleting a candidate deletes their
-  vote transactions.
-- `ActivityLog.user` / `ActivityLog.event`: both `SET_NULL` — logs survive
-  deletion of the referenced user or event.
-- `Product.category`: `SET_NULL, null=True, blank=True` — deleting a
-  `ProductCategory` nulls out `Product.category` rather than deleting products.
-- `TicketPurchase.ticket`: `CASCADE` — deleting a `Ticket` deletes its
-  purchase records.
+### core
 
-## 2. Per-Model Field Reference
+| Table | Key columns | Notes |
+|---|---|---|
+| `core_organization` | `name`, `slug` (unique), `kind`, default timezone, currency and language, `is_personal`, `sso_config`, `ldap_config`, `directory_config` | Tenant. The three configs are **encrypted JSON**. |
+| `core_role` | `code` (unique), `permissions` (JSON list), `is_system` | Synced from `core/rbac.py` after every `migrate` |
+| `core_roleassignment` | `user`, `role`, `organization` (nullable), `event` (nullable), `granted_by` | Scope: platform (both null), organization, or one election. Unique on `(user, role, organization, event)`. |
+| `core_auditchainhead` | `chain` (unique), `seq`, `last_hash` | Locked on every append |
+| `core_auditevent` | `chain`, `seq`, `event_type`, actor, organization and election ids, target, `summary`, `changes`, `metadata`, `result`, `ip_address`, `correlation_id`, `prev_hash`, `hash` (unique) | **Append-only.** Unique `(chain, seq)`. Indexed on `(election_id, created_at)`, `(organization_id, created_at)` and `(actor_id, created_at)`. |
+| `core_idempotencyrecord` | `scope`, `key`, `request_hash`, `state`, `response_status`, `response_body`, `expires_at` | Unique `(scope, key)`; purged daily |
+| `core_datakey` | `purpose`, `provider` (`local` or `aws-kms`), `kek_id`, `wrapped_key`, `is_active` | Data keys, stored wrapped by a KEK; never plaintext |
+| `core_usersecurity` | `user` (1:1), `totp_secret` (**encrypted**), `recovery_codes` (HMACs), `failed_login_count`, `locked_until`, `mfa_enforced` | |
+| `core_webauthncredential` | `credential_id` (unique), `public_key`, `sign_count`, `transports` | Passkeys |
+| `core_usersession` | `session_key` (unique), IP, user agent, `device_hash`, `last_seen_at`, `revoked` | |
+| `core_knowndevice` | `user`, `device_hash` | Unique `(user, device_hash)` |
+| `core_apitoken` | `prefix`, `token_hash` (unique, SHA-256), `expires_at`, `revoked_at` | |
+| `core_otpchallenge` (UUID) | `purpose`, `subject_type` / `subject_id`, `channel`, `code_hash`, `attempts` / `max_attempts`, `expires_at`, `consumed_at` | |
+| `core_supportticket`, `core_supportmessage` | reference, category, status, priority, assignee; message body, `is_internal` | |
 
-### Profile
+### voting
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `user` | `OneToOneField(User)` | `on_delete=CASCADE` | Links a Django auth user to app-specific profile data |
-| `is_approved_organizer` | `BooleanField` | `default=False` | Gate flag — whether this user is allowed to act as an event organizer |
+| Table | Key columns | Notes |
+|---|---|---|
+| `voting_event` | See the list below | The election |
+| `voting_category` | `ballot_type`, `min_select`, `max_select`, `allow_abstain`, `seats`, `max_score`, `referendum_threshold`, `constituency`, `display_order`, `vote_price`, `max_votes_per_voter` | A **position** on the ballot |
+| `voting_candidate` | `category`, `event`, `name`, `bio`, `manifesto`, `affiliation`, `nominee_code` (unique), `image`, `status`, `email`, `user` (portal account) | |
+| `voting_votetransaction` | `candidate`, `payment` (**1:1, unique**), `number_of_votes`, `status` (`Success` / `Reversed`), `vote_type` | Paid-vote ledger. Indexed on `(candidate, status)`. |
+| `voting_ticket`, `voting_ticketpurchase` | price, quantity; `paystack_reference` (unique), `status`, `is_checked_in` | Ticketing |
+| `voting_product*` | | Store |
+| `voting_profile` | `is_approved_organizer` | Legacy organizer approval |
 
-### Event
+`voting_event` columns:
+- **Ownership and mode:** `organization`, `organizer`, `voting_mode` (`Pay to Vote` /
+  `Code Voting`).
+- **Lifecycle:** `status` (indexed), `opened_at`, `closed_at`, `certified_at`,
+  `published_at`, `archived_at`.
+- **Schedule and locale:** `start_date`, `end_date`, `timezone`, `currency`.
+- **Results:** `results_visibility`.
+- **Voter sign-in:** `auth_methods` (JSON), `require_second_factor`,
+  `allow_self_registration`, `registration_email_domains`.
+- **Integrity controls:** `dual_approval_required`, the freeze flags (`config_frozen`,
+  `ballot_frozen`, `candidates_frozen`, `voter_list_frozen`), `legal_hold`.
+- **Secrecy and keys:** `record_constituency_on_ballot`, `min_anonymity_set`,
+  `key_custody`, `trustee_threshold`.
+- **Paid-vote limits and pricing:** per-voter, per-transaction and spend limits,
+  `payment_channels`, `allowed_countries`, `vote_price`, `platform_fee_percentage`.
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `voting_mode` | `CharField` | `max_length=20`, `choices=VotingMode` (`Pay to Vote`, `Code Voting`), `default='Pay to Vote'` | Determines whether voting is paid (Paystack) or code-based |
-| `code_voting_mode` | `CharField` | `max_length=20`, `choices=CodeVotingMode` (`Standard`, `Student ID`), `default='Standard'` | Sub-mode for code voting: plain codes vs. code + student ID |
-| `enable_tie_breaker` | `BooleanField` | `default=False` | Toggles whether tie-breaker voting rounds are enabled for the event |
-| `title` | `CharField` | `max_length=200` | Event name |
-| `description` | `TextField` | `blank=True` | Free-text event description |
-| `start_date` | `DateTimeField` | required | Voting window start |
-| `end_date` | `DateTimeField` | required | Voting window end |
-| `is_active` | `BooleanField` | `default=True` | Whether the event is currently active/visible |
-| `voting_locked` | `BooleanField` | `default=False` | Organizer/admin kill-switch that closes voting immediately, independent of `start_date`/`end_date` |
-| `primary_color` | `CharField` | `max_length=7`, `default='#800020'` | Theme color (hex) for event's public page |
-| `accent_color` | `CharField` | `max_length=7`, `default='#FFD700'` | Secondary theme color (hex) |
-| `background_image` | `ImageField` | `upload_to='event_backgrounds/'`, `blank=True, null=True`, `validate_file_size` (≤2MB) | Background art for the event page |
-| `event_image` | `ImageField` | `upload_to='event_flyers/'`, `blank=True, null=True`, `validate_file_size` | Flyer/poster image |
-| `platform_fee_percentage` | `DecimalField` | `max_digits=4, decimal_places=2`, `default=20.00` | Percentage cut the platform takes from vote revenue |
-| `organizer` | `ForeignKey(User)` | `on_delete=SET_NULL`, `null=True, blank=True`, `related_name='events'` | The user who owns/manages this event |
+### elections
 
-### Category
+| Table | Key columns | Notes |
+|---|---|---|
+| `elections_constituency` | `organization`, `parent`, `name`, `code`, `kind`, `path` (indexed) | Tree via materialized path. Unique `(organization, code)`. |
+| `elections_voter` | See the list below | **Identity side** |
+| `elections_eligibilityrule` | `election`, `position` (nullable), `kind`, `attribute`, `values`, `constituency` | Election-wide or per position |
+| `elections_voteauthorization` (UUID) | `election`, `voter`, `token_hash` (unique), `status` (ISSUED / CONSUMED / REVOKED / EXPIRED), `auth_method`, `ballot_style`, `expires_at`, `consumed_at` | **One CONSUMED row per voter** (partial unique) |
+| `elections_ballot` (UUID) | `election`, `ciphertext`, `tracker` (unique), `style_hash`, `constituency_id` (nullable, plain integer) | **Anonymous side, append-only.** No voter FK, no token, no timestamp. |
+| `elections_electionkey` | `election` (1:1), `public_key`, `fingerprint`, `custody`, `wrapped_private_key` (**encrypted**; empty under trustee custody), `threshold`, `shares` | |
+| `elections_trusteeshare` | `election`, `trustee`, `index`, `share_hash`, `pending_share` / `submitted_share` (**encrypted**) | Unique `(election, trustee)` and `(election, index)` |
+| `elections_electionconfigsnapshot` | `election`, `version`, `config`, `config_hash`, `signature`, `public_key`, `key_id` | Unique `(election, version)` |
+| `elections_electionresult` | `kind`, `status`, `data`, `result_hash`, `bulletin_root`, counts, `tallied_by`, `reviewed_by` | |
+| `elections_resultcertification` | `result`, `payload`, `payload_hash`, `signature`, `public_key`, `key_id`, `certified_by`, `revoked_at` | |
+| `elections_approvalrequest` | `action`, `payload`, `status`, `requested_by`, `decided_by`, `expires_at`, `result` | Dual approval |
+| `elections_recount` | `kind`, `result`, `compared_to`, `matches`, `differences` | |
+| `elections_dispute` | `reference` (unique), `filer_email` (**encrypted**), `category`, `status`, `resolution` | |
+| `elections_incident`, `elections_casenote` | `severity`, `status`; notes on disputes and incidents | |
+| `elections_evidenceitem` | `file` (private storage), `sha256`, `size`, `uploaded_by` | **Append-only** |
+| `elections_candidatedocument` | `file` (private), `sha256` | Manifestos |
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='categories'` | Parent event this category belongs to |
-| `name` | `CharField` | `max_length=100` | Category label (e.g. "Best Male", "Best Female") |
-| `min_select` | `PositiveSmallIntegerField` | `default=1` | Minimum candidates a voter must pick for this position (ignored if abstaining) |
-| `max_select` | `PositiveSmallIntegerField` | `default=1` | Maximum candidates a voter may pick; `>1` renders as a multi-choice (checkbox) position |
-| `allow_abstain` | `BooleanField` | `default=True` | Whether a voter may skip this position entirely on their ballot |
+`elections_voter` columns:
+- `identifier` (student or staff ID).
+- `full_name`, `email` and `phone`, all **encrypted**. `email_index` and `phone_index`
+  are blind indexes.
+- `constituency`, `attributes` (JSON) and `status`.
+- `credential_hash` (HMAC of the access code) and `credential_ciphertext` (**encrypted**).
+  The ciphertext is kept so officials can resend the code, and wiped when the voter votes.
+- `user`, `sso_subject_index`, `voted_at`.
+- Constraints: unique `(election, identifier)` and unique `(election, credential_hash)`,
+  each a partial unique that applies only when the value is not null.
 
-### Candidate
+### payments
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `category` | `ForeignKey(Category)` | `on_delete=CASCADE`, `related_name='candidates'`, `null=True, blank=True` | Optional category grouping within the event |
-| `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='candidates'` | Parent event |
-| `name` | `CharField` | `max_length=100` | Candidate/nominee name |
-| `bio` | `TextField` | `blank=True` | Candidate bio |
-| `nominee_code` | `CharField` | `max_length=10`, `unique=True`, `null=True, blank=True` | Short public code voters use to identify a candidate; auto-generated on save if blank (see §3) |
-| `image` | `ImageField` | `upload_to='candidate_images/'`, `blank=True, null=True`, `validate_file_size` | Candidate photo |
+| Table | Key columns | Notes |
+|---|---|---|
+| `payments_votepackage` | `votes`, `bonus_votes`, `price`, promotion window, `max_per_payer` | Vote bundles |
+| `payments_discountcode` | `code` (unique), `kind`, `value`, redemption limits, window | |
+| `payments_payment` (UUID) | See the list below | |
+| `payments_paymentevent` | `payment`, `from_status`, `to_status`, `source`, `message`, `data`, `actor` | **Append-only** status history |
+| `payments_webhookevent` | `payload_hash` (unique), `event_type`, `reference`, `status`, `attempts` | Webhook dedupe and inbox |
+| `payments_refund` (UUID) | `amount`, `status`, `reverse_votes`, `requested_by`, `approved_by` | |
+| `payments_reconciliationrun` / `…item` | window, counts, status; per-payment discrepancy, `resolution` | |
 
-### VoteTransaction
+`payments_payment` columns:
+- **Identity of the payment:** `reference` (unique), `idempotency_key` (partial unique),
+  `purpose` (VOTE / INVOICE).
+- **What was bought:** event, candidate, package, discount, invoice; `votes`,
+  `bonus_votes`.
+- **Money:** `unit_price`, `gross_amount`, `discount_amount`, `amount`, `currency`.
+- **Payer:** `payer_email` and `payer_phone` (**encrypted**, with blind indexes),
+  `payer_name`.
+- **State:** `status` (indexed), `gateway_status`.
+- **Card details:** signature, country, last 4 digits.
+- **Risk:** `risk_score`, `risk_decision`, `held`.
+- **Credit:** `votes_credited`, `credited_at`, `refunded_amount`.
+- Indexes: `(event, status)` and `(status, created_at)`.
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `candidate` | `ForeignKey(Candidate)` | `on_delete=CASCADE`, `related_name='transactions'` | Candidate being voted for |
-| `voter_email` | `EmailField` | required | Voter's email (used as their identity for the transaction) |
-| `amount` | `DecimalField` | `max_digits=10, decimal_places=2` | Amount paid for the vote(s) |
-| `paystack_reference` | `CharField` | `max_length=100`, `unique=True` | Paystack payment reference, used to reconcile/verify payment and prevent double-processing |
-| `status` | `CharField` | `max_length=10`, `choices=Status` (`Pending`, `Success`, `Failed`), `default='Pending'` | Payment/transaction lifecycle state |
-| `vote_type` | `CharField` | `max_length=20`, `choices=VoteType` (`Main`, `Tie-Breaker`), `default='Main'` | Distinguishes a normal vote from a tie-breaker round vote |
-| `number_of_votes` | `PositiveIntegerField` | `default=1` | Number of votes purchased in this transaction |
-| `created_at` | `DateTimeField` | `auto_now_add=True` | Transaction creation timestamp |
+### fraud, notifications, billing
 
-### ActivityLog
+| Table | Key columns | Notes |
+|---|---|---|
+| `fraud_fraudevent` | `kind`, `decision`, `score`, `signals`, links to event, payment and candidate, `status`, `reviewed_by` | Alerts and decisions |
+| `fraud_blocklistentry` | `kind` (IP / CIDR / device / email / domain / card / phone / anonymizer), `value`, `organization` (empty = platform-wide), `expires_at` | Indexed on `(kind, value)`. Emails and phones are stored as blind indexes. An organization's entries only apply to its own events. |
+| `notifications_notification` (UUID) | `channel`, `template`, `recipient` (**encrypted**), `context` (**encrypted**, wiped after sending), `status`, `attempts`, `dedupe_key` (unique) | Outbox |
+| `billing_plan` | `code` (unique), prices, `included_voters`, `limits`, `features` | Seeded after `migrate` |
+| `billing_subscription` | `organization` (1:1), `plan`, `status`, `billing_cycle`, trial and period dates, `coupon` | |
+| `billing_featureflag`, `billing_featureoverride` | `key` (unique); `(flag, organization)` unique | |
+| `billing_coupon` | `code` (unique), `kind`, `value`, `duration_months`, redemption limits | |
+| `billing_usagerecord` | `organization`, `metric`, `quantity`, `invoice` | Indexed on `(organization, metric, recorded_at)` |
+| `billing_invoice`, `billing_invoiceline` | `number` (unique), subtotal, discount, `levy_rate` / `levy`, `vat_rate` / `vat`, `total`, `status` | |
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `user` | `ForeignKey(User)` | `on_delete=SET_NULL`, `null=True` | Actor who triggered the logged action (nullable if user is later deleted) |
-| `event` | `ForeignKey(Event)` | `on_delete=SET_NULL`, `null=True, blank=True` | Event the action relates to, if any |
-| `action` | `CharField` | `max_length=255` | Free-text description of the action taken |
-| `created_at` | `DateTimeField` | `auto_now_add=True` | When the action occurred |
+## 3. Integrity constraints worth knowing
 
-### ProductCategory
+| Guarantee | Enforced by |
+|---|---|
+| A voter casts at most one ballot | `one_consumed_authorization_per_voter` (partial unique) + row lock in `cast_ballot()` + `Voter.status` |
+| A ballot token is single-use | `token_hash` unique + `SELECT … FOR UPDATE` + `CONSUMED` state |
+| A payment credits votes at most once | `VoteTransaction.payment` OneToOne (unique) + row lock in `apply_gateway_result()` |
+| A retried payment request creates one payment | `uniq_payment_idempotency_key` + `IdempotencyRecord` unique `(scope, key)` |
+| A webhook is processed once | `WebhookEvent.payload_hash` unique |
+| The audit chain can't fork | `uniq_audit_chain_seq` + `AuditChainHead` row lock |
+| Voter IDs and credentials are unique per election | `uniq_voter_identifier`, `uniq_voter_credential` |
+| Trustee shares can't be duplicated | `uniq_trustee_per_election`, `uniq_trustee_index` |
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `name` | `CharField` | `max_length=100` | Category label for merchandise/products |
+## 4. Append-only tables
 
-### Product
+`core/migrations/0002_append_only_triggers.py` installs a PL/pgSQL trigger
+(`flexyvotes_append_only`) on these tables, firing `BEFORE UPDATE OR DELETE`:
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `category` | `ForeignKey(ProductCategory)` | `on_delete=SET_NULL`, `null=True, blank=True`, `related_name='products'` | Optional product category |
-| `name` | `CharField` | `max_length=200` | Product name |
-| `description` | `TextField` | `blank=True` | Product description |
-| `price` | `DecimalField` | `max_digits=10, decimal_places=2` | Current selling price |
-| `old_price` | `DecimalField` | `max_digits=10, decimal_places=2`, `blank=True, null=True` | Previous/list price, used to compute a discount (see §3) |
-| `image` | `ImageField` | `upload_to='product_images/'`, `blank=True, null=True`, `validate_file_size` | Product photo |
-| `is_active` | `BooleanField` | `default=True` | Whether the product is currently sellable/visible |
-| `created_at` | `DateTimeField` | `auto_now_add=True` | Creation timestamp |
+- `core_auditevent`
+- `elections_ballot`
+- `elections_evidenceitem`
+- `payments_paymentevent`
 
-### VotingCode
+Any update or delete raises `insufficient_privilege`, even from pgAdmin or a raw SQL
+session. The ORM querysets for these models refuse `update()` and `delete()` as well.
+`core.tests.test_crypto_audit` checks that the triggers are installed and that they work.
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='voting_codes'` | Event this code is valid for |
-| `code` | `CharField` | `max_length=50`, `default=generate_voting_code` | The plaintext voting code; auto-generated per instance (see §4). **Scrubbed to `''` once the code is used or reset** — never used for live lookups. |
-| `code_hash` | `CharField` | `max_length=64`, `db_index=True` | `HMAC-SHA256(SECRET_KEY, "<event_id>:<code>")` — the field every authorization check actually queries; unique together with `event` |
-| `voter_identifier` | `CharField` | `max_length=100`, `blank=True, null=True` | Optional identifier tying the code to a voter (e.g. student ID) |
-| `voter_email` | `EmailField` | `blank=True, null=True` | Roster email captured at import time; `retrieve_voting_code()` only ever sends a reset code here, never to a submitted form value |
-| `is_used` | `BooleanField` | `default=False` | Whether the code has been redeemed (or invalidated via `reset()`) |
-| `used_at` | `DateTimeField` | `null=True, blank=True` | Timestamp the code was redeemed |
-| `invalidated_at` | `DateTimeField` | `null=True, blank=True` | Timestamp a still-unused code was invalidated via `reset()` |
-| `created_at` | `DateTimeField` | `auto_now_add=True` | Creation timestamp |
+To remove data legitimately (for example, a court-ordered erasure), a DBA must drop the
+trigger. That is DDL, which needs elevated rights and appears in the PostgreSQL logs. It
+also breaks the audit chain verification, which is intentional.
 
-`unique_together = ('event', 'code_hash')` (changed from `('event', 'code')` in migration `0035`, which also
-backfills `code_hash` for every pre-existing row).
+## 5. Encryption at rest
 
-### Ticket
+Fields declared as `EncryptedTextField` or `EncryptedJSONField` (`core/fields.py`) are
+stored as `fv1$<data_key_id>$<base64>` ciphertext. The format is AES-256-GCM with
+associated data `app.model.field`, so a value copied into another column won't decrypt.
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='tickets'` | Event this ticket type belongs to |
-| `name` | `CharField` | `max_length=100` | Ticket tier name (e.g. "VIP", "Regular") |
-| `price` | `DecimalField` | `max_digits=10, decimal_places=2` | Current ticket price |
-| `old_price` | `DecimalField` | `max_digits=10, decimal_places=2`, `blank=True, null=True` | Previous/list price, used to compute a discount (see §3) |
-| `quantity_available` | `PositiveIntegerField` | `default=100` | Remaining inventory for this ticket tier |
-| `image` | `ImageField` | `upload_to='ticket_images/'`, `blank=True, null=True`, `validate_file_size` | Ticket artwork |
-| `is_active` | `BooleanField` | `default=True` | Whether the ticket tier is currently on sale |
+| Encrypted column | Lookup by |
+|---|---|
+| `Voter.full_name`, `email`, `phone`, `credential_ciphertext` | `email_index`, `phone_index` (HMAC blind index) |
+| `Payment.payer_email`, `payer_phone` | `payer_email_index`, `payer_phone_index` |
+| `Dispute.filer_email` | |
+| `Notification.recipient`, `context` | |
+| `UserSecurity.totp_secret` | |
+| `ElectionKey.wrapped_private_key`, `TrusteeShare.pending_share`, `submitted_share` | |
+| `Organization.sso_config`, `ldap_config`, `directory_config` | |
 
-### TicketPurchase
+Key rotation:
+- `manage.py keys rotate` creates a new data key and re-encrypts every encrypted column.
+- `manage.py keys rewrap` re-wraps data keys under the current KEK.
 
-| Field | Type | Constraints | Purpose |
-|---|---|---|---|
-| `ticket` | `ForeignKey(Ticket)` | `on_delete=CASCADE`, `related_name='purchases'` | The ticket tier purchased |
-| `event` | `ForeignKey(Event)` | `on_delete=CASCADE`, `related_name='ticket_purchases'` | Denormalized link to the event (redundant with `ticket.event` but avoids a join) |
-| `buyer_name` | `CharField` | `max_length=150`, `blank=True, null=True` | Buyer's name |
-| `buyer_email` | `EmailField` | required | Buyer's email |
-| `quantity` | `PositiveIntegerField` | `default=1` | Number of tickets bought in this purchase |
-| `paystack_reference` | `CharField` | `max_length=100`, `unique=True` | Paystack payment reference for reconciliation |
-| `status` | `CharField` | `max_length=10`, `default='Pending'` | Payment status (plain string field — no `choices` defined, unlike `VoteTransaction.status`) |
-| `purchase_method` | `CharField` | `max_length=10`, `choices=PurchaseMethod` (`Web`, `USSD`), `default='Web'` | Channel through which the ticket was bought |
-| `is_checked_in` | `BooleanField` | `default=False` | Whether the buyer has checked in at the event |
-| `checked_in_at` | `DateTimeField` | `null=True, blank=True` | Check-in timestamp |
-| `has_voted` | `BooleanField` | `default=False` | Whether this ticket purchase has already been used to cast a vote (e.g. ticket-linked voting rights) |
-| `purchased_at` | `DateTimeField` | `auto_now_add=True` | Purchase timestamp |
+See [OPERATIONS.md](OPERATIONS.md#key-management).
 
-## 3. Computed Fields and Business-Logic Methods
+## 6. Migrations
 
-- **`Event.get_total_revenue()`**: Aggregates `Sum('transactions__amount')`
-  across all `Candidate`s belonging to the event, filtered to
-  `transactions__status='Success'` (i.e., only successful `VoteTransaction`
-  rows count). Returns `0` if there is no revenue yet, avoiding `None`.
-  Traverses `Event.candidates -> Candidate.transactions`.
+| App | Migrations |
+|---|---|
+| `voting` | `0001`–`0035`: original app. `0036_platform_election_fields`: new columns. `0037_migrate_legacy_data`: data move (see below). `0038_remove_legacy_models`: drops `ActivityLog` and `VotingCode`. |
+| `core` | `0001_initial`, `0002_append_only_triggers` (PostgreSQL only; does nothing on SQLite) |
+| `elections`, `payments`, `notifications` | `0001_initial` |
+| `fraud` | `0001`, `0002`, `0003_blocklistentry_organization` |
+| `billing` | `0001`, `0002` |
 
-- **`Event.get_organizer_payout()`**: Calls `get_total_revenue()`, computes
-  `fee = total_revenue * (platform_fee_percentage / 100)`, and returns
-  `total_revenue - fee`. This is the amount owed to the organizer after the
-  platform's cut.
+What `0037` does:
+- Gives every legacy organizer a personal organization and the Organization Admin role.
+- Maps legacy event states to the new lifecycle.
+- Turns legacy `VotingCode` rows into `Voter` rows. Codes are kept as HMACs, so existing
+  codes still work, and emails are encrypted.
+- Writes audit events for the move.
 
-- **`Candidate.save()`**: Overridden to auto-generate `nominee_code` when it
-  is blank. It loops, generating a candidate code of the form two random
-  uppercase letters + three random digits (e.g. `"TE025"`), and checks
-  uniqueness via `Candidate.objects.filter(nominee_code=...).exists()` before
-  accepting it. This means nominee codes are only auto-assigned once, at
-  first save with no code — a manually-provided `nominee_code` is preserved
-  on subsequent saves.
+This was tested against seeded pre-upgrade rows, and against an existing development
+database that was at `0035`. For production, take a backup first and run the restore test
+([DISASTER_RECOVERY.md](DISASTER_RECOVERY.md)) before migrating.
 
-- **`Product.discount_percentage`** and **`Ticket.discount_percentage`**
-  (both `@property`, identical logic): if `old_price` is set and greater
-  than `price`, returns
-  `int(((old_price - price) / old_price) * 100)` — an integer percentage
-  discount for display. Returns `0` if there's no `old_price` or `old_price`
-  is not greater than `price` (i.e., no discount to show).
+Rules for new migrations:
+- Never edit an applied migration. Add a new one.
+- Run `python manage.py makemigrations --check` before committing; CI enforces it.
+- Large tables: add a column as nullable, backfill it in a separate migration, then add the
+  constraint. In production, migrations run as a separate one-off task before new app
+  containers start ([DEPLOYMENT.md](DEPLOYMENT.md)).
 
-## 4. Production-Relevant Model Quirks (Recently Fixed)
+## 7. Retention
 
-- **`VotingCode.code` default is now per-instance.** The field is declared as
-  `models.CharField(max_length=50, unique=True, default=generate_voting_code)`,
-  where `generate_voting_code()` is a plain function:
-
-  ```python
-  def generate_voting_code():
-      return uuid.uuid4().hex[:8].upper()
-  ```
-
-  Passing the *function* (not a called value) as `default` means Django calls
-  it fresh for every new `VotingCode` instance that doesn't specify a code
-  explicitly. Migration history (`voting/migrations/0019_...` through
-  `0029_alter_votingcode_code.py`, nine migrations touching this one field)
-  shows the default was altered repeatedly, consistent with a previously
-  buggy version where `default` was set to an *already-evaluated* string
-  (e.g. `default=generate_voting_code()` with parentheses, or a module-level
-  constant) — computed once at import/migration time — which would have
-  caused every new `VotingCode` to receive the *same* code and collide with
-  the `unique=True` constraint. The current code is correct: `default` holds
-  a callable reference, so it is invoked per-instance at save time.
-
-- **`Ticket` no longer has a duplicate `__str__` method.** The current
-  `Ticket` model defines exactly one `__str__`:
-
-  ```python
-  def __str__(self):
-      return f"{self.name} - {self.event.title}"
-  ```
-
-  A previous version of the model apparently defined `__str__` twice
-  (likely from a copy/paste when adding the `discount_percentage` property),
-  which in Python is harmless but silently means only the second definition
-  ever takes effect — the first is simply discarded at class-body
-  evaluation time. This has been cleaned up; there is now a single `__str__`
-  followed by the `discount_percentage` property.
-
-## 5. Migrations
-
-- `voting/migrations/` contains **29 migrations** (`0001_initial.py` through
-  `0029_alter_votingcode_code.py`), plus `__init__.py`. No migrations have
-  been squashed or renamed — the history is linear from `0001` to `0029`.
-- Notable evolution visible from filenames:
-  - `0001_initial.py` — initial schema.
-  - `0002`–`0009` — incremental additions to `VoteTransaction`, `Candidate`,
-    `Event` (colors, platform fee, organizer, background image), and adding
-    `Profile`.
-  - `0010`–`0014` — `Category` model added, then `Candidate.category` FK
-    wired up, a stray `Event.category` field added and removed
-    (`0012_remove_event_category.py`), and `ActivityLog` added.
-  - `0015`–`0017` — `Product` and `ProductCategory` added (merch feature).
-  - `0018`–`0029` — `VotingCode` added and its `code` field altered
-    **eight times** across `0019`, `0020`, `0021`, `0022`, `0023`, `0025`,
-    `0027`, `0029` (interleaved with unrelated additions: `Event` voting
-    modes, `Candidate.nominee_code`, `Ticket`/`TicketPurchase`, check-in
-    fields, `vote_type`, `old_price` on `Ticket`, `enable_tie_breaker`) —
-    this repeated altering of `VotingCode.code` is consistent with the
-    default-value bug described in §4 being iterated on over time before
-    landing on the current per-instance `generate_voting_code` callable.
-- **Applying migrations**: `python manage.py migrate` (uses whichever
-  database `vote_fund/settings.py` resolves to at runtime — see below).
-  Use `python manage.py makemigrations voting` after further model changes.
-- **SQLite vs. Postgres**: `vote_fund/settings.py` defaults `DATABASES` to
-  local SQLite (`db.sqlite3` in `BASE_DIR`), and overrides it with
-  `dj_database_url.config(conn_max_age=600, ssl_require=True)` when a
-  `DATABASE_URL` environment variable is present (the production/Postgres
-  path). Migration state is tracked per-database (in each database's own
-  `django_migrations` table), so switching between SQLite locally and
-  Postgres in production is not automatic — `python manage.py migrate` must
-  be run again against whichever database `DATABASE_URL` (or its absence)
-  points at for that environment before the schema is in sync. A fresh
-  Postgres database needs the full migration history (`0001`–`0029`)
-  applied from scratch; it does not inherit state from the local SQLite file.
+| Data | Retention |
+|---|---|
+| Idempotency records | 24 h (purged daily) |
+| OTP challenges | Deleted 1 day after expiry |
+| User sessions | Deleted after 90 days idle |
+| Unused ballot authorizations | Marked EXPIRED daily |
+| Notification context | Wiped as soon as the message is sent |
+| Voter access-code ciphertext | Wiped when the voter votes |
+| Audit events, ballots, payment events, evidence | Permanent (append-only) |

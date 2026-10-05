@@ -1,0 +1,38 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Pricing" %} | {{ event.title }}{% endblock %}
+{% block console %}
+<a href="{% url 'elections:console_overview' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
+<h1 class="h3 fw-bold text-wine">{% translate "Pricing, bundles & discounts" %}</h1>
+<p class="text-muted">{% blocktranslate with p=event.vote_price c=event.currency %}Base price: {{ c }} {{ p }} per vote (categories can override it for campaign pricing).{% endblocktranslate %}</p>
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="panel"><h2 class="h5 fw-bold">{% translate "Vote bundles" %}</h2>
+        <table class="table table-sm align-middle"><thead><tr><th>{% translate "Name" %}</th><th>{% translate "Votes" %}</th><th>{% translate "Price" %}</th><th>{% translate "Window" %}</th><th></th></tr></thead>
+        <tbody>{% for p in packages %}<tr class="{% if not p.is_active %}text-muted{% endif %}"><td>{{ p.name }}{% if p.badge %} <span class="badge bg-gold text-dark">{{ p.badge }}</span>{% endif %}{% if p.is_promotional %} <span class="badge bg-info text-dark">{% translate "promo" %}</span>{% endif %}</td><td>{{ p.votes }}{% if p.bonus_votes %}+{{ p.bonus_votes }}{% endif %}</td><td>{{ p.price|money:event.currency }}</td><td class="small">{{ p.starts_at|date:"d M"|default:"" }}{% if p.ends_at %} → {{ p.ends_at|date:"d M" }}{% endif %}</td>
+        <td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle_package"><input type="hidden" name="package" value="{{ p.pk }}"><button class="btn btn-sm btn-outline-secondary">{% if p.is_active %}{% translate "Disable" %}{% else %}{% translate "Enable" %}{% endif %}</button></form></td></tr>{% empty %}<tr><td colspan="5" class="text-muted">{% translate "No bundles." %}</td></tr>{% endfor %}</tbody></table></div>
+        <div class="panel"><h2 class="h5 fw-bold">{% translate "Discount codes" %}</h2>
+        <table class="table table-sm align-middle"><thead><tr><th>{% translate "Code" %}</th><th>{% translate "Discount" %}</th><th>{% translate "Used" %}</th><th>{% translate "Window" %}</th><th></th></tr></thead>
+        <tbody>{% for d in discounts %}<tr class="{% if not d.is_active %}text-muted{% endif %}"><td class="mono">{{ d.code }}</td><td>{{ d.get_kind_display }} {{ d.value }}</td><td>{{ d.redemptions_count }}{% if d.max_redemptions %} / {{ d.max_redemptions }}{% endif %}</td><td class="small">{{ d.starts_at|date:"d M"|default:"" }}{% if d.ends_at %} → {{ d.ends_at|date:"d M" }}{% endif %}</td>
+        <td><form method="post">{% csrf_token %}<input type="hidden" name="action" value="toggle_discount"><input type="hidden" name="discount" value="{{ d.pk }}"><button class="btn btn-sm btn-outline-secondary">{% if d.is_active %}{% translate "Disable" %}{% else %}{% translate "Enable" %}{% endif %}</button></form></td></tr>{% empty %}<tr><td colspan="5" class="text-muted">{% translate "No codes." %}</td></tr>{% endfor %}</tbody></table></div>
+    </div>
+    <div class="col-xl-5">
+        <div class="panel"><h2 class="h5 fw-bold">{% translate "New bundle / promotion" %}</h2>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="package">
+            <input name="name" class="form-control mb-2" placeholder="{% translate 'Name, e.g. Fan pack' %}" required aria-label="{% translate 'Name' %}">
+            <div class="row g-2 mb-2"><div class="col-4"><input type="number" min="1" name="votes" class="form-control" placeholder="{% translate 'Votes' %}" required aria-label="{% translate 'Votes' %}"></div><div class="col-4"><input type="number" min="0" name="bonus_votes" class="form-control" placeholder="{% translate 'Bonus' %}" aria-label="{% translate 'Bonus votes' %}"></div><div class="col-4"><input type="number" step="0.01" min="0.01" name="price" class="form-control" placeholder="{% translate 'Price' %}" required aria-label="{% translate 'Price' %}"></div></div>
+            <input name="badge" class="form-control mb-2" placeholder="{% translate 'Badge, e.g. Best value' %}" aria-label="{% translate 'Badge' %}">
+            <div class="row g-2 mb-2"><div class="col-6"><label class="form-label small" for="ps">{% translate "Starts" %}</label><input id="ps" type="date" name="starts_at" class="form-control"></div><div class="col-6"><label class="form-label small" for="pe2">{% translate "Ends" %}</label><input id="pe2" type="date" name="ends_at" class="form-control"></div></div>
+            <input type="number" min="1" name="max_per_payer" class="form-control mb-2" placeholder="{% translate 'Max per voter (optional)' %}" aria-label="{% translate 'Max per voter' %}">
+            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_promotional" id="promo"><label class="form-check-label" for="promo">{% translate "Promotional" %}</label></div>
+            <button class="btn btn-wine w-100">{% translate "Add bundle" %}</button></form></div>
+        <div class="panel"><h2 class="h5 fw-bold">{% translate "New discount code" %}</h2>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="discount">
+            <input name="code" class="form-control mb-2 mono" placeholder="FANWEEK" required aria-label="{% translate 'Code' %}">
+            <div class="row g-2 mb-2"><div class="col-6"><select name="kind" class="form-select" aria-label="{% translate 'Type' %}">{% for v, l in discount_kinds %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></div><div class="col-6"><input type="number" step="0.01" min="0" name="value" class="form-control" placeholder="{% translate 'Value' %}" required aria-label="{% translate 'Value' %}"></div></div>
+            <div class="row g-2 mb-2"><div class="col-6"><input type="number" min="1" name="max_redemptions" class="form-control" placeholder="{% translate 'Max uses' %}" aria-label="{% translate 'Max uses' %}"></div><div class="col-6"><input type="number" min="1" name="per_payer_limit" class="form-control" placeholder="{% translate 'Per voter' %}" aria-label="{% translate 'Per voter limit' %}"></div></div>
+            <div class="row g-2 mb-2"><div class="col-6"><input type="date" name="starts_at" class="form-control" aria-label="{% translate 'Starts' %}"></div><div class="col-6"><input type="date" name="ends_at" class="form-control" aria-label="{% translate 'Ends' %}"></div></div>
+            <button class="btn btn-wine w-100">{% translate "Create code" %}</button></form></div>
+    </div>
+</div>
+{% endblock %}

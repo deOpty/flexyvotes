@@ -1,0 +1,25 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Payments" %}{% endblock %}
+{% block console %}
+<h1 class="h3 fw-bold text-wine">{% translate "Payments" %}</h1>
+<form method="get" class="panel row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label small" for="pq">{% translate "Reference or payer email" %}</label><input id="pq" name="q" value="{{ filters.q }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label small" for="pe">{% translate "Election" %}</label><select id="pe" name="event" class="form-select"><option value="">{% translate "All" %}</option>{% for e in events %}<option value="{{ e.pk }}" {% if filters.event == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.title }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label small" for="ps">{% translate "Status" %}</label><select id="ps" name="status" class="form-select"><option value="">{% translate "Any" %}</option>{% for v, l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><div class="form-check"><input class="form-check-input" type="checkbox" name="held" value="1" id="ph" {% if filters.held %}checked{% endif %}><label class="form-check-label small" for="ph">{% translate "Held only" %}</label></div></div>
+    <div class="col-md-2"><button class="btn btn-wine w-100">{% translate "Filter" %}</button></div>
+</form>
+<div class="panel"><div class="table-responsive"><table class="table table-sm align-middle">
+    <thead><tr><th>{% translate "Reference" %}</th><th>{% translate "Election / candidate" %}</th><th class="text-end">{% translate "Amount" %}</th><th>{% translate "Votes" %}</th><th>{% translate "Status" %}</th><th>{% translate "Risk" %}</th><th>{% translate "Created" %}</th></tr></thead>
+    <tbody>{% for p in page %}<tr>
+        <td><a class="mono" href="{% url 'payments:console_detail' p.reference %}">{{ p.reference }}</a></td>
+        <td class="small">{{ p.event.title|default:"—" }}<div class="text-muted">{{ p.candidate.name|default:"" }}</div></td>
+        <td class="text-end">{{ p.amount|money:p.currency }}</td>
+        <td>{{ p.total_votes }}{% if p.votes_credited %} <span class="text-success" title="{% translate 'credited' %}">✓</span>{% endif %}</td>
+        <td>{{ p.status|status_badge:p.get_status_display }}{% if p.held %} <span class="badge bg-danger">{% translate "held" %}</span>{% endif %}</td>
+        <td>{% if p.risk_score is not None %}<span class="badge bg-{% if p.risk_score >= 81 %}danger{% elif p.risk_score >= 61 %}warning text-dark{% elif p.risk_score >= 31 %}info text-dark{% else %}light text-dark border{% endif %}">{{ p.risk_score }}</span>{% endif %}</td>
+        <td class="small">{{ p.created_at|date:"d M H:i" }}</td></tr>
+    {% empty %}<tr><td colspan="7" class="text-muted text-center p-4">{% translate "No payments." %}</td></tr>{% endfor %}</tbody>
+</table></div>{% include 'console/includes/pagination.html' %}</div>
+{% endblock %}

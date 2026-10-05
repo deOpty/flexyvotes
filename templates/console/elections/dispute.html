@@ -1,0 +1,23 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{{ dispute.reference }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<div class="panel">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+        <div><h2 class="h5 fw-bold mb-0">{{ dispute.reference }} · {{ dispute.subject }}</h2>
+            <div class="small text-muted">{{ dispute.get_category_display }} · {% translate "filed by" %} {{ dispute.filer_name }} ({{ dispute.filer_role|lower }}) · {{ dispute.created_at|date:"d M Y H:i" }}</div></div>
+        {{ dispute.status|status_badge:dispute.get_status_display }}
+    </div>
+    <p class="mt-3 mb-0">{{ dispute.description|linebreaksbr }}</p>
+    {% if dispute.resolution %}<div class="alert alert-light mt-3 mb-0"><strong>{% translate "Resolution" %}:</strong> {{ dispute.resolution|linebreaksbr }}</div>{% endif %}
+    {% if 'dispute.manage' in perms %}
+    <form method="post" class="row g-2 mt-3">{% csrf_token %}<input type="hidden" name="action" value="status">
+        <div class="col-md-4"><select name="status" class="form-select" aria-label="{% translate 'Status' %}">{% for v, l in statuses %}<option value="{{ v }}" {% if v == dispute.status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+        <div class="col-md-6"><input name="resolution" class="form-control" placeholder="{% translate 'Resolution / decision' %}" aria-label="{% translate 'Resolution' %}"></div>
+        <div class="col-md-2"><button class="btn btn-wine w-100">{% translate "Update" %}</button></div>
+    </form>
+    {% endif %}
+</div>
+{% include 'console/elections/_case.html' %}
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Results" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+<ol class="status-steps mb-4" aria-label="{% translate 'Results workflow' %}">
+    <li class="{% if event.status == 'CLOSED' %}active{% elif event.status in 'TALLYING CERTIFIED PUBLISHED ARCHIVED' %}done{% endif %}">1. {% translate "Voting closed" %}</li>
+    <li class="{% if event.status == 'TALLYING' and not official %}active{% elif official %}done{% endif %}">2. {% translate "Tally" %}</li>
+    <li class="{% if official.status == 'PENDING_REVIEW' %}active{% elif certification %}done{% endif %}">3. {% translate "Independent review" %}</li>
+    <li class="{% if event.status == 'CERTIFIED' %}active{% elif event.status == 'PUBLISHED' or event.status == 'ARCHIVED' %}done{% endif %}">4. {% translate "Certified & signed" %}</li>
+    <li class="{% if event.status == 'PUBLISHED' or event.status == 'ARCHIVED' %}active{% endif %}">5. {% translate "Published" %}</li>
+</ol>
+
+{% if shares %}
+<div class="alert alert-info">{% blocktranslate with s=shares.submitted t=shares.threshold n=shares.trustees %}Trustee key shares submitted: {{ s }} of {{ t }} needed ({{ n }} trustees).{% endblocktranslate %} <a href="{% url 'elections:console_trustees' event.pk %}">{% translate "Trustee page" %}</a></div>
+{% endif %}
+
+<div class="row g-3">
+    <div class="col-xl-8">
+        {% if not can_view_results %}
+        <div class="panel text-muted">{% translate "Results are only visible to results officers, reviewers and auditors until they are published." %}</div>
+        {% elif official %}
+        <div class="panel">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                <div><h2 class="h5 fw-bold mb-0">{% translate "Official tally" %}</h2>
+                    <div class="small text-muted">{{ official.get_status_display }} · {% translate "tallied by" %} {{ official.tallied_by.username|default:"system" }} {{ official.tallied_at|date:"d M Y H:i" }}</div></div>
+                <div class="d-flex gap-1 flex-wrap">
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'elections:console_results_export' event.pk 'csv' %}">CSV</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'elections:console_results_export' event.pk 'xlsx' %}">Excel</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{% url 'elections:console_results_export' event.pk 'pdf' %}">PDF</a>
+                </div>
+            </div>
+            <dl class="row small mt-3 mb-2">
+                <dt class="col-sm-4">{% translate "Eligible voters" %}</dt><dd class="col-sm-8">{{ official.data.turnout.eligible_voters|default:"—" }}</dd>
+                <dt class="col-sm-4">{% translate "Votes cast" %}</dt><dd class="col-sm-8">{{ official.votes_cast|number }}</dd>
+                <dt class="col-sm-4">{% translate "Turnout" %}</dt><dd class="col-sm-8">{{ official.data.turnout.turnout_percentage|default:"—" }}%</dd>
+                <dt class="col-sm-4">{% translate "Ballots counted / invalid" %}</dt><dd class="col-sm-8">{{ official.ballots_counted|number }} / {{ official.data.turnout.invalid_ballots|default:0 }}</dd>
+                <dt class="col-sm-4">{% translate "Result hash" %}</dt><dd class="col-sm-8 mono small">{{ official.result_hash }}</dd>
+                <dt class="col-sm-4">{% translate "Bulletin board root" %}</dt><dd class="col-sm-8 mono small">{{ official.bulletin_root }}</dd>
+            </dl>
+            {% include 'console/elections/_result_tables.html' with data=official.data %}
+        </div>
+        {% else %}
+        <div class="panel text-muted">{% translate "No tally yet." %}</div>
+        {% endif %}
+
+        {% if certification %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Certification" %}</h2>
+            <p class="small mb-1">{% translate "Certified" %} {{ certification.certified_at|date:"d M Y H:i" }} {% translate "by" %} <strong>{{ certification.certified_by.username }}</strong> ({% translate "tallied by" %} {{ certification.tallied_by.username|default:"system" }})</p>
+            <div class="small">{% translate "Ed25519 signature" %}: <span class="mono" id="cert-sig">{{ certification.signature }}</span> <button type="button" class="btn btn-sm btn-link p-0" data-copy="cert-sig">{% translate "Copy" %}</button></div>
+            <div class="small">{% translate "Signing key id" %}: <span class="mono">{{ certification.key_id }}</span></div>
+        </div>
+        {% endif %}
+
+        {% if recounts %}
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Recounts" %}</h2>
+            <table class="table table-sm"><thead><tr><th>{% translate "When" %}</th><th>{% translate "Type" %}</th><th>{% translate "By" %}</th><th>{% translate "Outcome" %}</th></tr></thead>
+            <tbody>{% for r in recounts %}<tr><td class="small">{{ r.created_at|date:"d M H:i" }}</td><td>{{ r.get_kind_display }}</td><td>{{ r.requested_by.username }}</td>
+                <td>{% if r.matches %}<span class="badge bg-success">{% translate "Matches official" %}</span>{% elif r.matches is None %}<span class="badge bg-secondary">{% translate "No official result to compare" %}</span>{% else %}<span class="badge bg-danger">{{ r.differences|length }} {% translate "differences" %}</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+        </div>
+        {% endif %}
+    </div>
+    <div class="col-xl-4">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% translate "Actions" %}</h2>
+            {% if 'results.tally' in perms and event.status in 'CLOSED TALLYING' %}
+            <form method="post" action="{% url 'elections:console_results_action' event.pk %}" class="mb-3" data-confirm="{% translate 'Decrypt and count all ballots now?' %}">{% csrf_token %}<input type="hidden" name="action" value="tally"><button class="btn btn-wine w-100">{% if official %}{% translate "Re-run tally" %}{% else %}{% translate "Run tally" %}{% endif %}</button></form>
+            {% endif %}
+            {% if official and official.status == 'PENDING_REVIEW' and 'results.approve' in perms %}
+                {% if separation_blocked %}
+                <div class="alert alert-secondary small">{% translate "Separation of duties: another results officer must review the tally you ran." %}</div>
+                {% else %}
+                <form method="post" action="{% url 'elections:console_results_action' event.pk %}" class="mb-2" data-confirm="{% translate 'Certify and sign these results? This locks the election.' %}">{% csrf_token %}
+                    <input type="hidden" name="action" value="certify"><input type="hidden" name="result" value="{{ official.pk }}">
+                    <label class="form-label small" for="cert-notes">{% translate "Review notes" %}</label><textarea id="cert-notes" name="notes" rows="2" class="form-control mb-2"></textarea>
+                    <button class="btn btn-success w-100">{% translate "Approve & certify" %}</button></form>
+                <form method="post" action="{% url 'elections:console_results_action' event.pk %}">{% csrf_token %}<input type="hidden" name="action" value="reject"><input type="hidden" name="result" value="{{ official.pk }}"><input name="notes" class="form-control form-control-sm mb-1" placeholder="{% translate 'Why is it rejected?' %}" required aria-label="{% translate 'Rejection reason' %}"><button class="btn btn-outline-danger w-100 btn-sm">{% translate "Reject tally" %}</button></form>
+                {% endif %}
+            {% endif %}
+            {% if 'results.recount' in perms and event.status in 'TALLYING CERTIFIED PUBLISHED ARCHIVED' %}
+            <hr>
+            <form method="post" action="{% url 'elections:console_results_action' event.pk %}" class="mb-2">{% csrf_token %}<input type="hidden" name="action" value="recount"><input name="notes" class="form-control form-control-sm mb-1" placeholder="{% translate 'Reason' %}" aria-label="{% translate 'Reason' %}"><button class="btn btn-outline-secondary w-100 btn-sm">{% translate "Manual recount" %}</button></form>
+            <form method="post" action="{% url 'elections:console_results_action' event.pk %}">{% csrf_token %}<input type="hidden" name="action" value="independent_recount"><button class="btn btn-outline-secondary w-100 btn-sm">{% translate "Independent (auditor) recount" %}</button></form>
+            {% endif %}
+            {% if certification and 'results.certify' in perms %}
+            <hr>
+            <form method="post" action="{% url 'elections:console_results_action' event.pk %}" data-confirm="{% translate 'Request revocation of the certification?' %}">{% csrf_token %}<input type="hidden" name="action" value="decertify"><input name="notes" class="form-control form-control-sm mb-1" placeholder="{% translate 'Reason (required)' %}" required aria-label="{% translate 'Reason' %}"><button class="btn btn-outline-danger w-100 btn-sm">{% translate "Decertify (controlled correction)" %}</button></form>
+            {% endif %}
+        </div>
+        <div class="panel small">
+            <a href="{% url 'elections:verify' event.pk %}">{% translate "Public verification page" %}</a> ·
+            <a href="{% url 'elections:verify_bundle' event.pk %}">{% translate "Verification bundle (JSON)" %}</a>
+            {% if event.key_custody == 'TRUSTEES' %} · <a href="{% url 'elections:console_trustees' event.pk %}">{% translate "Trustees" %}</a>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

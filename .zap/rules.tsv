@@ -1,0 +1,6 @@
+10049	IGNORE	(Non-Storable Content - informational)
+10015	IGNORE	(Re-examine Cache-control Directives - public pages are intentionally cacheable)
+10109	IGNORE	(Modern Web Application - informational)
+10027	IGNORE	(Information Disclosure - Suspicious Comments in third-party Bootstrap bundle)
+10055	WARN	(CSP: style-src unsafe-inline is required by Bootstrap components)
+10035	WARN	(Strict-Transport-Security is set by nginx/ALB in production, not on plain-HTTP CI)
