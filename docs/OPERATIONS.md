@@ -115,7 +115,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `DJANGO_LOG_LEVEL` | `INFO` | |
 | `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Error tracking and tracing |
 | `DJANGO_SUPERUSER_USERNAME`, `_EMAIL`, `_PASSWORD` | — | `seed_admin` creates or syncs this admin on every web start |
-| `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT` | —, —, `5050` | pgAdmin (compose `admin` profile only) |
+| `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT`, `PGADMIN_BIND` | —, —, `5050`, `127.0.0.1` | pgAdmin (compose `admin` profile only). The login is applied only when the `pgadmin_data` volume is first created. Use another port if a different pgAdmin already uses 5050. In this pgAdmin the database host is `db`. |
 
 ## Management commands
 
