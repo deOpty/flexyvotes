@@ -64,8 +64,12 @@ A section-by-section coverage map against the requirements is in
 
 ## Quick start (Docker)
 
-The full stack runs with Docker Compose: PostgreSQL, Redis, web (Gunicorn), Celery worker
-and Celery beat. pgAdmin is optional.
+One command starts everything:
+- PostgreSQL and Redis;
+- the web app (Gunicorn), Celery worker and beat;
+- pgAdmin;
+- the backup worker (nightly encrypted backups, pushed to GitHub);
+- automatic restore of the newest backup when the database is empty.
 
 ```bash
 cp .env.example .env
@@ -74,13 +78,17 @@ cp .env.example .env
 #   ALLOWED_HOSTS=localhost,127.0.0.1  SITE_URL=http://localhost:8000
 #   SECURE_SSL_REDIRECT=False  SECURE_HSTS_SECONDS=0  DATABASE_SSL_REQUIRE=False
 #   DJANGO_SUPERUSER_USERNAME / _EMAIL / _PASSWORD for the first admin
-docker compose up --build
+./deploy.sh                # on a server: pull, build, start, wait until healthy
+# or: docker compose up -d --build
 ```
 
 - App: `http://localhost:8000/`, or another port if you set `PORT` in `.env`.
 - Staff console: `/console/`. Django admin: `/admin/`, or whatever `ADMIN_URL` is set to.
 - API docs: `/api/v1/docs`.
-- pgAdmin: `docker compose --profile admin up -d pgadmin`, then `http://localhost:5050/`.
+- pgAdmin: `http://localhost:5051/`. The "FlexyVotes" server is already registered;
+  its password is `flexyvotes`.
+- Backups: `docker compose exec backup fv-backup nightly` runs one now. To enable the
+  GitHub copy, see [docs/DISASTER_RECOVERY.md §3.2](docs/DISASTER_RECOVERY.md#32-setting-up-the-github-push-once).
 
 Migrations run automatically when the web container starts. The admin from
 `DJANGO_SUPERUSER_*` is created, or updated to match, on every start.
@@ -129,7 +137,7 @@ python manage.py test                                         # SQLite, fast
 docker compose run --rm web python manage.py test --noinput   # PostgreSQL
 ```
 
-The suite has 204 tests: unit, integration, end-to-end web flows, security, and
+The suite has 209 tests: unit, integration, end-to-end web flows, security, and
 race-condition tests.
 - **SQLite:** the 5 concurrency tests and the trigger test need PostgreSQL and are skipped.
 - **PostgreSQL:** all tests run except 1 SQLite-only tamper test. It edits a ballot row

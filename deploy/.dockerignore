@@ -1,0 +1,4 @@
+# Build context for deploy/backup/Dockerfile is ./deploy - never send TLS keys.
+nginx/certs/
+**/*.pem
+**/*.key

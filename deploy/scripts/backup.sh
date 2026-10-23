@@ -39,4 +39,4 @@ if [[ -n "${BACKUP_S3_URI:-}" ]]; then
 fi
 
 # Retention for local copies.
-find "$OUT_DIR" -name 'flexyvotes-*' -mtime +"${BACKUP_RETENTION_DAYS:-14}" -delete
+find "$OUT_DIR" -maxdepth 1 -name 'flexyvotes-*' -mtime +"${BACKUP_RETENTION_DAYS:-14}" -delete

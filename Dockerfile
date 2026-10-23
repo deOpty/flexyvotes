@@ -46,7 +46,7 @@ EXPOSE 8000
 COPY --chown=appuser:appuser docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
     CMD curl -fsS "http://127.0.0.1:${PORT:-8000}/healthz/live" || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

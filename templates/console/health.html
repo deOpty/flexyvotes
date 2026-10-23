@@ -30,6 +30,20 @@
         <p class="small mb-0">{% for name, state in breakers.items %}<span class="badge bg-{% if state == 'open' %}danger{% else %}success{% endif %} me-1">{{ name }}: {{ state }}</span>{% empty %}<span class="text-muted">{% translate "No outbound calls yet in this process." %}</span>{% endfor %}</p>
     </div></div>
     <div class="col-12"><div class="panel">
+        <h2 class="h5 fw-bold">{% translate "Backups" %}</h2>
+        {% if not backup.available %}
+        <p class="small text-muted mb-0">{% translate "The backup worker's status is not available to this container (the backup service is not running here)." %}</p>
+        {% else %}
+        <dl class="row small mb-0">
+            <dt class="col-sm-3">{% translate "Last backup" %}</dt>
+            <dd class="col-sm-9">{% if backup.last_backup %}<span class="badge bg-{% if backup.backup_ok %}success{% else %}danger{% endif %} me-1">{% if backup.backup_ok %}{% translate "OK" %}{% else %}{% translate "STALE" %}{% endif %}</span>{{ backup.last_backup|date:"d M Y H:i" }} ({{ backup.last_backup|timesince }} {% translate "ago" %}) <span class="mono">{{ backup.last_backup_name }}</span>{% else %}<span class="badge bg-danger">{% translate "none yet" %}</span>{% endif %}</dd>
+            <dt class="col-sm-3">{% translate "GitHub copy" %}</dt>
+            <dd class="col-sm-9">{% if not backup.github_configured %}<span class="badge bg-warning text-dark">{% translate "not configured" %}</span> {% translate "Backups are kept on this server only. Set BACKUP_GIT_REPO and BACKUP_GIT_TOKEN." %}{% elif backup.last_push %}<span class="badge bg-{% if backup.push_ok %}success{% else %}danger{% endif %} me-1">{% if backup.push_ok %}{% translate "OK" %}{% else %}{% translate "STALE" %}{% endif %}</span>{{ backup.last_push|date:"d M Y H:i" }} ({{ backup.last_push|timesince }} {% translate "ago" %}){% else %}<span class="badge bg-danger">{% translate "never pushed" %}</span>{% endif %}</dd>
+        </dl>
+        <p class="small text-muted mb-0">{% blocktranslate with h=backup.max_age_hours %}A backup or push older than {{ h }} hours is shown as stale. Details: <code>docker compose logs backup</code>.{% endblocktranslate %}</p>
+        {% endif %}
+    </div></div>
+    <div class="col-12"><div class="panel">
         <h2 class="h5 fw-bold">{% translate "Audit chains" %}</h2>
         <p class="small mb-1">{% for c in chains %}<span class="mono me-3">{{ c.chain }}: {{ c.seq }}</span>{% endfor %}</p>
         <a href="{% url 'console:audit' %}?verify=1" class="btn btn-sm btn-outline-secondary">{% translate "Verify all chains" %}</a>

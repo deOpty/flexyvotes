@@ -252,7 +252,11 @@ Use this for staging or smaller production, with RDS as the database.
    ```
    Then copy or link `live/vote.example.com/{fullchain,privkey}.pem` into
    `deploy/nginx/certs/`.
-4. **Build, migrate and start.**
+4. **Build, migrate and start.** If you use the single-host stack in `docker-compose.yml`
+   (database in Docker, plus pgAdmin and the backup worker), the whole of this step is one
+   command: `./deploy.sh`. It pulls, builds, starts every service in order (restoring an
+   empty database from the newest backup first), waits until healthy and verifies
+   integrity. For `docker-compose.prod.yml` with RDS:
    ```bash
    export IMAGE=flexyvotes:$(git rev-parse --short HEAD)
    docker build -t $IMAGE .

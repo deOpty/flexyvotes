@@ -12,7 +12,8 @@ flexyvotes/
 ├── Dockerfile                  python:3.12-slim, non-root, compilemessages + collectstatic, HEALTHCHECK
 ├── docker-entrypoint.sh        Roles: web | worker | beat | migrate | <command>
 ├── gunicorn.conf.py            Gunicorn settings (PORT, workers, threads, timeouts, Prometheus cleanup)
-├── docker-compose.yml          Local stack: db, redis, web, worker, beat, pgadmin (profile "admin")
+├── deploy.sh                   One-command server deployment (pull, build, start, wait, verify)
+├── docker-compose.yml          Full stack: db, redis, restore (one-shot), web, worker, beat, backup, pgadmin
 ├── docker-compose.prod.yml     Single-host production: nginx, web, worker, beat, pgbouncer, redis, migrate (profile "release")
 ├── .env.example                Every environment variable, grouped and commented
 ├── Procfile, runtime.txt       Legacy PaaS process definition and Python version
@@ -39,6 +40,7 @@ flexyvotes/
 │   ├── ratelimit.py, idempotency.py, captcha.py, http.py (SSRF-safe client, circuit breaker), utils.py
 │   ├── tenancy.py              Personal organizations, current organization, grant / revoke roles
 │   ├── storage.py              Private storage, SHA-256, upload magic-byte validation
+│   ├── backups.py              Reads the backup worker's status for /console/health/
 │   ├── metrics.py, observability.py, checks.py (flexyvotes.W00x), db_router.py, signals.py, tasks.py
 │   ├── views.py                Health, metrics, preferences, accessibility, signing key, security.txt, error pages
 │   ├── views_account.py        Security page, MFA, passkeys, SSO start / callback
@@ -112,6 +114,9 @@ flexyvotes/
 ├── locale/fr/LC_MESSAGES/      French translations (django.po, compiled django.mo)
 │
 ├── deploy/
+│   ├── backup/                 Backup worker image: Dockerfile, fv-backup.sh (nightly backup, GitHub push
+│   │                           to the `backups` branch, restore-on-setup, health)
+│   ├── pgadmin/servers.json    pgAdmin's pre-registered "FlexyVotes" server
 │   ├── nginx/                  nginx.conf (TLS, HSTS, edge limits), trusted_nat.conf (NAT exemptions), certs/ (ignored)
 │   ├── monitoring/             prometheus.yml, alert_rules.yml
 │   └── scripts/                backup.sh, restore.sh, restore-test.sh

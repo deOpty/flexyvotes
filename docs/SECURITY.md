@@ -210,9 +210,12 @@ Covered by tests:
 
 ## 7. Outstanding actions for the team
 
-1. **Rotate every credential that was ever committed** (A2): Paystack, Africa's Talking,
-   Gmail app password, Cloudinary. Then decide whether to purge history with
-   `git filter-repo`. That is a coordinated force-push.
+1. **Make the GitHub repository private, and rotate every credential that was ever
+   committed (A2). Urgent.** `deOpty/flexyvotes` is **public**, so the `.env` once
+   committed in its history, with Paystack, Africa's Talking, Gmail and Cloudinary keys,
+   is readable by anyone. Rotate those keys, make the repository private, then decide
+   whether to purge history with `git filter-repo` (a coordinated force-push). The backup
+   worker refuses to push backups until the repository is private.
 2. **Set dedicated keys in every non-development environment.** Use `FIELD_ENCRYPTION_KEYS`
    or `KMS_KEY_ID`, plus `SIGNING_PRIVATE_KEY` and `BLIND_INDEX_KEY`, then run
    `keys rewrap` and `keys reindex`. Follow the procedure in

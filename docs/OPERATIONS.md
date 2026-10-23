@@ -115,7 +115,24 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `DJANGO_LOG_LEVEL` | `INFO` | |
 | `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Error tracking and tracing |
 | `DJANGO_SUPERUSER_USERNAME`, `_EMAIL`, `_PASSWORD` | — | `seed_admin` creates or syncs this admin on every web start |
-| `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT`, `PGADMIN_BIND` | —, —, `5050`, `127.0.0.1` | pgAdmin (compose `admin` profile only). The login is applied only when the `pgadmin_data` volume is first created. Use another port if a different pgAdmin already uses 5050. In this pgAdmin the database host is `db`. |
+| `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT`, `PGADMIN_BIND` | —, —, `5051`, `0.0.0.0` | pgAdmin starts with the stack, with the "FlexyVotes" server (host `db`) pre-registered. The login is applied only when the `pgadmin_data` volume is first created. Set `PGADMIN_BIND=127.0.0.1` to reach it only through a tunnel. |
+
+### Backups (the `backup` and `restore` services)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `BACKUP_PASSPHRASE` | — (**secret**, required) | Encrypts every backup; at least 16 characters. Backups don't run without it. |
+| `BACKUP_SCHEDULE` | `0 2 * * *` | Cron schedule, in `TIME_ZONE` |
+| `BACKUP_RETENTION_DAYS` | `14` | Days of backups kept on the server (`backups` volume) |
+| `BACKUP_GIT_REPO` | — | Repository to push to: the application repository, which must be **private** |
+| `BACKUP_GIT_TOKEN` | — (**secret**) | Fine-grained token for that repository, with *Contents: Read and write* |
+| `BACKUP_GIT_BRANCH` | `backups` | Orphan branch for the backups; code branches are refused |
+| `BACKUP_GIT_RETENTION_DAYS` | `30` | Days of backup sets kept on GitHub (the newest 7 are always kept) |
+| `BACKUP_GIT_KEEP_HISTORY` | `false` | `false` = one snapshot commit, so the repository stays small; `true` = keep every backup in history |
+| `BACKUP_GIT_CHUNK_MB` | `45` | Files larger than this are split, because GitHub rejects files over 100 MB |
+| `BACKUP_MAX_AGE_HOURS` | `26` | The health check, and `/console/health/`, report stale after this |
+| `BACKUP_RESTORE_ON_SETUP` | `true` | Restore the newest backup when the database is empty |
+| `BACKUP_RESTORE_FILE` | — | Restore this file instead of the newest one |
 
 ## Management commands
 
@@ -131,6 +148,10 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `keys reindex` | Recompute blind indexes (after setting or changing `BLIND_INDEX_KEY`) |
 | `keys backup --out F` / `keys restore-check --in F` | Passphrase-encrypted key backup, and verifying it |
 | `compilemessages` | Rebuild translations after editing `locale/*/django.po` |
+| `./deploy.sh [--no-pull]` | (on the server) pull, build, start every service, wait until healthy, verify integrity |
+| `docker compose exec backup fv-backup nightly` | Back up and push to GitHub now |
+| `docker compose exec backup fv-backup list` / `health` | Local and pushed backups; backup health |
+| `docker compose run --rm restore` | Restore the newest backup into an **empty** database ([DISASTER_RECOVERY.md §5.0](DISASTER_RECOVERY.md#50-automatic-restore-on-setup-docker-compose-stack)) |
 
 ## Key management
 
@@ -259,7 +280,8 @@ move it onto dedicated keys:
 | Support tickets | `/console/support/` → reply. Internal notes aren't sent to the requester. |
 | Database access | pgAdmin (compose `--profile admin`) behind VPN or IP allow-list only, or `psql` through a bastion or SSM. Use a read-only role for browsing. |
 | Translations | Edit `locale/fr/LC_MESSAGES/django.po`, run `compilemessages`, and commit both `.po` and `.mo` |
-| Monthly | Restore test ([DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#4-restore-testing)), `pip-audit`, review the fraud blocklist and expired API tokens |
+| Daily | Glance at the **Backups** panel on `/console/health/`: last backup and GitHub copy both OK |
+| Monthly | Restore test ([DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#4-restore-testing)), `pip-audit`, review the fraud blocklist and expired API tokens; check the backup token's expiry date |
 | Quarterly | Access review (role assignments per organization), key backup check (`keys restore-check`) |
 
 ## Troubleshooting

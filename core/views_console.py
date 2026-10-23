@@ -292,6 +292,7 @@ def health(request):
     from notifications.models import Notification
     from payments.models import Payment, WebhookEvent
 
+    from .backups import backup_status
     from .http import BREAKERS
     from .views import run_health_checks
 
@@ -310,6 +311,7 @@ def health(request):
         'ballots_hour': Voter.objects.filter(voted_at__gte=hour).count(),
         'breakers': {name: breaker.state() for name, breaker in BREAKERS.items()},
         'chains': AuditChainHead.objects.all(),
+        'backup': backup_status(),
         'settings_flags': {
             'DEBUG': settings.DEBUG, 'Redis': bool(settings.REDIS_URL), 'Celery broker': not settings.CELERY_TASK_ALWAYS_EAGER,
             'KMS / KEK configured': bool(settings.KMS_KEY_ID or settings.FIELD_ENCRYPTION_KEYS),

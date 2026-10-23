@@ -381,6 +381,13 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'no-reply@flex
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 # Published in /.well-known/security.txt - use a monitored inbox, not no-reply.
 SECURITY_CONTACT = env('SECURITY_CONTACT', DEFAULT_FROM_EMAIL)
+
+# ---------------------------------------------------------------------------
+# Backups (written by the `backup` compose service; shown on /console/health/)
+# ---------------------------------------------------------------------------
+BACKUP_STATE_DIR = env('BACKUP_STATE_DIR', '/var/lib/fv-backup')
+BACKUP_MAX_AGE_HOURS = env_int('BACKUP_MAX_AGE_HOURS', 26)
+BACKUP_GIT_REPO = env('BACKUP_GIT_REPO', '')
 if TESTING:
     EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:

@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "FlexyVotes",
+      "Group": "Servers",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "flexyvotes",
+      "Username": "flexyvotes",
+      "SSLMode": "prefer",
+      "Comment": "FlexyVotes database (docker compose service 'db'). Password: flexyvotes - tick 'Save password' on first connect."
+    }
+  }
+}

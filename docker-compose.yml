@@ -1,5 +1,12 @@
-# Full local stack: PostgreSQL, Redis, web (gunicorn), Celery worker + beat, pgAdmin.
-#   docker compose up --build
+# The whole FlexyVotes stack - one command starts everything:
+#   ./deploy.sh                    (servers: pull, build, start, wait until healthy)
+#   docker compose up -d --build   (same, without the git pull / checks)
+#
+# Start-up order:
+#   db, redis -> restore (restores the newest backup if the database is EMPTY,
+#   then exits) -> web, worker, beat -> backup (nightly encrypted backups +
+#   push to a private GitHub repository) ; pgadmin alongside db.
+#
 #   docker compose run --rm web python manage.py test        (tests on PostgreSQL)
 x-app: &app
   build:
@@ -17,15 +24,44 @@ x-app: &app
     CELERY_BROKER_URL: redis://redis:6379/1
     PORT: ${PORT:-8000}
     PRIVATE_MEDIA_ROOT: /app/private_media
+    BACKUP_STATE_DIR: /var/lib/fv-backup
   volumes:
     - media_data:/app/media
     - private_media:/app/private_media
+    # Read-only: lets /console/health/ show the last backup and GitHub push.
+    - backup_state:/var/lib/fv-backup:ro
   depends_on:
     db:
       condition: service_healthy
     redis:
       condition: service_healthy
+    restore:
+      condition: service_completed_successfully
   restart: unless-stopped
+
+x-backup: &backup
+  build:
+    context: ./deploy
+    dockerfile: backup/Dockerfile
+  image: flexyvotes-backup:local
+  # Only what the backup worker needs - not the application's secrets.
+  environment:
+    DATABASE_URL: postgres://flexyvotes:flexyvotes@db:5432/flexyvotes
+    BACKUP_DIR: /backups
+    PRIVATE_MEDIA_DIR: /private_media
+    TZ: ${TIME_ZONE:-Africa/Accra}
+    BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE:-}
+    BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+    BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    BACKUP_MAX_AGE_HOURS: ${BACKUP_MAX_AGE_HOURS:-26}
+    BACKUP_GIT_REPO: ${BACKUP_GIT_REPO:-}
+    BACKUP_GIT_TOKEN: ${BACKUP_GIT_TOKEN:-}
+    BACKUP_GIT_BRANCH: ${BACKUP_GIT_BRANCH:-backups}
+    BACKUP_GIT_RETENTION_DAYS: ${BACKUP_GIT_RETENTION_DAYS:-30}
+    BACKUP_GIT_KEEP_HISTORY: ${BACKUP_GIT_KEEP_HISTORY:-false}
+    BACKUP_GIT_CHUNK_MB: ${BACKUP_GIT_CHUNK_MB:-45}
+    BACKUP_RESTORE_ON_SETUP: ${BACKUP_RESTORE_ON_SETUP:-true}
+    BACKUP_RESTORE_FILE: ${BACKUP_RESTORE_FILE:-}
 
 services:
   db:
@@ -62,6 +98,21 @@ services:
       timeout: 3s
       retries: 10
 
+  # One-shot: if the database is empty (new server, lost volume), restore the
+  # newest backup - local first, then the GitHub repository - before the app
+  # starts and runs its migrations. Does nothing on an initialised database.
+  restore:
+    <<: *backup
+    command: ['restore-on-setup']
+    restart: 'no'
+    volumes:
+      - backups:/backups
+      - backup_state:/var/lib/fv-backup
+      - private_media:/private_media
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     <<: *app
     command: ['web']
@@ -90,9 +141,36 @@ services:
     healthcheck:
       disable: true
 
-  # Web UI for the database. Bound to 127.0.0.1 by default: on a server, reach
-  # it through an SSH/SSM tunnel. Set PGADMIN_PORT if another pgAdmin already
-  # uses 5050. In this pgAdmin the database host is `db`.
+  # Nightly encrypted backup (BACKUP_SCHEDULE, default 02:00) of the database
+  # and private media, verified, kept BACKUP_RETENTION_DAYS on this server and
+  # pushed to the private GitHub repository BACKUP_GIT_REPO.
+  #   docker compose exec backup fv-backup nightly   (run one now)
+  #   docker compose exec backup fv-backup list
+  backup:
+    <<: *backup
+    command: ['cron']
+    restart: unless-stopped
+    volumes:
+      - backups:/backups
+      - backup_state:/var/lib/fv-backup
+      - private_media:/private_media:ro
+    # Only needs web started: the worker waits for migrations itself, so a slow
+    # web boot can't make `docker compose up` fail.
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+    healthcheck:
+      test: ['CMD', 'fv-backup', 'health']
+      interval: 5m
+      timeout: 30s
+      retries: 2
+      start_period: 15m
+
+  # Web UI for the database, pre-registered with the FlexyVotes server
+  # (host `db`). Set PGADMIN_PORT if another pgAdmin already uses the port;
+  # PGADMIN_BIND=127.0.0.1 keeps it reachable only through an SSH/SSM tunnel.
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
@@ -102,14 +180,17 @@ services:
       PGADMIN_CONFIG_WTF_CSRF_TIME_LIMIT: 'None'
       # Unique cookie name so another pgAdmin on the same host can't clobber the session.
       PGADMIN_CONFIG_SESSION_COOKIE_NAME: "'flexyvotes_pga_session'"
+      # Always (re)create the FlexyVotes server entry from servers.json.
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/flexyvotes-servers.json
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: 'True'
     volumes:
       - pgadmin_data:/var/lib/pgadmin
+      - ./deploy/pgadmin/servers.json:/pgadmin4/flexyvotes-servers.json:ro
     ports:
       - '${PGADMIN_BIND:-0.0.0.0}:${PGADMIN_PORT:-5051}:80'
     depends_on:
       db:
         condition: service_healthy
-    profiles: ['admin']
 
 volumes:
   postgres_data:
@@ -117,3 +198,5 @@ volumes:
   media_data:
   private_media:
   pgadmin_data:
+  backups:
+  backup_state:

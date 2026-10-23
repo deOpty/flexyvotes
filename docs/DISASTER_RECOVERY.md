@@ -7,9 +7,9 @@ tested, and what to do in each failure scenario.
 
 | Tier | Data | RPO (max data loss) | RTO (max downtime) |
 |---|---|---|---|
-| 1 | PostgreSQL: ballots, voters, payments, audit, results | **≤ 5 min** (RDS PITR) | **≤ 1 h** |
+| 1 | PostgreSQL: ballots, voters, payments, audit, results | **≤ 5 min** with RDS PITR; **≤ 24 h** with the compose stack's nightly backups | **≤ 1 h** |
 | 1 | Encryption and signing keys | 0 (versioned in Secrets Manager / KMS; offline backup) | ≤ 15 min |
-| 2 | Private media: evidence, manifestos | ≤ 24 h (AWS Backup of EFS) | ≤ 4 h |
+| 2 | Private media: evidence, manifestos | ≤ 24 h (nightly backup, or AWS Backup of EFS) | ≤ 4 h |
 | 3 | Redis: cache, rate limits, Celery queue | Not a source of truth | Rebuilt on start |
 | 3 | Public media (Cloudinary) | Provider-managed | Re-upload if lost |
 
@@ -36,12 +36,110 @@ Redis is safe to lose:
 
 ## 3. Backups
 
+### 3.1 Automatic nightly backups (the `backup` service)
+
+The Docker Compose stack includes a backup worker (`deploy/backup/`), so backups need no
+host cron and no manual steps. It starts with everything else (`./deploy.sh` or
+`docker compose up -d`).
+
+Every night at `BACKUP_SCHEDULE` (default `0 2 * * *`, in `TIME_ZONE`), the worker does
+the following:
+
+1. **Dumps** the database with `pg_dump` (custom format) and archives the private media
+   (evidence, manifestos).
+2. **Encrypts** both with AES-256 (OpenSSL, PBKDF2 with 600k iterations) using
+   `BACKUP_PASSPHRASE`, and writes a `.sha256` checksum file.
+3. **Proves the backup is restorable** by decrypting it and reading it back with
+   `pg_restore --list`. Only then is it counted as a success.
+4. **Keeps** `BACKUP_RETENTION_DAYS` (default 14) of backups on the server, in the
+   `backups` volume.
+5. **Pushes** every backup not yet uploaded to the private GitHub repository
+   `BACKUP_GIT_REPO` (see §3.2):
+   - each backup goes in its own folder `backups/flexyvotes-<UTC timestamp>/`;
+   - files over `BACKUP_GIT_CHUNK_MB` (45 MB) are split into parts, because GitHub
+     rejects files over 100 MB;
+   - folders older than `BACKUP_GIT_RETENTION_DAYS` (30) are removed, but the newest 7
+     are always kept;
+   - with `BACKUP_GIT_KEEP_HISTORY=false` (the default), the branch holds just one
+     snapshot commit; set it to `true` to keep every backup in the git history.
+
+Safeguards:
+
+| Safeguard | Why |
+|---|---|
+| No backups without `BACKUP_PASSPHRASE` (16+ characters) | Nothing unencrypted is ever written or pushed |
+| Refuses to push unless GitHub reports the repository as **private** | A public repository can't leak data |
+| Refuses code branches (`main`, the default branch, any branch containing `manage.py`) | The nightly force-push can never overwrite the code |
+| Refuses to back up an **empty** database | A broken setup can't fill retention with empty backups and push the good ones out |
+| Takes a backup when it starts, if the last one is older than 24 h | A new or restarted server is covered right away |
+| A missed push is retried the next night | The push syncs every local backup that isn't on GitHub yet |
+| Health check: unhealthy if the last backup or push is older than `BACKUP_MAX_AGE_HOURS` (26) | `docker compose ps` shows it, and so does `/console/health/` (**Backups** panel) |
+
+Commands:
+
+```bash
+docker compose exec backup fv-backup nightly   # back up and push now
+docker compose exec backup fv-backup list      # local backups, and what has been pushed
+docker compose exec backup fv-backup health
+docker compose logs backup                     # what each run did
+```
+
+### 3.2 Setting up the GitHub push (once)
+
+Backups go to the application's own repository (`BACKUP_GIT_REPO`, by default
+`https://github.com/deOpty/flexyvotes.git`). They are pushed to a separate **orphan
+branch**, `backups`, which shares no history with `main`:
+
+- **Code branches stay clean.** Pushes to `backups` don't trigger CI, which only runs for
+  `main` and pull requests, and they can't touch the code.
+- **The backups branch is one snapshot commit** of the kept backup sets
+  (`BACKUP_GIT_KEEP_HISTORY=false`). It's force-pushed each night, so clones stay small.
+  Developers can clone with `git clone --single-branch` to skip it entirely.
+- **The worker refuses to push to a code branch.** It rejects `main`, `master`, `develop`
+  and the repository's default branch, plus any branch that contains `manage.py`.
+
+1. **Make the repository private.** The worker refuses to push to a public repository:
+   go to **Settings → General → Danger Zone → Change visibility → Private**. This is
+   required: encrypted or not, voter rolls and ballots must never be downloadable by the
+   public.
+2. **Create a token.** Go to **Settings → Developer settings → Fine-grained tokens →
+   Generate new token**, and set:
+   - **Repository access:** *Only select repositories*, then pick `deOpty/flexyvotes`;
+   - **Permissions:** *Contents: Read and write*. *Metadata: Read* is added
+     automatically.
+   - **Expiration:** your choice. Note the date, because when the token expires the
+     backup service turns unhealthy until you replace it.
+3. **Protect `main`.** The token can write to the whole repository, so add a ruleset under
+   **Settings → Rules → Rulesets**: target `main`, *Restrict deletions*, *Block force
+   pushes*, *Require a pull request*. A leaked server token then can't change the code.
+4. **Add the settings** to `.env` on the server (they're already in `.env.example`):
+   ```
+   BACKUP_PASSPHRASE='<long random passphrase>'
+   BACKUP_GIT_REPO=https://github.com/deOpty/flexyvotes.git
+   BACKUP_GIT_TOKEN=github_pat_...
+   BACKUP_GIT_BRANCH=backups
+   ```
+5. **Apply and test.** Run `./deploy.sh`, then
+   `docker compose exec backup fv-backup nightly`. The repository should now show a
+   `backups` branch.
+6. **Store the secrets offline.** Put `BACKUP_PASSPHRASE`, `SECRET_KEY` and the
+   encryption keys (`FIELD_ENCRYPTION_KEYS` or `KMS_KEY_ID`, `SIGNING_PRIVATE_KEY`,
+   `BLIND_INDEX_KEY`) in a password manager. The backups are useless without them, and
+   they are deliberately **not** stored in the repository.
+
+To use a separate private repository instead, set `BACKUP_GIT_REPO` to it; everything
+else works the same.
+
+### 3.3 AWS layers (production on RDS)
+
+On AWS, RDS provides its own backup layers in addition to the logical backups:
+
 | Layer | Mechanism | Retention |
 |---|---|---|
 | RDS automated backups + PITR | Enabled on the instance; 5-minute transaction-log shipping | 14–35 days |
 | RDS snapshots | Daily automated snapshot, plus a manual snapshot before every release and before opening every election | 90 days; copied to the DR region |
-| Logical backup | `deploy/scripts/backup.sh`: `pg_dump` (custom format) → AES-256 (OpenSSL, PBKDF2 with 600k iterations) → `.dump.enc` and `.sha256` → S3 with SSE-KMS | 1 year (S3 lifecycle); local copies 14 days |
-| Private media | `backup.sh` with `PRIVATE_MEDIA_DIR`, and/or AWS Backup for EFS | 1 year |
+| Logical backup | `deploy/scripts/backup.sh` (the same encrypted format) → S3 with SSE-KMS (`BACKUP_S3_URI`) | 1 year (S3 lifecycle) |
+| Private media | AWS Backup for EFS | 1 year |
 | Keys | `python manage.py keys backup --out keys-YYYYMMDD.enc` (scrypt + AES-GCM), stored offline in two places | Every key change |
 
 S3 bucket settings:
@@ -50,19 +148,8 @@ S3 bucket settings:
 - cross-region replication;
 - deletion only by a break-glass role.
 
-The backup passphrase (`BACKUP_PASSPHRASE`) is kept in Secrets Manager in a **different
-account or region** from the backups.
-
-**Schedule.** Example cron on the EC2 host, or an EventBridge-scheduled ECS task:
-
-```cron
-# Nightly encrypted logical backup to S3
-15 2 * * *  cd /opt/flexyvotes && DATABASE_URL=... BACKUP_PASSPHRASE=... BACKUP_S3_URI=s3://flexyvotes-backups-prod \
-            PRIVATE_MEDIA_DIR=/var/lib/docker/volumes/flexyvotes_private_media/_data ./deploy/scripts/backup.sh >> /var/log/fv-backup.log 2>&1
-# Monthly restore test (first Sunday)
-0 4 1-7 * 0  cd /opt/flexyvotes && BACKUP_PASSPHRASE=... SECRET_KEY=... FIELD_ENCRYPTION_KEYS=... \
-            ./deploy/scripts/restore-test.sh "$(ls -t backups/*.dump.enc | head -1)" >> /var/log/fv-restore-test.log 2>&1
-```
+Keep `BACKUP_PASSPHRASE` in Secrets Manager, in a **different account or region** from
+the backups.
 
 ## 4. Restore testing
 
@@ -88,9 +175,53 @@ because it uses `--network host`; run it on the EC2 host or in CI.
 |---|---|---|
 | 2026-10-05 | Local development database, through `backup.sh` | **Passed.** The checksum verified, and the restore matched the live database on every table checked: events 3/3, voters 21/21, audit events 19/19, migrations 65/65. All 8 append-only triggers were restored, and `migrate --check` was clean. `verify_integrity` passed on all three audit chains. A tampered backup was rejected by checksum, and a wrong passphrase was rejected. While testing, a GNU-only option in `restore.sh` was replaced so it also works on BusyBox (SECURITY.md B13). |
 
+| 2026-10-23 | Compose `backup` / `restore` services, with a local git repository standing in for GitHub | **Passed.**<br>**Fresh install:** restore-on-setup found an empty database and an empty repository, and started fresh. The first backup was taken, verified and pushed, and all services were healthy.<br>**Nightly run:** with real encrypted data and a 2 MB evidence file, the media archive was split into 3 parts (chunk size set to 1 MB).<br>**New server** (empty volumes): the newest backup was fetched from the repository and its parts rejoined. The voter's encrypted name and email decrypted, the evidence file's SHA-256 matched, restored files were writable by the app user, and `verify_integrity` passed.<br>**Corrupt newest backup:** skipped automatically, and the previous one restored.<br>**Restarting an initialised database:** no restore.<br>**Refusals:** an empty database, a push without a token, and a token that can't prove the repository is private.<br>**Code-repository mode:** with a stand-in repository that has a `main` branch containing `manage.py`, backups went to an orphan `backups` branch with no shared history, one snapshot commit, and `main` untouched. `BACKUP_GIT_BRANCH=main` was refused, as was a branch containing code. A new server restored from the `backups` branch.<br>**Real repository:** pointing at `deOpty/flexyvotes` was refused because it is public. |
+
 Add a row after every test.
 
 ## 5. Restore procedures
+
+### 5.0 Automatic restore on setup (Docker Compose stack)
+
+The one-shot `restore` service runs on every `docker compose up`, before web, worker and
+beat start:
+
+- **Database already initialised:** it does nothing.
+- **Database empty** (a new server, or a lost `postgres_data` volume):
+  1. It picks the newest local backup. If there are none, it clones the newest sets from
+     `BACKUP_GIT_REPO`.
+  2. It verifies the checksum, then restores the database and the private media.
+  3. Then the app starts and applies any newer migrations.
+- **Newest backup won't restore:** it tries the next older one, up to three.
+- **Every candidate fails, or the repository can't be reached:** start-up **stops**,
+  rather than continuing with an empty database. Set `BACKUP_RESTORE_ON_SETUP=false` to
+  start empty on purpose.
+- **Restoring a specific backup:** set `BACKUP_RESTORE_FILE=/backups/<name>.dump.enc`.
+
+To move FlexyVotes to a new server:
+
+1. Install Docker and clone the repository.
+2. Copy the **old** server's `.env`. At minimum this means `SECRET_KEY`, the encryption
+   keys, `BACKUP_PASSPHRASE`, `BACKUP_GIT_REPO` and `BACKUP_GIT_TOKEN`.
+3. Run `./deploy.sh`.
+
+The newest backup is restored from GitHub automatically. Data written after that backup
+(up to one day) is lost; to keep it, take a backup on the old server first if it is still
+running: `docker compose exec backup fv-backup nightly`.
+
+To recover the **current** server from a backup (for example, after data was deleted by
+mistake):
+
+```bash
+docker compose stop web worker beat backup
+docker compose exec db psql -U flexyvotes -d flexyvotes -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+docker compose run --rm restore        # restores the newest backup into the now-empty database
+docker compose up -d
+```
+
+To restore an older backup instead, add
+`-e BACKUP_RESTORE_FILE=/backups/flexyvotes-<stamp>.dump.enc` to the `run` command. Take a
+fresh backup first (`fv-backup backup`) so the current state isn't lost.
 
 ### 5.1 Point-in-time recovery (RDS)
 
