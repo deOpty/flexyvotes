@@ -112,7 +112,7 @@ def set_preferences(request):
     flags = {flag for flag in ('hc', 'lg', 'lite') if request.POST.get(flag) == 'on'}
     response = redirect(safe_next(request, request.POST.get('next'), '/'))
     response.set_cookie('fv_prefs', '.'.join(sorted(flags)), max_age=365 * 24 * 3600, samesite='Lax',
-                        secure=not settings.DEBUG, httponly=False)
+                        secure=settings.COOKIE_SECURE, httponly=False)
     return response
 
 
@@ -124,7 +124,7 @@ def set_timezone(request):
         zoneinfo.ZoneInfo(tz_name)
     except (zoneinfo.ZoneInfoNotFoundError, ValueError):
         return JsonResponse({'ok': False}, status=400)
-    response.set_cookie('fv_tz', tz_name, max_age=365 * 24 * 3600, samesite='Lax', secure=not settings.DEBUG)
+    response.set_cookie('fv_tz', tz_name, max_age=365 * 24 * 3600, samesite='Lax', secure=settings.COOKIE_SECURE)
     return response
 
 

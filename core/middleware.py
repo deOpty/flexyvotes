@@ -213,11 +213,11 @@ class UserPreferencesMiddleware:
         new_device = getattr(request, '_fv_new_device_id', None)
         if new_device:
             response.set_cookie(DEVICE_COOKIE, new_device, max_age=2 * 365 * 24 * 3600, httponly=True,
-                                secure=not settings.DEBUG, samesite='Lax')
+                                secure=settings.COOKIE_SECURE, samesite='Lax')
         return response
 
 
-def build_csp(nonce):
+def build_csp(nonce, secure=True):
     from .captcha import provider_config
 
     name, captcha = provider_config()
@@ -249,7 +249,9 @@ def build_csp(nonce):
         'form-action': ["'self'", 'https://checkout.paystack.com', 'https://accounts.google.com',
                         'https://login.microsoftonline.com'],
     }
-    if not settings.DEBUG:
+    # Only on HTTPS pages: on a plain-HTTP deployment (e.g. http://<server-ip>)
+    # it would rewrite every CSS/JS URL to https:// and the page would break.
+    if secure and not settings.DEBUG:
         directives['upgrade-insecure-requests'] = []
     return '; '.join(f"{k} {' '.join(v)}".strip() for k, v in directives.items())
 
@@ -263,7 +265,7 @@ class SecurityHeadersMiddleware:
         response = self.get_response(request)
         header = 'Content-Security-Policy-Report-Only' if settings.CSP_REPORT_ONLY else 'Content-Security-Policy'
         if header not in response:
-            response[header] = build_csp(request.csp_nonce)
+            response[header] = build_csp(request.csp_nonce, secure=request.is_secure())
         response.setdefault('Permissions-Policy',
                             'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()')
         response.setdefault('Cross-Origin-Resource-Policy', 'same-origin')

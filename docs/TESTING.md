@@ -36,14 +36,14 @@ mocked with `responses`.
 
 ## 2. What is covered
 
-**209 tests** in 17 modules. The backup worker's shell
+**211 tests** in 17 modules. The backup worker's shell
 scripts are tested end to end against Docker; see the restore test log in
 [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#restore-test-log).
 
 | Module | Tests | Covers |
 |---|---|---|
 | `core/tests/test_crypto_audit.py` | 18 | Envelope encryption and AAD binding; data-key rotation; KEK rotation; upgrade from the derived KEK to a configured KEK and to KMS; `verify_integrity` fails when keys can't decrypt; encrypted columns stored as ciphertext; Ed25519 signatures; ballot sealing; Shamir thresholds; Merkle proofs; passphrase backups; audit chain linking, ORM refusal, tamper and delete detection, PostgreSQL triggers |
-| `core/tests/test_rbac_security.py` | 25 | Organization-admin tenant scoping; event-scoped roles; read-only auditor; platform admin; role sync on migrate; CSP nonce and headers; correlation id; no-cache on sensitive pages; health endpoints, including load-balancer `Host` headers; metrics token; `security.txt` (contact, RFC 9116 expiry); API CORS; POST-only logout; open-redirect guard; SSRF allow-list and public-IP resolution; circuit breaker; rate-limit window; idempotency records; trusted-proxy client IP; CSV formula injection; spoofed uploads; OTP brute force; half-configured Cloudinary deploy warning |
+| `core/tests/test_rbac_security.py` | 27 | Organization-admin tenant scoping; event-scoped roles; read-only auditor; platform admin; role sync on migrate; CSP nonce and headers; correlation id; no-cache on sensitive pages; health endpoints, including load-balancer `Host` headers; metrics token; `security.txt` (contact, RFC 9116 expiry); API CORS; POST-only logout; open-redirect guard; SSRF allow-list and public-IP resolution; circuit breaker; rate-limit window; idempotency records; trusted-proxy client IP; CSV formula injection; spoofed uploads; OTP brute force; half-configured Cloudinary deploy warning |
 | `core/tests/test_auth_sso.py` | 11 | Lockout; TOTP enrolment, second step and replay protection; new-device alert and email step-up; session listing and remote revocation; enforced staff MFA; API token lifecycle; weak passwords and bots rejected at registration; staff SSO login; OIDC `nonce` / audience / `state` checks; voter SSO matched to the roll by verified email |
 | `core/tests/test_backups.py` | 5 | Backup status for the console: missing state, fresh vs stale backup and push, no repository configured, malformed status files, the **Backups** panel on `/console/health/` |
 | `core/tests/test_i18n.py` | 4 | French catalog compiled; public pages and the ballot flow render in French; English remains the default |

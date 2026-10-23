@@ -420,8 +420,13 @@ BLIND_INDEX_KEY = env('BLIND_INDEX_KEY')
 # the real client IP out of X-Forwarded-For; 0 = trust REMOTE_ADDR only.
 TRUSTED_PROXY_COUNT = env_int('TRUSTED_PROXY_COUNT', 0)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+# Secure cookies are only sent over HTTPS. COOKIE_SECURE=False is for a server
+# reached over plain HTTP (e.g. by IP before TLS is set up): browsers refuse
+# Secure cookies from http:// origins, so login and every form would fail.
+# `check --deploy` warns while it is off (flexyvotes.W008).
+COOKIE_SECURE = env_bool('COOKIE_SECURE', not DEBUG)
+SESSION_COOKIE_SECURE = COOKIE_SECURE
+CSRF_COOKIE_SECURE = COOKIE_SECURE
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'

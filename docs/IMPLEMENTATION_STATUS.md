@@ -309,7 +309,7 @@ WebSockets.
 
 ### 26. Testing: Done
 
-- **Size:** 209 automated tests.
+- **Size:** 211 automated tests.
 - **Unit:** validation, eligibility, state transitions, payment states, limits, tally, fraud
   rules.
 - **Integration:** PostgreSQL in CI, Paystack mocked over HTTP, webhooks, authentication.

@@ -57,6 +57,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `SECURE_HSTS_SECONDS` | `0` | e.g. `31536000` once HTTPS works |
 | `TRUSTED_PROXY_COUNT` | `0` | Number of proxies in front of the app: `1` for ALB or nginx, `2` for ALB + nginx. Decides the client IP used for rate limits and fraud scoring. |
 | `SESSION_COOKIE_AGE` | `28800` | Session lifetime in seconds |
+| `COOKIE_SECURE` | `True` (when `DEBUG=False`) | Marks cookies `Secure` (HTTPS only). Set it to `False` **only** while the server is reached over plain HTTP, such as `http://<ip>:<port>` before TLS is set up; otherwise browsers drop the cookies and login fails. `check --deploy` reports `flexyvotes.W008` while it is off. |
 | `ENFORCE_STAFF_MFA` | `False` | Console users must enroll TOTP or a passkey |
 | `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_SECONDS` | `5`, `900` | Account lockout |
 | `VOTER_LOGIN_PER_IP_PER_MIN` | `120` | Voter sign-in attempts per IP per minute (web and API) |
@@ -138,7 +139,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 
 | Command | Use |
 |---|---|
-| `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W007`) |
+| `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W008`) |
 | `seed_admin` | Create or sync the superuser from `DJANGO_SUPERUSER_*` |
 | `verify_integrity [--skip-evidence]` | Verify audit chains, signed config snapshots, result certifications (signature, result hash, bulletin root), evidence checksums, and that the configured keys unwrap every data key and decrypt the encrypted columns. Non-zero exit on any failure. |
 | `keys status` | KEK provider, data keys (and any not on the active KEK), signing-key source and fingerprint |
@@ -288,7 +289,8 @@ move it onto dedicated keys:
 
 | Symptom | Cause / fix |
 |---|---|
-| `400 Bad Request` on every page | The `Host` isn't in `ALLOWED_HOSTS` |
+| `400 Bad Request` on every page | The `Host` isn't in `ALLOWED_HOSTS`. When browsing by IP, add the IP, e.g. `ALLOWED_HOSTS=16.192.12.135` |
+| Reached over `http://<ip>`: login loops, or forms give CSRF errors | `Secure` cookies are refused over HTTP. Until HTTPS is set up, use `COOKIE_SECURE=False`, `SECURE_SSL_REDIRECT=False`, `SECURE_HSTS_SECONDS=0`, and `CSRF_TRUSTED_ORIGINS=http://<ip>:<port>` |
 | CSRF failures on login over plain HTTP | Cookies are `Secure` when `DEBUG=False`. Use HTTPS, or `DEBUG=True` locally. |
 | Static files 404 | The image was built without `collectstatic` (see the Dockerfile), or `DEBUG=False` without WhiteNoise in the middleware |
 | Encrypted fields show errors after a config change | A KEK was removed while data keys still used it. Restore the old entry in `FIELD_ENCRYPTION_KEYS`, then run `keys rewrap`. |

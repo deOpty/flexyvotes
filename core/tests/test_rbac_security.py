@@ -66,6 +66,24 @@ class SecurityHeaderTests(TestCase):
         self.assertIn('Permissions-Policy', response)
         self.assertTrue(response['X-Request-ID'])
 
+    @override_settings(DEBUG=False, ALLOWED_HOSTS=['16.192.12.135'])
+    def test_plain_http_deployment_is_not_upgraded_to_https(self):
+        """Reached as http://<ip>:<port>: upgrade-insecure-requests would turn every
+        CSS/JS URL into https:// and break the page; it belongs on HTTPS only."""
+        http = self.client.get(reverse('home'), HTTP_HOST='16.192.12.135:5000')
+        self.assertEqual(http.status_code, 200)
+        self.assertNotIn('upgrade-insecure-requests', http['Content-Security-Policy'])
+        https = self.client.get(reverse('home'), HTTP_HOST='16.192.12.135', secure=True)
+        self.assertIn('upgrade-insecure-requests', https['Content-Security-Policy'])
+
+    def test_insecure_cookie_mode_is_reported(self):
+        from core.checks import platform_security_checks
+
+        with override_settings(COOKIE_SECURE=False):
+            self.assertIn('flexyvotes.W008', [i.id for i in platform_security_checks(None)])
+        with override_settings(COOKIE_SECURE=True):
+            self.assertNotIn('flexyvotes.W008', [i.id for i in platform_security_checks(None)])
+
     def test_correlation_id_is_echoed_when_valid(self):
         response = self.client.get(reverse('home'), HTTP_X_REQUEST_ID='abc-12345678')
         self.assertEqual(response['X-Request-ID'], 'abc-12345678')
