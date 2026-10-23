@@ -36,7 +36,7 @@ mocked with `responses`.
 
 ## 2. What is covered
 
-**211 tests** in 17 modules. The backup worker's shell
+**212 tests** in 17 modules. The backup worker's shell
 scripts are tested end to end against Docker; see the restore test log in
 [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#restore-test-log).
 
@@ -58,7 +58,7 @@ scripts are tested end to end against Docker; see the restore test log in
 | `notifications/tests/test_notifications.py` | 6 | Queued then delivered with the context wiped; dedupe key; SMS skipped when not configured; SMS via Africa's Talking; WhatsApp; in-app |
 | `billing/tests/test_billing.py` | 6 | Plan seeding and default Free subscription; feature-flag override; limits; invoice with usage, coupon, levy and VAT; trial and renewal; billing pages |
 | `api/tests/test_api.py` | 10 | OpenAPI schema and docs; authentication and error envelope; password → token exchange; tenant scoping; election, position, candidate and voter creation plus transition; validation-error envelope; ballot session and idempotent vote; results hidden until published; audit endpoints; payment idempotency |
-| `voting/tests.py` | 17 | Home lists only public elections; live counts on paid events, hidden for secret ballots; contact form creates a ticket; organizer approval and personal organization; negative prices rejected; organizer tools respect RBAC and lifecycle; edit-event keeps price and converts timezone; scanner checks in once; formula-safe guest list; ticket lookup; CSRF on ticket email; `seed_admin`; legacy vote URLs forward; legacy code URLs need permission; officer role scoping |
+| `voting/tests.py` | 18 | Home lists only public elections; live counts on paid events, hidden for secret ballots; contact form creates a ticket; organizer approval and personal organization; negative prices rejected; organizer tools respect RBAC and lifecycle; edit-event keeps price and converts timezone; scanner checks in once; formula-safe guest list; ticket lookup; CSRF on ticket email; `seed_admin`; legacy vote URLs forward; legacy code URLs need permission; officer role scoping |
 
 ## 3. Testing patterns
 

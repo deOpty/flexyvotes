@@ -116,6 +116,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `DJANGO_LOG_LEVEL` | `INFO` | |
 | `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Error tracking and tracing |
 | `DJANGO_SUPERUSER_USERNAME`, `_EMAIL`, `_PASSWORD` | — | `seed_admin` creates or syncs this admin on every web start |
+| `DJANGO_SUPERUSER_2_USERNAME`, `_2_EMAIL`, `_2_PASSWORD` (and `_3_`, `_4_` …) | — | Additional admins, seeded the same way. Sign in with the username, and use the person's own email, because new-device sign-in codes are sent to it. Passwords must pass the strength rules, or the account is left unchanged and the web log says why. Removing a block doesn't delete the account. |
 | `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT`, `PGADMIN_BIND` | —, —, `5051`, `0.0.0.0` | pgAdmin starts with the stack, with the "FlexyVotes" server (host `db`) pre-registered. The login is applied only when the `pgadmin_data` volume is first created. Set `PGADMIN_BIND=127.0.0.1` to reach it only through a tunnel. |
 
 ### Backups (the `backup` and `restore` services)
@@ -140,7 +141,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | Command | Use |
 |---|---|
 | `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W008`) |
-| `seed_admin` | Create or sync the superuser from `DJANGO_SUPERUSER_*` |
+| `seed_admin` | Create or sync every admin from `DJANGO_SUPERUSER_*` and `DJANGO_SUPERUSER_<n>_*` |
 | `verify_integrity [--skip-evidence]` | Verify audit chains, signed config snapshots, result certifications (signature, result hash, bulletin root), evidence checksums, and that the configured keys unwrap every data key and decrypt the encrypted columns. Non-zero exit on any failure. |
 | `keys status` | KEK provider, data keys (and any not on the active KEK), signing-key source and fingerprint |
 | `keys generate-kek` / `generate-signing-key` / `generate-blind-index` | Create new key material |

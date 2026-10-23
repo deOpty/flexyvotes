@@ -169,6 +169,31 @@ class SeedAdminCommandTests(TestCase):
         user.refresh_from_db()
         self.assertTrue(user.check_password('Rotated-pass-2'))
 
+    def test_seeds_additional_admins(self):
+        import io
+
+        extra = {
+            'DJANGO_SUPERUSER_USERNAME': 'newadmin', 'DJANGO_SUPERUSER_EMAIL': 'a@example.com',
+            'DJANGO_SUPERUSER_PASSWORD': 'Some-strong-pass-1',
+            'DJANGO_SUPERUSER_2_USERNAME': 'derek', 'DJANGO_SUPERUSER_2_EMAIL': 'derek@example.com',
+            'DJANGO_SUPERUSER_2_PASSWORD': 'Derek-strong-pass-26',
+            'DJANGO_SUPERUSER_3_USERNAME': 'weakling', 'DJANGO_SUPERUSER_3_EMAIL': 'w@example.com',
+            'DJANGO_SUPERUSER_3_PASSWORD': '12345678',
+            'DJANGO_SUPERUSER_4_USERNAME': 'nopassword',
+        }
+        errors = io.StringIO()
+        with patch.dict(os.environ, extra):
+            call_command('seed_admin', stdout=io.StringIO(), stderr=errors)
+        derek = User.objects.get(username='derek')
+        self.assertTrue(derek.is_superuser and derek.is_staff and derek.is_active)
+        self.assertEqual(derek.email, 'derek@example.com')
+        self.assertTrue(derek.check_password('Derek-strong-pass-26'))
+        self.assertTrue(User.objects.filter(username='newadmin').exists())  # first admin still seeded
+        self.assertFalse(User.objects.filter(username__in=['weakling', 'nopassword']).exists())
+        self.assertIn('rejected', errors.getvalue())
+        self.assertIn('DJANGO_SUPERUSER_4', errors.getvalue())
+        self.assertTrue(self.client.login(username='derek', password='Derek-strong-pass-26'))
+
 
 class LegacyRedirectTests(TestCase):
     def test_legacy_vote_endpoints_forward(self):

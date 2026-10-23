@@ -17,10 +17,10 @@ case "$role" in
             echo "Applying database migrations..."
             python manage.py migrate --noinput
         fi
-        if [[ -n "${DJANGO_SUPERUSER_USERNAME:-}" && -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]]; then
-            echo "Ensuring admin superuser exists..."
-            python manage.py seed_admin
-        fi
+        # Creates/syncs every DJANGO_SUPERUSER_* and DJANGO_SUPERUSER_<n>_* admin;
+        # does nothing when none are configured.
+        echo "Ensuring admin accounts exist..."
+        python manage.py seed_admin
         exec gunicorn vote_fund.wsgi:application --config /app/gunicorn.conf.py
         ;;
     worker)
