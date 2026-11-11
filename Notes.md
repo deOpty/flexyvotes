@@ -60,9 +60,30 @@ The system's GitHub actions fail when the repo is pushed to GitHub. The actions 
 
 ---
 
+Still using a single agent and not exhausting all tokens and also having full control to implement the full features needed for the following items.
+
+1. Add the pgAdmin in a way that docker compose up builds and starts it as well. I want all deployment on the server should be done with one command on the server. And all other systems should be run from just one command.
+
+2. I want you to add a daily db backup so that the data in the system is never lost if the database faces issues. The database restore should be added in the setup process.
+
+3. Create a cron job and worker to push the daily nightly backups to github.
+
+4. Edit the .env file and add all the needed vars that are to be set.
+
+5. The GitHub push should be done to the current repo the code is and not a new repo.
+
 ---
 
 ---
+
+set_env() { grep -q "^$1=" .env && sed -i "s|^$1=.\*|$1=$2|" .env || echo "$1=$2" >> .env; }
+set_env ALLOWED_HOSTS 16.192.12.135,localhost,127.0.0.1
+set_env CSRF_TRUSTED_ORIGINS http://16.192.12.135:5000
+set_env SITE_URL http://16.192.12.135:5000
+set_env SECURE_SSL_REDIRECT False
+set_env SECURE_HSTS_SECONDS 0
+set_env COOKIE_SECURE False
+./deploy.sh
 
 ---
 
