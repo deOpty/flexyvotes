@@ -35,12 +35,21 @@ INTEGRITY_PERMISSIONS = ('election.freeze', 'election.close', 'election.review',
                          'incident.manage', 'dispute.view', 'audit.view')
 
 
-def _base_context(request, event, tab):
-    perms = user_permissions(request.user, event)
+def header_context(user, event, tab):
+    """What console/elections/_header.html needs: title, lifecycle buttons and the tabs the user may open.
+
+    Also used by the {% election_header %} tag, so pages outside this module (edit details, tickets,
+    pricing, analytics...) show the same tabs.
+    """
+    perms = user_permissions(user, event)
     return {'event': event, 'tab': tab, 'perms': perms,
             'show_integrity': any(p in perms for p in INTEGRITY_PERMISSIONS),
             'ended_states': lifecycle.ENDED_STATES,
-            'actions': lifecycle.available_actions(event, request.user)}
+            'actions': lifecycle.available_actions(event, user)}
+
+
+def _base_context(request, event, tab):
+    return header_context(request.user, event, tab)
 
 
 @login_required

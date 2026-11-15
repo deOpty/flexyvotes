@@ -1,19 +1,19 @@
-{% extends 'voting/base.html' %}
+{% extends 'console/base.html' %}
 {% load i18n fv %}
 {% block title %}{% translate "Analytics" %} | {{ event.title }}{% endblock %}
-{% block content %}
-<div class="container py-4">
+{% block console %}
+{% election_header event 'analytics' %}
+{% can request.user 'payment.view' event as can_see_money %}
+<div>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
-            <p class="section-eyebrow mb-1">{% translate "Election analytics" %}</p>
-            <h1 class="h2 fw-bold text-wine mb-1">{{ event.title }}</h1>
-            {% if event.is_paid %}
+            <h2 class="h4 fw-bold text-wine mb-1">{% translate "Election analytics" %}</h2>
+            {% if event.is_paid and can_see_money %}
             <p class="text-muted mb-0">{% translate "Total revenue" %}: <b class="text-wine">{{ event.get_total_revenue|money:event.currency }}</b>
                 <span class="mx-2">&middot;</span>{% translate "Organizer payout" %}: <b class="text-wine">{{ event.get_organizer_payout|money:event.currency }}</b></p>
             {% endif %}
         </div>
         <div class="d-flex gap-2">
-            <a href="{% url 'elections:console_overview' event.pk %}" class="btn btn-outline-secondary">{% translate "Election console" %}</a>
             {% if event.is_paid %}<a href="{% url 'elections:console_results_export' event.pk 'pdf' %}" class="btn btn-gold px-3"><i class="bi bi-download me-1" aria-hidden="true"></i> {% translate "Download report (PDF)" %}</a>{% endif %}
         </div>
     </div>
@@ -46,8 +46,8 @@
     <div class="card border-0 shadow-sm rounded-4"><div class="card-body p-4">
         <h2 class="h5 card-title mb-3 text-wine">{% translate "Detailed breakdown" %}</h2>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle">
-            <thead><tr><th>{% translate "Category" %}</th><th>{% translate "Candidate" %}</th><th>{% translate "Paid votes" %}</th><th>{% translate "Ticket (tie-breaker) votes" %}</th><th>{% translate "Total" %}</th><th>{% translate "Revenue" %}</th></tr></thead>
-            <tbody>{% for candidate in all_candidates %}<tr><td>{{ candidate.category.name|default:_("Uncategorized") }}</td><td class="fw-semibold">{{ candidate.name }}</td><td>{{ candidate.main_votes|number }}</td><td>{{ candidate.tie_breaker_votes|number }}</td><td><span class="badge bg-wine">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</span></td><td class="fw-semibold text-wine">{{ candidate.revenue|money:event.currency }}</td></tr>
+            <thead><tr><th>{% translate "Category" %}</th><th>{% translate "Candidate" %}</th><th>{% translate "Paid votes" %}</th><th>{% translate "Ticket (tie-breaker) votes" %}</th><th>{% translate "Total" %}</th>{% if can_see_money %}<th>{% translate "Revenue" %}</th>{% endif %}</tr></thead>
+            <tbody>{% for candidate in all_candidates %}<tr><td>{{ candidate.category.name|default:_("Uncategorized") }}</td><td class="fw-semibold">{{ candidate.name }}</td><td>{{ candidate.main_votes|number }}</td><td>{{ candidate.tie_breaker_votes|number }}</td><td><span class="badge bg-wine">{{ candidate.main_votes|add:candidate.tie_breaker_votes }}</span></td>{% if can_see_money %}<td class="fw-semibold text-wine">{{ candidate.revenue|money:event.currency }}</td>{% endif %}</tr>
             {% empty %}<tr><td colspan="6" class="text-center text-muted p-4">{% translate "No votes yet." %}</td></tr>{% endfor %}</tbody>
         </table></div>
     </div></div>

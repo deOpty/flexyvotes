@@ -1,13 +1,10 @@
-{% extends 'voting/base.html' %}{% load i18n fv %} {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-9 col-xl-8">
-    <div class="mb-4 reveal">
-      <span class="section-eyebrow">Organizer Tools</span>
-      <h2 class="fw-bold text-wine mb-1 mt-1">
-        <i class="bi bi-pencil-square me-2"></i>Edit Event
-      </h2>
-      <p class="text-muted mb-0">{{ event.title }}</p>
-    </div>
+{% extends 'console/base.html' %}{% load i18n fv %}
+{% block title %}{% translate "Edit details" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% election_header event 'details' %}
+<div class="row">
+  <div class="col-xl-10 col-xxl-9">
+    <h2 class="h4 fw-bold text-wine mb-3"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>{% translate "Edit details & dates" %}</h2>
 
     <form
       method="POST"

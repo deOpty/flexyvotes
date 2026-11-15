@@ -3,7 +3,7 @@
 {% block title %}{% if preview %}{% translate "Ballot preview" %}{% else %}{% translate "Your ballot" %}{% endif %} | {{ event.title }}{% endblock %}
 {% block steps %}{% if not preview %}{% include 'vote/_steps.html' with step=2 %}{% endif %}{% endblock %}
 {% block vote %}
-{% if preview %}<div class="alert alert-info"><strong>{% translate "Preview" %}</strong> — {% translate "this is exactly what voters see. Nothing can be submitted from this page." %}</div>{% endif %}
+{% if preview %}<div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2"><span><strong>{% translate "Preview" %}</strong> — {% translate "this is exactly what voters see. Nothing can be submitted from this page." %}</span><a href="{% url 'elections:console_ballot' event.pk %}" class="btn btn-sm btn-wine">&larr; {% translate "Back to the console" %}</a></div>{% endif %}
 <h1 class="h3 fw-bold text-wine">{% translate "Your ballot" %}</h1>
 {% if not preview %}
 <p class="text-muted">{% blocktranslate with t=expires_at|date:"H:i" %}Make your choices below, then review them before casting. This ballot session expires at {{ t }}.{% endblocktranslate %}</p>

@@ -1,10 +1,11 @@
-{% extends 'voting/base.html' %}
-{% load i18n %}
+{% extends 'console/base.html' %}
+{% load i18n fv %}
 {% block title %}{% translate "Edit candidate" %} | {{ event.title }}{% endblock %}
-{% block content %}
-<div class="container py-5" style="max-width: 760px;">
+{% block console %}
+{% election_header event 'ballot' %}
+<div style="max-width: 760px;">
     <a href="{% url 'elections:console_ballot' event.pk %}" class="small text-muted">&larr; {% translate "Ballot" %}</a>
-    <h1 class="h3 fw-bold text-wine">{% translate "Edit candidate" %}</h1>
+    <h2 class="h4 fw-bold text-wine">{% translate "Edit candidate" %}</h2>
     <form method="post" enctype="multipart/form-data" class="card border-0 shadow-sm rounded-4 p-4">{% csrf_token %}
         <div class="row g-3">
             <div class="col-md-6"><label class="form-label" for="cn">{% translate "Name" %}</label><input id="cn" name="name" value="{{ candidate.name }}" class="form-control" required maxlength="100"></div>

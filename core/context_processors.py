@@ -3,6 +3,20 @@ from django.conf import settings
 from .captcha import provider_config
 
 
+# Console pages about one election that live outside the elections namespace. The sidebar keeps
+# "Elections" highlighted on them, as it does on the election tabs.
+ELECTION_PAGES = frozenset({
+    'edit_event', 'edit_category', 'edit_candidate', 'event_analytics', 'event_guestlist', 'event_scanner',
+    'create_ticket', 'edit_ticket', 'payments:pricing',
+})
+
+
+def _is_election_page(request):
+    match = getattr(request, 'resolver_match', None)
+    view_name = match.view_name if match else ''
+    return view_name.startswith('elections:') or view_name in ELECTION_PAGES
+
+
 def _shows_approvals(perms):
     from .rbac import APPROVAL_QUEUE_PERMISSIONS
 
@@ -37,8 +51,12 @@ def platform(request):
         'prefs': prefs,
         'lite_mode': 'lite' in prefs,
         'is_console_user': console,
+        # Layout for pages shared by staff and the public (account security, 403/404): console users
+        # keep the console menu, everyone else gets the public page. Both expose {% block console %}.
+        'page_base': 'console/base.html' if console else 'core/page.html',
         'is_platform_admin': platform_admin,
         'nav_perms': nav_perms,
+        'nav_election_page': console and _is_election_page(request),
         'nav_approvals': _shows_approvals(nav_perms),
         # Callable: the template only runs the query where it shows the badge.
         'pending_access_requests': _pending_access_requests if platform_admin else 0,

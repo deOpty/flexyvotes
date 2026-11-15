@@ -47,7 +47,8 @@ their role assignments.
   request becomes a normal, audited `RoleAssignment`, scoped to their organization or one
   election. Menus, tabs and buttons are shown only for permissions the user holds
   (`rbac.permissions_anywhere`). The views enforce the same permissions and return 403
-  otherwise.
+  otherwise. Money figures (revenue, payouts, per-candidate revenue) on the dashboard, live
+  monitor and analytics pages need `payment.view`.
 - **System-only lifecycle actions** (`certify`, `decertify`, `reopen_voting`, `restart`,
   `restart_scheduled`) cannot be requested through the console or the API transition
   endpoint (`lifecycle.manual_transition`). Only the service that does their extra work can

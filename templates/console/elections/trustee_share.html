@@ -1,7 +1,8 @@
 {% extends 'console/base.html' %}
-{% load i18n %}
+{% load i18n fv %}
 {% block title %}{% translate "Your key share" %}{% endblock %}
 {% block console %}
+{% election_header event 'results' %}
 <div class="panel" style="max-width: 760px;">
     <h1 class="h4 fw-bold text-wine">{% translate "Your trustee key share" %} — {{ event.title }}</h1>
     <div class="alert alert-warning">{% translate "This is the only time this share is displayed. Store it offline now. Without enough shares the ballots can never be counted." %}</div>

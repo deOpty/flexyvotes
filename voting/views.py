@@ -136,7 +136,10 @@ def _ajax_or_redirect(request, payload, event_id, status=200):
         return JsonResponse(payload, status=status)
     if payload.get('status') == 'error':
         messages.error(request, payload.get('message', 'Something went wrong.'))
-    return redirect('event_detail', event_id=event_id)
+    elif payload.get('message'):
+        messages.success(request, payload['message'])
+    # Ballot forms are posted from the console Ballot tab: go back there, not to the public page.
+    return redirect('elections:console_ballot', event_id=event_id)
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +586,8 @@ def add_category(request, event):
     audit.record('ELECTION_POSITION_ADDED', request=request, event=event, target=category,
                  summary=f"Position '{name}' added", changes={'position': {'old': None, 'new': audit.snapshot(
                      category, ['name', 'ballot_type', 'min_select', 'max_select', 'seats', 'allow_abstain'])}})
-    return _ajax_or_redirect(request, {'status': 'success', 'id': category.pk}, event.pk)
+    return _ajax_or_redirect(request, {'status': 'success', 'id': category.pk, 'message': f"Position '{name}' added."},
+                             event.pk)
 
 
 @login_required
@@ -677,7 +681,8 @@ def add_candidate(request, event):
     candidate = Candidate.objects.create(event=event, image=image, display_order=event.candidates.count(), **values)
     audit.record('ELECTION_CANDIDATE_ADDED', request=request, event=event, target=candidate,
                  summary=f"Candidate '{candidate.name}' added")
-    return _ajax_or_redirect(request, {'status': 'success', 'id': candidate.pk}, event.pk)
+    return _ajax_or_redirect(request, {'status': 'success', 'id': candidate.pk,
+                                       'message': f"Candidate '{candidate.name}' added."}, event.pk)
 
 
 @login_required
@@ -728,7 +733,8 @@ def bulk_add_candidates(request, event):
         Candidate.objects.create(event=event, name=name, category=category, display_order=order + offset)
     audit.record('ELECTION_CANDIDATES_BULK_ADDED', request=request, event=event,
                  summary=f'{len(names)} candidates added', metadata={'position': category.pk if category else None})
-    return _ajax_or_redirect(request, {'status': 'success', 'count': len(names)}, event.pk)
+    return _ajax_or_redirect(request, {'status': 'success', 'count': len(names),
+                                       'message': f'{len(names)} candidates added.'}, event.pk)
 
 
 @event_permission_required('vote.view')
@@ -1140,7 +1146,7 @@ def create_ticket(request, event):
                                        quantity_available=quantity, image=request.FILES.get('image'))
         audit.record('TICKET_TYPE_CREATED', request=request, event=event, target=ticket, summary=f'Ticket "{name}" created')
         messages.success(request, f'Ticket type "{name}" added successfully.')
-        return redirect('event_detail', event_id=event.pk)
+        return redirect('event_guestlist', event_id=event.pk)
     return render(request, 'voting/create_ticket.html', {'event': event})
 
 
@@ -1371,7 +1377,7 @@ def edit_ticket(request, ticket_id):
         ticket.save()
         audit.record('TICKET_TYPE_UPDATED', request=request, event=event, target=ticket, summary=f'Ticket "{ticket.name}" updated')
         messages.success(request, f'Ticket "{ticket.name}" updated successfully.')
-        return redirect('event_detail', event_id=event.id)
+        return redirect('event_guestlist', event_id=event.id)
     return render(request, 'voting/edit_ticket.html', {'ticket': ticket, 'event': event})
 
 
@@ -1389,7 +1395,7 @@ def delete_ticket(request, ticket_id):
         audit.record('TICKET_TYPE_DELETED', request=request, event=event, target=ticket, summary=f'Ticket "{ticket.name}" deleted')
         ticket.delete()
         messages.success(request, 'Ticket deleted.')
-    return redirect('event_detail', event_id=event.id)
+    return redirect('event_guestlist', event_id=event.id)
 
 
 @ratelimit('retrieve-ticket', 10, 60, key='ip')

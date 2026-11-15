@@ -5,11 +5,15 @@
 {% block content %}
 {% with url_name=request.resolver_match.url_name ns=request.resolver_match.namespace %}
 <div class="console-shell">
-    <aside class="console-sidebar p-3" aria-label="{% translate 'Console navigation' %}">
-        <nav class="nav flex-column">
+    <aside class="console-sidebar px-3 py-2 p-lg-3" aria-label="{% translate 'Console navigation' %}">
+        {# Phones: the menu folds behind this button (it stays pinned under the top bar). Desktop: always open and sticky. #}
+        <button class="console-nav-toggle btn btn-outline-wine w-100 d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#console-nav" aria-expanded="false" aria-controls="console-nav">
+            <i class="bi bi-list me-2" aria-hidden="true"></i>{% translate "Menu" %}
+        </button>
+        <nav class="nav flex-column collapse d-lg-flex" id="console-nav">
             {# Every item below is shown only when the user holds the permission its page enforces (nav_perms). #}
             <a class="nav-link {% if url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}"><i class="bi bi-speedometer2 me-2" aria-hidden="true"></i>{% translate "Dashboard" %}</a>
-            <a class="nav-link {% if ns == 'elections' %}active{% endif %}" href="{% url 'elections:console_list' %}"><i class="bi bi-ballot me-2" aria-hidden="true"></i>{% translate "Elections" %}</a>
+            <a class="nav-link {% if nav_election_page %}active{% endif %}" href="{% url 'elections:console_list' %}"><i class="bi bi-ballot me-2" aria-hidden="true"></i>{% translate "Elections" %}</a>
             {% if 'election.create' in nav_perms %}<a class="nav-link {% if url_name == 'create_event' %}active{% endif %}" href="{% url 'create_event' %}"><i class="bi bi-plus-circle me-2" aria-hidden="true"></i>{% translate "New election" %}</a>{% endif %}
             {% if nav_approvals %}
             <a class="nav-link {% if url_name == 'approvals' %}active{% endif %}" href="{% url 'console:approvals' %}"><i class="bi bi-check2-square me-2" aria-hidden="true"></i>{% translate "Approvals" %}</a>
@@ -24,7 +28,7 @@
             {% if 'refund.approve' in nav_perms %}<a class="nav-link {% if url_name == 'refunds' %}active{% endif %}" href="{% url 'payments:refunds' %}"><i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>{% translate "Refunds" %}</a>{% endif %}
             {% endif %}
             <div class="sidebar-heading">{% if 'fraud.view' in nav_perms or 'audit.view' in nav_perms %}{% translate "Integrity" %}{% else %}{% translate "Reports" %}{% endif %}</div>
-            {% if 'fraud.view' in nav_perms %}<a class="nav-link {% if ns == 'fraud' %}active{% endif %}" href="{% url 'fraud:alerts' %}"><i class="bi bi-shield-exclamation me-2" aria-hidden="true"></i>{% translate "Fraud monitoring" %}</a>{% endif %}
+            {% if 'fraud.view' in nav_perms %}<a class="nav-link {% if ns == 'fraud' and url_name != 'blocklist' %}active{% endif %}" href="{% url 'fraud:alerts' %}"><i class="bi bi-shield-exclamation me-2" aria-hidden="true"></i>{% translate "Fraud monitoring" %}</a>{% endif %}
             {% if 'audit.view' in nav_perms %}<a class="nav-link {% if url_name == 'audit' %}active{% endif %}" href="{% url 'console:audit' %}"><i class="bi bi-journal-check me-2" aria-hidden="true"></i>{% translate "Audit log" %}</a>{% endif %}
             <a class="nav-link {% if url_name == 'reports' %}active{% endif %}" href="{% url 'console:reports' %}"><i class="bi bi-file-earmark-bar-graph me-2" aria-hidden="true"></i>{% translate "Reports" %}</a>
             {% if 'org.manage' in nav_perms or 'org.billing' in nav_perms or 'support.view' in nav_perms %}
@@ -39,8 +43,8 @@
             <a class="nav-link {% if url_name == 'organizers' %}active{% endif %}" href="{% url 'console:organizers' %}"><i class="bi bi-person-check me-2" aria-hidden="true"></i>{% translate "Organizer approvals" %}</a>
             <a class="nav-link {% if url_name == 'access_requests' %}active{% endif %}" href="{% url 'console:access_requests' %}"><i class="bi bi-key me-2" aria-hidden="true"></i>{% translate "Access requests" %}{% with n=pending_access_requests %}{% if n %} <span class="badge bg-danger ms-1">{{ n }}</span>{% endif %}{% endwith %}</a>
             <a class="nav-link {% if url_name == 'health' %}active{% endif %}" href="{% url 'console:health' %}"><i class="bi bi-heart-pulse me-2" aria-hidden="true"></i>{% translate "System health" %}</a>
-            <a class="nav-link" href="{% url 'fraud:blocklist' %}"><i class="bi bi-slash-circle me-2" aria-hidden="true"></i>{% translate "Blocklist" %}</a>
-            <a class="nav-link" href="{% url 'manage_store' %}"><i class="bi bi-bag me-2" aria-hidden="true"></i>{% translate "Store" %}</a>
+            <a class="nav-link {% if ns == 'fraud' and url_name == 'blocklist' %}active{% endif %}" href="{% url 'fraud:blocklist' %}"><i class="bi bi-slash-circle me-2" aria-hidden="true"></i>{% translate "Blocklist" %}</a>
+            <a class="nav-link {% if url_name == 'manage_store' or url_name == 'add_product' or url_name == 'edit_product' %}active{% endif %}" href="{% url 'manage_store' %}"><i class="bi bi-bag me-2" aria-hidden="true"></i>{% translate "Store" %}</a>
             <a class="nav-link" href="/api/v1/docs"><i class="bi bi-braces me-2" aria-hidden="true"></i>{% translate "API docs" %}</a>
             {% endif %}
             <div class="sidebar-heading">{% translate "You" %}</div>

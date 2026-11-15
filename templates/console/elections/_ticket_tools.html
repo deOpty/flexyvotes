@@ -1,0 +1,7 @@
+{% load i18n %}
+{# Sub-menu shared by the ticket pages (Tickets tab). ticket_tool marks the current page. #}
+<nav class="d-flex flex-wrap gap-2 mb-3" aria-label="{% translate 'Ticket tools' %}">
+    <a class="btn btn-sm {% if ticket_tool == 'guests' %}btn-wine" aria-current="page{% else %}btn-outline-secondary{% endif %}" href="{% url 'event_guestlist' event.pk %}"><i class="bi bi-people me-1" aria-hidden="true"></i>{% translate "Guest list & ticket types" %}</a>
+    <a class="btn btn-sm {% if ticket_tool == 'scanner' %}btn-wine" aria-current="page{% else %}btn-outline-secondary{% endif %}" href="{% url 'event_scanner' event.pk %}"><i class="bi bi-qr-code-scan me-1" aria-hidden="true"></i>{% translate "Ticket scanner" %}</a>
+    <a class="btn btn-sm {% if ticket_tool == 'add' %}btn-wine" aria-current="page{% else %}btn-outline-secondary{% endif %}" href="{% url 'create_ticket' event.pk %}"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>{% translate "Add ticket type" %}</a>
+</nav>

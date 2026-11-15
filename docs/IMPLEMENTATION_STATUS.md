@@ -262,6 +262,11 @@ WebSockets.
   revenue, voters, fraud alerts.
 - It also covers election, candidate, voter and payment management, fraud monitoring, the
   live election monitor, audit logs, results, reports, system health and support tickets.
+- **Navigation:** the console menu stays on every staff page (sticky on desktop, a pinned
+  **Menu** bar on phones), and every page about one election shows that election's tabs,
+  including edit details, ballot edits, tickets, pricing, payments and analytics. Forms
+  return to the tab they came from. Account and 403/404 pages keep the menu for console
+  users.
 
 ### 19. Candidate portal: Done
 
@@ -317,7 +322,7 @@ WebSockets.
 
 ### 26. Testing: Done
 
-- **Size:** 244 automated tests.
+- **Size:** 260 automated tests.
 - **Unit:** validation, eligibility, state transitions, payment states, limits, tally, fraud
   rules.
 - **Integration:** PostgreSQL in CI, Paystack mocked over HTTP, webhooks, authentication.

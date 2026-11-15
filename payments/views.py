@@ -141,9 +141,11 @@ def payments_list(request):
     events = events_for_user(request.user, 'payment.view')
     payments = Payment.objects.filter(Q(event__in=events) | Q(event__isnull=True) if has_perm(request.user, 'platform.admin')
                                       else Q(event__in=events)).select_related('event', 'candidate')
-    event_id = request.GET.get('event')
-    if event_id:
+    event_id = request.GET.get('event') or ''
+    event = None
+    if event_id.isdigit():
         payments = payments.filter(event_id=event_id)
+        event = events.filter(pk=event_id).first()
     status = request.GET.get('status')
     if status in Payment.Status.values:
         payments = payments.filter(status=status)
@@ -157,7 +159,7 @@ def payments_list(request):
             payments = payments.filter(reference__icontains=query.upper())
     return render(request, 'payments/console/list.html', {
         'page': Paginator(payments, 50).get_page(request.GET.get('page')), 'events': events.order_by('-created_at')[:200],
-        'statuses': Payment.Status.choices, 'filters': request.GET})
+        'statuses': Payment.Status.choices, 'filters': request.GET, 'event': event})
 
 
 @login_required

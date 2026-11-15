@@ -1,14 +1,31 @@
-{% extends 'voting/base.html' %}
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Guest list" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% election_header event 'tickets' %}
+{% include 'console/elections/_ticket_tools.html' with ticket_tool='guests' %}
+<div>
+    <div class="panel">
+        <h2 class="h5 fw-bold">{% translate "Ticket types" %}</h2>
+        {% with types=event.tickets.all %}
+        {% if types %}
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+            <thead><tr><th>{% translate "Name" %}</th><th>{% translate "Price" %}</th><th>{% translate "Available" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+            <tbody>{% for t in types %}<tr>
+                <td class="fw-semibold">{{ t.name }}</td><td>{{ t.price|money:event.currency }}</td><td>{{ t.quantity_available|number }}</td>
+                <td>{% if t.is_active %}<span class="badge bg-success">{% translate "On sale" %}</span>{% else %}<span class="badge bg-secondary">{% translate "Hidden" %}</span>{% endif %}</td>
+                <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'edit_ticket' t.pk %}">{% translate "Edit" %}</a></td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}
+        <p class="text-muted mb-0">{% translate "No ticket types yet." %} <a href="{% url 'create_ticket' event.pk %}">{% translate "Add a ticket type" %}</a></p>
+        {% endif %}
+        {% endwith %}
+    </div>
 
-{% block content %}
-<div class="container py-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 reveal">
-        <div>
-            <p class="section-eyebrow mb-1">Guest Management</p>
-            <h2 class="fw-bold text-wine mb-0">Guest List</h2>
-            <p class="text-muted mb-0">For event: <b>{{ event.title }}</b></p>
-        </div>
-        <a href="{% url 'download_guestlist' event.id %}" class="btn btn-gold px-3"><i class="bi bi-download me-1"></i> Export CSV</a>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+        <h2 class="h5 fw-bold text-wine mb-0">{% translate "Guest list" %}</h2>
+        <a href="{% url 'download_guestlist' event.id %}" class="btn btn-sm btn-gold px-3"><i class="bi bi-download me-1" aria-hidden="true"></i> {% translate "Export CSV" %}</a>
     </div>
 
     <div class="card border-0 shadow-sm rounded-4 reveal">
@@ -62,8 +79,5 @@
         </div>
     </div>
 
-    <div class="mt-4">
-        <a href="{% url 'event_detail' event.id %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i> Back to Event</a>
-    </div>
 </div>
 {% endblock %}

@@ -1,9 +1,9 @@
-{% extends 'voting/base.html' %}
+{% extends page_base|default:'core/page.html' %}
 {% load i18n %}
 {% block title %}{% translate "Account security" %}{% endblock %}
-{% block content %}
-<div class="container py-5" style="max-width: 980px;">
-    <h1 class="fw-bold text-wine">{% translate "Account security" %}</h1>
+{% block console %}
+<div style="max-width: 980px;">
+    <h1 class="h3 fw-bold text-wine">{% translate "Account security" %}</h1>
     {% if enrol %}<div class="alert alert-warning">{% translate "Your role requires two-step verification. Set up an authenticator app or a passkey to continue." %}</div>{% endif %}
 
     {% if recovery_codes %}

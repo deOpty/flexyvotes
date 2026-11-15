@@ -36,7 +36,7 @@ mocked with `responses`.
 
 ## 2. What is covered
 
-**244 tests** in 19 modules. The backup worker's shell
+**260 tests** in 20 modules. The backup worker's shell
 scripts are tested end to end against Docker; see the restore test log in
 [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#restore-test-log).
 
@@ -44,6 +44,7 @@ scripts are tested end to end against Docker; see the restore test log in
 |---|---|---|
 | `core/tests/test_crypto_audit.py` | 18 | Envelope encryption and AAD binding; data-key rotation; KEK rotation; upgrade from the derived KEK to a configured KEK and to KMS; `verify_integrity` fails when keys can't decrypt; encrypted columns stored as ciphertext; Ed25519 signatures; ballot sealing; Shamir thresholds; Merkle proofs; passphrase backups; audit chain linking, ORM refusal, tamper and delete detection, PostgreSQL triggers |
 | `core/tests/test_organizer_access.py` | 20 | Approved organizers get the Organizer role (not Organization Admin); organizer permissions are create/edit, candidates, submit, results and turnout only; organizers cannot approve, publish, open, pause, resume or close (console, legacy toggle, dashboard approve, API); admin-only pages return 403; sidebar, dashboard KPIs, election tabs and reports show only permitted items; monitor feed hides payments and fraud; access requests: request, duplicate, approve and grant (scoped to one election), reject, cancel, invalid role or scope, organizers cannot decide; dashboard approval also publishes; `0004_organizer_role` data migration |
+| `core/tests/test_console_navigation.py` | 16 | The console menu (with its phone **Menu** button) and the election tabs render on every staff page: edit details, ballot edits, analytics, tickets, pricing, an election's payments, store pages, account security and password change; the current tab and menu item are highlighted; ballot and ticket forms return to their console tab, not the public page; organizer tabs hide admin sections and analytics hides money; 403 and 404 pages keep the menu for console users (403 offers **Request access**) but stay public for everyone else; a bad `?event=` filter on payments is ignored |
 | `core/tests/test_rbac_security.py` | 27 | Organization-admin tenant scoping; event-scoped roles; read-only auditor; platform admin; role sync on migrate; CSP nonce and headers; correlation id; no-cache on sensitive pages; health endpoints, including load-balancer `Host` headers; metrics token; `security.txt` (contact, RFC 9116 expiry); API CORS; POST-only logout; open-redirect guard; SSRF allow-list and public-IP resolution; circuit breaker; rate-limit window; idempotency records; trusted-proxy client IP; CSV formula injection; spoofed uploads; OTP brute force; half-configured Cloudinary deploy warning |
 | `core/tests/test_auth_sso.py` | 11 | Lockout; TOTP enrolment, second step and replay protection; new-device alert and email step-up; session listing and remote revocation; enforced staff MFA; API token lifecycle; weak passwords and bots rejected at registration; staff SSO login; OIDC `nonce` / audience / `state` checks; voter SSO matched to the roll by verified email |
 | `core/tests/test_backups.py` | 5 | Backup status for the console: missing state, fresh vs stale backup and push, no repository configured, malformed status files, the **Backups** panel on `/console/health/` |

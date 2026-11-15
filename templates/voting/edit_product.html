@@ -1,7 +1,10 @@
-{% extends 'voting/base.html' %} {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-9 col-xl-8">
-    <div class="card shadow-soft border-0 mt-4 mb-5 rounded-4xl reveal">
+{% extends 'console/base.html' %}{% load i18n %}
+{% block title %}{% translate "Edit product" %}{% endblock %}
+{% block console %}
+<a href="{% url 'manage_store' %}" class="small text-muted">&larr; {% translate "Store" %}</a>
+<div class="row">
+  <div class="col-xl-10 col-xxl-9">
+    <div class="card shadow-soft border-0 mt-2 mb-5 rounded-4xl reveal">
       <div class="card-body p-4 p-md-5">
         <div class="d-flex align-items-center gap-3 mb-4">
           <span
@@ -11,7 +14,7 @@
           </span>
           <div>
             <p class="section-eyebrow mb-1">Store Administration</p>
-            <h3 class="mb-0 text-wine fw-bold">Edit Product</h3>
+            <h1 class="h3 mb-0 text-wine fw-bold">Edit Product</h1>
           </div>
         </div>
 

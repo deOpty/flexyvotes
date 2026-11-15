@@ -45,11 +45,24 @@ body.lite .bi { display: none; }
 .console-sidebar .nav-link.active, .console-sidebar .nav-link:hover { background: #fbf1f3; color: #800020; }
 .console-sidebar .sidebar-heading { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: #6b6b74; margin: 1rem .75rem .35rem; }
 .console-main { flex: 1; min-width: 0; padding: 1.5rem; background: #f7f7fa; }
+/* The menu stays in view on every console page: sticky beside the content on desktop, a pinned
+   "Menu" bar under the top navigation on phones. --console-top is the sticky top bar's height. */
+.console { --console-top: 64px; }
+.console-nav-toggle { text-align: left; }
+@media (min-width: 992px) {
+  .console-sidebar > nav { position: sticky; top: calc(var(--console-top) + 1rem); max-height: calc(100vh - var(--console-top) - 2rem); overflow-y: auto; flex-wrap: nowrap; }
+}
 @media (max-width: 991.98px) {
+  .console { --console-top: 56px; }
   .console-shell { display: block; }
-  .console-sidebar { width: 100%; border-right: 0; border-bottom: 1px solid #ececf1; }
+  .console-sidebar { width: 100%; border-right: 0; border-bottom: 1px solid #ececf1; position: sticky; top: var(--console-top); z-index: 1010; }
+  .console-sidebar > nav { max-height: calc(100vh - var(--console-top) - 4rem); overflow-y: auto; flex-wrap: nowrap; }
+  .console-sidebar > nav.show, .console-sidebar > nav.collapsing { margin-top: .5rem; }
   .console-main { padding: 1rem; }
 }
+/* Without JavaScript the toggle can't open the menu, so show the menu itself. */
+.no-js .console-nav-toggle { display: none; }
+.no-js .console-sidebar > nav.collapse { display: flex; }
 .kpi { border: 0; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
 .kpi .kpi-value { font-size: 1.7rem; font-weight: 700; color: #800020; line-height: 1.1; }
 .kpi .kpi-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b6b74; font-weight: 600; }

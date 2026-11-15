@@ -3,4 +3,5 @@
 {% block title %}{% translate "Access denied" %}{% endblock %}
 {% block code %}403{% endblock %}
 {% block heading %}{% translate "You don't have access to this page" %}{% endblock %}
+{% block extra_actions %}{% if is_console_user and not is_platform_admin %}<a href="{% url 'console:access_requests' %}" class="btn btn-outline-wine mt-3 ms-sm-2">{% translate "Request access" %}</a>{% endif %}{% endblock %}
 {% block message %}{% translate "Your role does not include the permission needed here. If you think this is a mistake, ask your organization administrator." %}{% endblock %}

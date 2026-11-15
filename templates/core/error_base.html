@@ -1,10 +1,12 @@
-{% extends 'voting/base.html' %}
+{% extends page_base|default:'core/page.html' %}
 {% load i18n %}
-{% block content %}
-<div class="container py-5 text-center" style="max-width: 640px;">
+{# Console users keep the console menu on 403/404 pages, so they can carry on without the back button. #}
+{% block console %}
+<div class="py-4 text-center mx-auto" style="max-width: 640px;">
     <div class="display-1 fw-bold text-wine">{% block code %}{% endblock %}</div>
     <h1 class="h3 fw-bold mb-3">{% block heading %}{% endblock %}</h1>
     <p class="text-muted">{% block message %}{% endblock %}</p>
-    <a href="/" class="btn btn-wine mt-3">{% translate "Back to home" %}</a>
+    {% if is_console_user %}<a href="{% url 'dashboard' %}" class="btn btn-wine mt-3">{% translate "Back to dashboard" %}</a>{% else %}<a href="/" class="btn btn-wine mt-3">{% translate "Back to home" %}</a>{% endif %}
+    {% block extra_actions %}{% endblock %}
 </div>
 {% endblock %}

@@ -1,13 +1,12 @@
-{% extends 'voting/base.html' %} {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    <div class="mb-4 reveal">
-      <span class="section-eyebrow">Organizer Tools</span>
-      <h2 class="fw-bold text-wine mb-1 mt-1">
-        <i class="bi bi-pencil-square me-2"></i>Edit Ticket
-      </h2>
-      <p class="text-muted mb-0">{{ ticket.name }}</p>
-    </div>
+{% extends 'console/base.html' %}{% load i18n fv %}
+{% block title %}{% translate "Edit ticket" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% election_header event 'tickets' %}
+{% include 'console/elections/_ticket_tools.html' with ticket_tool='edit' %}
+<div class="row">
+  <div class="col-xl-9">
+    <h2 class="h4 fw-bold text-wine mb-1"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Edit Ticket</h2>
+    <p class="text-muted mb-3">{{ ticket.name }}</p>
 
     <div class="card shadow-soft border-0 rounded-4xl reveal">
       <div class="card-body p-4 p-md-5">
@@ -110,7 +109,7 @@
 
           <div class="d-flex flex-column-reverse flex-sm-row gap-2 mt-4">
             <a
-              href="{% url 'event_detail' event.id %}"
+              href="{% url 'event_guestlist' event.id %}"
               class="btn btn-outline-secondary px-4"
               >Cancel</a
             >

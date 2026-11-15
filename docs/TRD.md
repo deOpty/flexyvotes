@@ -336,6 +336,14 @@ the recipient and context encrypted. The flow:
 - Accessibility preferences (high contrast, large text, low bandwidth) are stored in a
   cookie and applied as `<html>` classes. Low-bandwidth mode drops web fonts, icons and
   images.
+- **Console navigation.** Staff pages extend `console/base.html`, which draws the sidebar
+  menu (filtered by `nav_perms`). Pages that both staff and the public reach (account
+  security, password change, 403/404) extend `page_base` from the `platform` context
+  processor: `console/base.html` for console users, `core/page.html` otherwise. Every page
+  about one election renders `{% election_header event '<tab>' %}` (`core/templatetags/fv.py`),
+  which builds the tabs from `elections.views_console.header_context` and shows only the
+  sections the user may open. `nav_election_page` keeps **Elections** highlighted on
+  election pages outside the `elections` namespace.
 
 ## 11. Observability
 

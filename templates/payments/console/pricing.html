@@ -2,8 +2,8 @@
 {% load i18n fv %}
 {% block title %}{% translate "Pricing" %} | {{ event.title }}{% endblock %}
 {% block console %}
-<a href="{% url 'elections:console_overview' event.pk %}" class="small text-muted">&larr; {{ event.title }}</a>
-<h1 class="h3 fw-bold text-wine">{% translate "Pricing, bundles & discounts" %}</h1>
+{% election_header event 'pricing' %}
+<h2 class="h4 fw-bold text-wine">{% translate "Pricing, bundles & discounts" %}</h2>
 <p class="text-muted">{% blocktranslate with p=event.vote_price c=event.currency %}Base price: {{ c }} {{ p }} per vote (categories can override it for campaign pricing).{% endblocktranslate %}</p>
 <div class="row g-3">
     <div class="col-xl-7">

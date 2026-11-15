@@ -94,6 +94,14 @@ def bot_protection(context):
     }
 
 
+@register.inclusion_tag('console/elections/_header.html', takes_context=True)
+def election_header(context, event, tab=''):
+    """Election title, lifecycle buttons and tabs, for any console page about one election."""
+    from elections.views_console import header_context
+
+    return header_context(context['request'].user, event, tab)
+
+
 @register.filter
 def get_item(mapping, key):
     if mapping is None:
