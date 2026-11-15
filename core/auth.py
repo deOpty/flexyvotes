@@ -1,6 +1,7 @@
 """Staff / organizer authentication: lockout, MFA (TOTP, recovery codes,
 passkeys), suspicious-login step-up and device tracking."""
 import json
+import logging
 import time
 from datetime import timedelta
 
@@ -13,6 +14,8 @@ from django.utils import timezone
 from . import audit, crypto, metrics
 from .models import KnownDevice, UserSecurity, WebAuthnCredential
 from .utils import client_ip, device_hash, user_agent
+
+logger = logging.getLogger(__name__)
 
 PENDING_KEY = 'fv_mfa_pending'
 PENDING_TTL = 300
@@ -95,9 +98,22 @@ def suspicious_reasons(request, user):
 
 
 def begin_login(request, user):
-    """Password verified. Returns 'done' or 'mfa' (second step required)."""
+    """Password verified. Returns 'done', 'mfa' (second step required) or
+    'throttled' (a step-up code is needed but none can be sent right now)."""
+    from notifications.channels import email_configured
+
     methods = mfa_methods(user)
     reasons = suspicious_reasons(request, user)
+    if reasons and not methods and user.email and not email_configured():
+        # The step-up code goes by email. With no email delivery set up it could
+        # never arrive and the right password would no longer get anyone in, so
+        # the check is skipped - visibly, in the audit log and the server log.
+        logger.warning('Sign-in step-up skipped for user %s (%s): email delivery is not configured.',
+                       user.pk, ', '.join(reasons))
+        audit.record('AUTH_STEPUP_SKIPPED', request=request, actor=user, target=user, result='SUCCESS',
+                     summary='Extra sign-in check skipped: email delivery is not configured',
+                     metadata={'reasons': reasons})
+        reasons = []
     if not methods and not (reasons and user.email):
         complete_login(request, user, 'password')
         return 'done'
@@ -107,11 +123,15 @@ def begin_login(request, user):
 
         try:
             challenge = otp.issue('STAFF_STEPUP', 'user', user.pk, 'EMAIL', user.email, label='sign-in verification')
-            methods = ['email']
-            request.session['fv_stepup_challenge'] = str(challenge.pk)
         except otp.OTPError:
-            complete_login(request, user, 'password')
-            return 'done'
+            # A code went out moments ago (resend cooldown) or too many were sent this
+            # hour. Ask for the code already in the inbox; signing in on the password
+            # alone would let anyone with the password skip the check by retrying.
+            challenge = otp.open_challenge('STAFF_STEPUP', 'user', user.pk)
+            if challenge is None:
+                return 'throttled'
+        methods = ['email']
+        request.session['fv_stepup_challenge'] = str(challenge.pk)
     request.session[PENDING_KEY] = {'user': user.pk, 'at': int(time.time()), 'methods': methods, 'reasons': reasons}
     return 'mfa'
 

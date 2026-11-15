@@ -158,6 +158,26 @@ def security_txt(request):
     return HttpResponse('\n'.join(lines) + '\n', content_type='text/plain')
 
 
+@require_GET
+def favicon(request):
+    """Browsers ask for /favicon.ico on their own; without it every page logs a 404."""
+    from django.templatetags.static import static
+
+    return redirect(static('core/img/favicon.svg'))
+
+
+def csrf_failure(request, reason=''):
+    """A form's CSRF check failed: usually a page left open too long, or
+    cookies that never reached the browser. Explains what to do instead of
+    Django's bare "CSRF verification failed" page."""
+    from django.middleware.csrf import REASON_NO_CSRF_COOKIE
+
+    return render(request, 'core/403_csrf.html', {
+        'cookie_missing': reason == REASON_NO_CSRF_COOKIE,
+        'retry_url': request.get_full_path(),
+    }, status=403)
+
+
 def error_403(request, exception=None):
     return render(request, 'core/403.html', status=403)
 

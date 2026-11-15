@@ -7,8 +7,10 @@ import zoneinfo
 from django.conf import settings
 from django.contrib.auth import logout
 from django.core.cache import cache
+from django.core.exceptions import DisallowedHost
 from django.db import connection
 from django.http import HttpResponse, JsonResponse
+from django.http.request import split_domain_port
 from django.shortcuts import redirect
 from django.utils import timezone
 
@@ -217,6 +219,51 @@ class UserPreferencesMiddleware:
         return response
 
 
+LOCAL_HOSTS = ('localhost', '127.0.0.1', '[::1]')
+
+
+def trustworthy_origin(request):
+    """True when the browser treats the page as a secure context: HTTPS
+    (directly or via the proxy's X-Forwarded-Proto) or a localhost address.
+    Browsers ignore COOP and refuse Secure cookies everywhere else."""
+    if request.is_secure():
+        return True
+    try:
+        host, _port = split_domain_port(request.get_host())
+    except DisallowedHost:
+        return False
+    return host in LOCAL_HOSTS or host.endswith('.localhost')
+
+
+class CookieSecurityMiddleware:
+    """Applies COOKIE_SECURE=auto: cookies keep the Secure flag on HTTPS
+    responses and lose it on plain-HTTP ones, where browsers would drop them
+    (no CSRF cookie, no session - nobody could sign in or submit a form).
+
+    In COOKIE_SECURE=True mode nothing changes; a plain-HTTP request is
+    logged once per process because sign-in cannot work on it."""
+
+    _warned = False
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        mode = getattr(settings, 'COOKIE_SECURE_MODE', 'auto')
+        if not response.cookies or request.is_secure():
+            return response
+        if mode == 'auto':
+            for morsel in response.cookies.values():
+                morsel['secure'] = ''
+        elif mode == 'always' and not CookieSecurityMiddleware._warned:
+            CookieSecurityMiddleware._warned = True
+            logger.warning('COOKIE_SECURE=True but %s was requested over plain HTTP: browsers drop Secure cookies '
+                           'there, so sign-in and forms fail. Serve the site over HTTPS or set COOKIE_SECURE=auto.',
+                           request.META.get('HTTP_HOST', '')[:100])
+        return response
+
+
 def build_csp(nonce, secure=True):
     from .captcha import provider_config
 
@@ -237,7 +284,8 @@ def build_csp(nonce, secure=True):
         'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com', *cdn],
         'img-src': ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://images.unsplash.com',
                     'https://via.placeholder.com'],
-        'connect-src': ["'self'", *captcha_hosts, *settings.CSP_EXTRA_CONNECT_SRC],
+        # The CDNs are listed so browser dev tools can load their source maps (*.map).
+        'connect-src': ["'self'", *cdn, *captcha_hosts, *settings.CSP_EXTRA_CONNECT_SRC],
         'frame-src': ["'self'", *captcha_hosts],
         'media-src': ["'self'", 'blob:'],
         'worker-src': ["'self'", 'blob:'],
@@ -266,8 +314,11 @@ class SecurityHeadersMiddleware:
         header = 'Content-Security-Policy-Report-Only' if settings.CSP_REPORT_ONLY else 'Content-Security-Policy'
         if header not in response:
             response[header] = build_csp(request.csp_nonce, secure=request.is_secure())
-        response.setdefault('Permissions-Policy',
-                            'camera=(self), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()')
+        # Only features every current browser recognises: an unknown one (e.g. the retired
+        # FLoC 'interest-cohort') makes Chrome log an error on every page.
+        response.setdefault('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()')
+        if settings.CROSS_ORIGIN_OPENER_POLICY and trustworthy_origin(request):
+            response.setdefault('Cross-Origin-Opener-Policy', settings.CROSS_ORIGIN_OPENER_POLICY)
         response.setdefault('Cross-Origin-Resource-Policy', 'same-origin')
         response.setdefault('X-Permitted-Cross-Domain-Policies', 'none')
         user = getattr(request, 'user', None)

@@ -251,6 +251,10 @@ def sso_callback(request, provider):
         messages.error(request, 'No organizer account is linked to that identity.')
         return redirect('login')
     request.session['fv_login_next'] = flow.get('next') or reverse('dashboard')
-    if auth.begin_login(request, user) == 'mfa':
+    outcome = auth.begin_login(request, user)
+    if outcome == 'throttled':
+        messages.error(request, 'Too many sign-in codes were requested for this account. Wait a few minutes, then try again.')
+        return redirect('login')
+    if outcome == 'mfa':
         return redirect('account:mfa')
     return redirect(_next(request))

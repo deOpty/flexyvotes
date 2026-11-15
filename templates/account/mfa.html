@@ -31,5 +31,6 @@
             <button class="btn btn-outline-wine w-100">{% translate "Use recovery code" %}</button></form>
     </details>
     {% endif %}
+    <p class="small text-muted mt-3 mb-0">{% if 'email' in methods %}{% translate "No email after a few minutes? Check your spam folder, or start again to get a new code." %} {% endif %}<a href="{% url 'login' %}">{% translate "Back to sign in" %}</a></p>
 </div>
 {% endblock %}

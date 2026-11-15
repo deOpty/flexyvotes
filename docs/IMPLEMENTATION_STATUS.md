@@ -109,7 +109,11 @@ how it is tested.
 - **Second factor:** can be required per election.
 - **Staff security:** TOTP 2FA with recovery codes, passkeys (WebAuthn), session list and
   revocation, known devices.
-- **Suspicious sign-ins:** a new device triggers an alert and an email step-up.
+- **Suspicious sign-ins:** a new device triggers an alert and an email step-up. The step is
+  skipped and audited when no email delivery is configured, and retrying reuses the code
+  already sent instead of bypassing it.
+- **Sign-in over plain HTTP:** `COOKIE_SECURE=auto` (default) keeps sign-in working on
+  `http://<ip>:<port>` before TLS and marks cookies `Secure` on HTTPS.
 - **Abuse protection:** rate limits per IP and per identifier, lockout, honeypot and
   CAPTCHA (Turnstile, hCaptcha or reCAPTCHA).
 - **Tests:** `test_auth_sso`, `test_web_flows`, `test_rbac_security`.
@@ -322,7 +326,7 @@ WebSockets.
 
 ### 26. Testing: Done
 
-- **Size:** 260 automated tests.
+- **Size:** 276 automated tests.
 - **Unit:** validation, eligibility, state transitions, payment states, limits, tally, fraud
   rules.
 - **Integration:** PostgreSQL in CI, Paystack mocked over HTTP, webhooks, authentication.

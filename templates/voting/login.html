@@ -14,6 +14,13 @@
                     <p class="text-muted small mb-0">Sign in to manage your events</p>
                 </div>
 
+                {% if secure_cookies_blocked %}
+                <div class="alert alert-warning small" role="alert">
+                    <strong>Sign-in can't work on this address.</strong> The server only issues its sign-in cookies over
+                    HTTPS, but this page was opened with <code>http://</code>. Open the site with <code>https://</code>,
+                    or (server administrators) set <code>COOKIE_SECURE=auto</code> in <code>.env</code> and restart.
+                </div>
+                {% endif %}
                 <form method="POST">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ next }}">

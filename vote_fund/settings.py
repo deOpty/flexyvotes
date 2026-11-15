@@ -100,6 +100,8 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'core.middleware.BackpressureMiddleware',
+    # Before every middleware that sets cookies, so it sees all of them on the way out.
+    'core.middleware.CookieSecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -420,11 +422,30 @@ BLIND_INDEX_KEY = env('BLIND_INDEX_KEY')
 # the real client IP out of X-Forwarded-For; 0 = trust REMOTE_ADDR only.
 TRUSTED_PROXY_COUNT = env_int('TRUSTED_PROXY_COUNT', 0)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-# Secure cookies are only sent over HTTPS. COOKIE_SECURE=False is for a server
-# reached over plain HTTP (e.g. by IP before TLS is set up): browsers refuse
-# Secure cookies from http:// origins, so login and every form would fail.
-# `check --deploy` warns while it is off (flexyvotes.W008).
-COOKIE_SECURE = env_bool('COOKIE_SECURE', not DEBUG)
+# Secure cookies are only sent over HTTPS, and browsers drop a Secure cookie
+# that arrives on a plain-HTTP page, so login and every form fail there.
+#   auto  (default) Secure exactly when the request came over HTTPS (directly
+#         or via a proxy's X-Forwarded-Proto): works on http://<ip>:<port>
+#         before TLS and is fully Secure once HTTPS is on.
+#   True  always Secure - HTTPS-only sites. Over http:// sign-in cannot work;
+#         the login page and the CSRF error page then say so.
+#   False never Secure (flexyvotes.W008 warns).
+# core.middleware.CookieSecurityMiddleware applies the auto mode.
+def cookie_secure_mode(raw):
+    value = (raw or 'auto').strip().lower()
+    if value == 'auto':
+        return 'auto'
+    if value in ('1', 'true', 'yes', 'on', 'always'):
+        return 'always'
+    if value in ('0', 'false', 'no', 'off', 'never'):
+        return 'never'
+    raise ImproperlyConfigured('COOKIE_SECURE must be auto, True or False.')
+
+
+COOKIE_SECURE_MODE = cookie_secure_mode(env('COOKIE_SECURE', 'auto'))
+# Cookies are created Secure unless the mode is "never"; in "auto" the
+# middleware removes the flag on plain-HTTP responses.
+COOKIE_SECURE = COOKIE_SECURE_MODE != 'never'
 SESSION_COOKIE_SECURE = COOKIE_SECURE
 CSRF_COOKIE_SECURE = COOKIE_SECURE
 SESSION_COOKIE_HTTPONLY = True
@@ -437,7 +458,11 @@ CSRF_COOKIE_NAME = 'fv_csrftoken'
 X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+# Sent by SecurityHeadersMiddleware, and only on HTTPS or localhost: browsers
+# ignore COOP on other http:// origins and log a console error for it.
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 SECURE_SSL_REDIRECT = env_bool('SECURE_SSL_REDIRECT', False) and not DEBUG
 SECURE_HSTS_SECONDS = 0 if DEBUG else env_int('SECURE_HSTS_SECONDS', 0)

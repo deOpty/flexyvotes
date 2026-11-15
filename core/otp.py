@@ -2,7 +2,7 @@
 import uuid
 from datetime import timedelta
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from . import crypto, ratelimit
@@ -47,6 +47,14 @@ def issue(purpose, subject_type, subject_id, channel, destination, *, label='', 
            context={'code': code, 'label': label or 'verification', 'minutes': int(OTP_TTL.total_seconds() // 60)},
            immediate=True)
     return challenge
+
+
+def open_challenge(purpose, subject_type, subject_id):
+    """The newest code that can still be used (not consumed, not expired,
+    attempts left), or None."""
+    return OTPChallenge.objects.filter(
+        purpose=purpose, subject_type=subject_type, subject_id=str(subject_id), consumed_at__isnull=True,
+        expires_at__gt=timezone.now(), attempts__lt=models.F('max_attempts')).order_by('-created_at').first()
 
 
 def verify(challenge_id, code, *, purpose, subject_type, subject_id):

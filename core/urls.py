@@ -38,6 +38,7 @@ urlpatterns = [
     path('prefs/', views.set_preferences, name='set_preferences'),
     path('prefs/timezone/', views.set_timezone, name='set_timezone'),
     path('accessibility/', views.accessibility_page, name='accessibility'),
+    path('favicon.ico', views.favicon, name='favicon'),
     path('.well-known/security.txt', views.security_txt, name='security_txt'),
     path('.well-known/flexyvotes-signing-key.json', views.signing_key, name='signing_key'),
     path('auth/sso/<str:provider>/start/', account.sso_start, name='sso_start'),

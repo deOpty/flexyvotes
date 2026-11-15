@@ -187,7 +187,8 @@ switching to KMS also works. The procedure is in
 | Lockout | `LOGIN_MAX_FAILURES` failures → locked for `LOGIN_LOCKOUT_SECONDS`; plus per-IP rate limits |
 | TOTP | `pyotp`; secret encrypted; each time step accepted only once (replay protection); 10 recovery codes stored as HMACs |
 | Passkeys | WebAuthn (`webauthn` 3.x), resident or roaming; sign-count checked |
-| Step-up | A new device or risky sign-in → email OTP; staff with `ENFORCE_STAFF_MFA` must enroll MFA |
+| Step-up | A new device, recent failed attempts or a risky sign-in → email OTP (`core.auth.begin_login`). Skipped and audited (`AUTH_STEPUP_SKIPPED`) when no email delivery is configured (`notifications.channels.email_configured`). A retry inside the resend cooldown reuses the open code (`otp.open_challenge`); with none left the sign-in gets a 429. Staff with `ENFORCE_STAFF_MFA` must enroll MFA |
+| Cookies | `COOKIE_SECURE=auto`: `CookieSecurityMiddleware` keeps `Secure` on HTTPS responses (incl. `X-Forwarded-Proto: https`) and removes it on plain-HTTP ones; `True` always `Secure`, `False` never. CSRF failures render `core.views.csrf_failure` |
 | SSO | OIDC authorization code with PKCE, `state` and `nonce`, JWKS signature check, `iss`/`aud`/`exp`; Google, Microsoft, or per-organization config |
 | LDAP | `ldap3` bind as the user over LDAPS/StartTLS; per-organization config (encrypted) |
 | Voter OTP | 6 digits, 10-minute expiry, 5 attempts, issue rate limited; sent to the address on the roll only |

@@ -35,9 +35,11 @@ class Command(BaseCommand):
         "DJANGO_SUPERUSER_USERNAME / _EMAIL / _PASSWORD, and extra admins from "
         "DJANGO_SUPERUSER_2_USERNAME / _2_EMAIL / _2_PASSWORD, DJANGO_SUPERUSER_3_..., and so on. "
         "An existing account's password, email and superuser/staff flags are synced to the current "
-        "values, so rotating a password in .env and restarting always takes effect. Safe to run "
-        "repeatedly (it runs on every web container start). Removing a block from .env does not "
-        "delete the account - deactivate it in the admin instead."
+        "values, so rotating a password in .env and restarting always takes effect. An unchanged "
+        "password is left alone, so restarts do not sign the admins out. A seeded admin locked out "
+        "after failed sign-ins is unlocked. Safe to run repeatedly (it runs on every web container "
+        "start). Removing a block from .env does not delete the account - deactivate it in the admin "
+        "instead."
     )
 
     def handle(self, *args, **options):
@@ -64,13 +66,28 @@ class Command(BaseCommand):
         if created:
             user = User(username=username)
         user.email = email
-        user.set_password(password)
+        # Re-hashing an unchanged password would change the stored hash and end
+        # every session of this admin on each container start.
+        if created or not user.check_password(password):
+            user.set_password(password)
         user.is_staff = True
         user.is_superuser = True
         user.is_active = True
         user.save()
+        unlocked = self.unlock(user)
         if created:
             self.stdout.write(self.style.SUCCESS(f'Created superuser "{username}".'))
         else:
             self.stdout.write(self.style.SUCCESS(f'Synced superuser "{username}" to current environment values.'))
+        if unlocked:
+            self.stdout.write(self.style.WARNING(f'Unlocked "{username}" (it was locked after failed sign-ins).'))
         return 1
+
+    @staticmethod
+    def unlock(user):
+        """Restarting with the admin's credentials in .env is the recovery path
+        for an admin locked out after failed sign-ins."""
+        from core.models import UserSecurity
+
+        return bool(UserSecurity.objects.filter(user=user).exclude(failed_login_count=0, locked_until=None)
+                    .update(failed_login_count=0, locked_until=None))

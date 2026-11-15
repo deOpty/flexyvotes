@@ -10,6 +10,20 @@ logger = logging.getLogger(__name__)
 
 SENT, FAILED, SKIPPED = 'SENT', 'FAILED', 'SKIPPED'
 
+# Backends that never reach a person. Without SMTP settings production falls
+# back to the console backend, which only writes the email to the server log.
+NON_DELIVERING_EMAIL_BACKENDS = (
+    'django.core.mail.backends.console.EmailBackend',
+    'django.core.mail.backends.dummy.EmailBackend',
+    'django.core.mail.backends.filebased.EmailBackend',
+)
+
+
+def email_configured():
+    """True when an email can actually reach its recipient. In DEBUG the
+    console backend counts: a developer reads the message in the terminal."""
+    return settings.DEBUG or settings.EMAIL_BACKEND not in NON_DELIVERING_EMAIL_BACKENDS
+
 
 def send_email(recipient, subject, text, html=None):
     if not recipient:

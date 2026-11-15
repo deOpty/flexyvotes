@@ -33,6 +33,7 @@ def platform_security_checks(app_configs, **kwargs):
         issues.append(Warning('MEDIA_STORAGE=cloudinary but CLOUDINARY_CLOUD_NAME / _API_KEY / _API_SECRET are not all '
                               'set: uploads are stored on local disk instead.', id='flexyvotes.W007'))
     if not getattr(settings, 'COOKIE_SECURE', True):
-        issues.append(Warning('COOKIE_SECURE=False: session and CSRF cookies travel over plain HTTP. Use this only '
-                              'until HTTPS is set up.', id='flexyvotes.W008'))
+        issues.append(Warning('COOKIE_SECURE=False: session and CSRF cookies are never marked Secure, even on '
+                              'HTTPS. Use COOKIE_SECURE=auto (the default), which also works over plain HTTP.',
+                              id='flexyvotes.W008'))
     return issues

@@ -63,6 +63,17 @@ elif [ "${#passphrase}" -lt 16 ]; then
     warn "BACKUP_PASSPHRASE is shorter than 16 characters: backups will be refused."
 fi
 [ -n "$(env_value BACKUP_GIT_REPO)" ] || warn "BACKUP_GIT_REPO is not set: backups stay on this server only (no GitHub copy)."
+# A site reached over plain http:// can neither redirect to HTTPS nor use
+# HTTPS-only cookies: either makes signing in impossible.
+lower() { tr '[:upper:]' '[:lower:]'; }
+if [[ "$(env_value SITE_URL)" == http://* ]]; then
+    case "$(env_value SECURE_SSL_REDIRECT | lower)" in
+        true|1|yes|on) warn "SITE_URL is http:// but SECURE_SSL_REDIRECT=True: every page redirects to https://, which this server does not answer. Fix: deploy/set-env.sh SECURE_SSL_REDIRECT=False" ;;
+    esac
+    case "$(env_value COOKIE_SECURE | lower)" in
+        true|1|yes|on|always) warn "SITE_URL is http:// but COOKIE_SECURE=True: browsers drop the sign-in cookies, so nobody can log in. Fix: deploy/set-env.sh COOKIE_SECURE=auto" ;;
+    esac
+fi
 
 # --- Update code -------------------------------------------------------------------
 if $PULL && [ -d .git ]; then

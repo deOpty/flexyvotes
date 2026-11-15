@@ -349,6 +349,10 @@ def login_view(request):
             messages.error(request, 'Invalid username or password.')
             return render(request, 'voting/login.html', {'next': next_url})
         outcome = staff_auth.begin_login(request, user)
+        if outcome == 'throttled':
+            messages.error(request, 'Too many sign-in codes were requested for this account. '
+                                    'Wait a few minutes, then try again.')
+            return render(request, 'voting/login.html', {'next': next_url}, status=429)
         if outcome == 'mfa':
             request.session['fv_login_next'] = next_url
             return redirect('account:mfa')

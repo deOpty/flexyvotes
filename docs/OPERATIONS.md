@@ -57,7 +57,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `SECURE_HSTS_SECONDS` | `0` | e.g. `31536000` once HTTPS works |
 | `TRUSTED_PROXY_COUNT` | `0` | Number of proxies in front of the app: `1` for ALB or nginx, `2` for ALB + nginx. Decides the client IP used for rate limits and fraud scoring. |
 | `SESSION_COOKIE_AGE` | `28800` | Session lifetime in seconds |
-| `COOKIE_SECURE` | `True` (when `DEBUG=False`) | Marks cookies `Secure` (HTTPS only). Set it to `False` **only** while the server is reached over plain HTTP, such as `http://<ip>:<port>` before TLS is set up; otherwise browsers drop the cookies and login fails. `check --deploy` reports `flexyvotes.W008` while it is off. |
+| `COOKIE_SECURE` | `auto` | `auto`: cookies are marked `Secure` (HTTPS only) whenever the request came over HTTPS, directly or through a proxy's `X-Forwarded-Proto`, and stay usable on plain `http://<ip>:<port>` before TLS. `True`: always `Secure`. Use it only on HTTPS-only sites; over `http://` browsers drop the cookies, and the login page then explains why sign-in can't work. `False`: never `Secure`, and `check --deploy` reports `flexyvotes.W008`. |
 | `ENFORCE_STAFF_MFA` | `False` | Console users must enroll TOTP or a passkey |
 | `LOGIN_MAX_FAILURES`, `LOGIN_LOCKOUT_SECONDS` | `5`, `900` | Account lockout |
 | `VOTER_LOGIN_PER_IP_PER_MIN` | `120` | Voter sign-in attempts per IP per minute (web and API) |
@@ -115,7 +115,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `LOG_FORMAT` | `text` | `json` in production |
 | `DJANGO_LOG_LEVEL` | `INFO` | |
 | `SENTRY_DSN`, `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Error tracking and tracing |
-| `DJANGO_SUPERUSER_USERNAME`, `_EMAIL`, `_PASSWORD` | — | `seed_admin` creates or syncs this admin on every web start |
+| `DJANGO_SUPERUSER_USERNAME`, `_EMAIL`, `_PASSWORD` | — | `seed_admin` creates or syncs this admin on every web start. An unchanged password is left alone, so restarts don't sign the admin out. A seeded admin locked out after failed sign-ins is unlocked. |
 | `DJANGO_SUPERUSER_2_USERNAME`, `_2_EMAIL`, `_2_PASSWORD` (and `_3_`, `_4_` …) | — | Additional admins, seeded the same way. Sign in with the username, and use the person's own email, because new-device sign-in codes are sent to it. Passwords must pass the strength rules, or the account is left unchanged and the web log says why. Removing a block doesn't delete the account. |
 | `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD`, `PGADMIN_PORT`, `PGADMIN_BIND` | —, —, `5051`, `0.0.0.0` | pgAdmin starts with the stack, with the "FlexyVotes" server (host `db`) pre-registered. The login is applied only when the `pgadmin_data` volume is first created. Set `PGADMIN_BIND=127.0.0.1` to reach it only through a tunnel. |
 
@@ -141,7 +141,7 @@ Everything is read from the environment, or from `.env` in development. Values m
 | Command | Use |
 |---|---|
 | `check --deploy` | Django and FlexyVotes deployment checks (`flexyvotes.W001`–`W008`) |
-| `seed_admin` | Create or sync every admin from `DJANGO_SUPERUSER_*` and `DJANGO_SUPERUSER_<n>_*` |
+| `seed_admin` | Create or sync every admin from `DJANGO_SUPERUSER_*` and `DJANGO_SUPERUSER_<n>_*`, and unlock any of them locked out after failed sign-ins (`docker compose exec web python manage.py seed_admin`) |
 | `verify_integrity [--skip-evidence]` | Verify audit chains, signed config snapshots, result certifications (signature, result hash, bulletin root), evidence checksums, and that the configured keys unwrap every data key and decrypt the encrypted columns. Non-zero exit on any failure. |
 | `keys status` | KEK provider, data keys (and any not on the active KEK), signing-key source and fingerprint |
 | `keys generate-kek` / `generate-signing-key` / `generate-blind-index` | Create new key material |
@@ -302,8 +302,11 @@ move it onto dedicated keys:
 | Symptom | Cause / fix |
 |---|---|
 | `400 Bad Request` on every page | The `Host` isn't in `ALLOWED_HOSTS`. When browsing by IP, add the IP, e.g. `ALLOWED_HOSTS=16.192.12.135` |
-| Reached over `http://<ip>`: login loops, or forms give CSRF errors | `Secure` cookies are refused over HTTP. Until HTTPS is set up, use `COOKIE_SECURE=False`, `SECURE_SSL_REDIRECT=False`, `SECURE_HSTS_SECONDS=0`, and `CSRF_TRUSTED_ORIGINS=http://<ip>:<port>` |
-| CSRF failures on login over plain HTTP | Cookies are `Secure` when `DEBUG=False`. Use HTTPS, or `DEBUG=True` locally. |
+| Reached over `http://<ip>`: the login page says *"Sign-in can't work on this address"*, or a form says *"This form could not be accepted"* | `COOKIE_SECURE=True` forces HTTPS-only cookies, which browsers drop on `http://` pages. Run `deploy/set-env.sh COOKIE_SECURE=auto SECURE_SSL_REDIRECT=False SECURE_HSTS_SECONDS=0`, then `./deploy.sh`. `./deploy.sh` warns about this combination. |
+| Every page redirects to `https://` and the browser can't connect | `SECURE_SSL_REDIRECT=True` on a server without TLS: `deploy/set-env.sh SECURE_SSL_REDIRECT=False` |
+| A value changed in `.env` with `sed` doesn't take effect | A pattern written as `s\|^KEY=.\*\|…\|` (backslash before `*`) matches nothing, so the old line stays. Use `deploy/set-env.sh KEY=VALUE …`, which replaces the line or appends it. |
+| An admin waits on *"Code sent to your email"* and nothing arrives | An unusual sign-in (new device, recent failed attempts) asks for an emailed code. Without SMTP settings (`EMAIL_HOST_USER`/`EMAIL_HOST_PASSWORD`) this step is skipped and recorded as `AUTH_STEPUP_SKIPPED`. If SMTP is set but failing, check the worker logs; **Back to sign in** starts over with the same code. |
+| An admin is locked out after failed sign-ins | Lockouts lift on their own (15 minutes, doubling on repeats). For a seeded admin, restart `web` or run `docker compose exec web python manage.py seed_admin`. |
 | Static files 404 | The image was built without `collectstatic` (see the Dockerfile), or `DEBUG=False` without WhiteNoise in the middleware |
 | Encrypted fields show errors after a config change | A KEK was removed while data keys still used it. Restore the old entry in `FIELD_ENCRYPTION_KEYS`, then run `keys rewrap`. |
 | Voters at one site get 429 | Shared NAT; see [DEPLOYMENT.md §5](DEPLOYMENT.md#5-elections-behind-a-campus-nat) |

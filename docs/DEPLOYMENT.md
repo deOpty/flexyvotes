@@ -242,6 +242,10 @@ Use this for staging or smaller production, with RDS as the database.
    git clone <repo> /opt/flexyvotes && cd /opt/flexyvotes
    cp .env.example .env && chmod 600 .env
    # Fill in .env (see §1 and §3.3). DATABASE_URL points to RDS with the owner role.
+   # Change single values with deploy/set-env.sh KEY=VALUE ... (replaces the line or appends it).
+   # Reached by IP over plain HTTP before TLS? Run:
+   #   deploy/set-env.sh SITE_URL=http://<ip>:<port> ALLOWED_HOSTS=<ip> \
+   #       SECURE_SSL_REDIRECT=False SECURE_HSTS_SECONDS=0 COOKIE_SECURE=auto
    # POOLED_DATABASE_URL=postgres://flexyvotes_app:…@pgbouncer:6432/flexyvotes for the services
    ```
 3. **TLS certificates** go in `deploy/nginx/certs/` as `fullchain.pem` and `privkey.pem`,

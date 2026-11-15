@@ -1,0 +1,15 @@
+{% extends 'core/error_base.html' %}
+{% load i18n %}
+{% block title %}{% translate "Please try again" %}{% endblock %}
+{% block code %}403{% endblock %}
+{% block heading %}{% translate "This form could not be accepted" %}{% endblock %}
+{% block message %}
+{% if secure_cookies_blocked %}
+{% translate "This server only issues its security cookies over HTTPS, but the page was opened with http://, so your browser dropped them. Open the site with https:// - or, if you run this server, set COOKIE_SECURE=auto in .env and restart it." %}
+{% elif cookie_missing %}
+{% translate "Your browser did not send this site's security cookie. Make sure cookies are allowed for this site, reload the page and try again." %}
+{% else %}
+{% translate "For your security, forms expire after a while. Reload the page and submit it again." %}
+{% endif %}
+{% endblock %}
+{% block extra_actions %}<a href="{{ retry_url }}" class="btn btn-outline-wine mt-3 ms-sm-2">{% translate "Try again" %}</a>{% endblock %}

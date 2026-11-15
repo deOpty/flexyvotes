@@ -52,7 +52,7 @@ flexyvotes/
 │   ├── static/core/            platform.css, app.js (no inline scripts; CSP-safe)
 │   ├── testing.py              FlexyTestRunner (clears the cache per test)
 │   └── tests/                  factories.py, test_crypto_audit, test_rbac_security, test_auth_sso, test_i18n, test_organizer_access,
-│                               test_console_navigation
+│                               test_console_navigation, test_admin_login
 │
 ├── voting/                     Events, positions, candidates, paid-vote ledger, tickets, store, public pages
 │   ├── models.py               Event (lifecycle, auth methods, freezes, limits), Category, Candidate, VoteTransaction,
@@ -101,7 +101,7 @@ flexyvotes/
 ├── api/                        api.py (django-ninja REST API v1: auth, organizations, elections, ballot, payments,
 │                               webhooks, audit), tests/
 │
-├── templates/                  Server-rendered UI (131 templates)
+├── templates/                  Server-rendered UI (132 templates)
 │   ├── voting/                 base.html (site layout), public event pages, organizer pages, tickets, store
 │   ├── vote/                   Voter flow: base, _steps, start (sign-in), otp, ballot (also the console preview),
 │   │                           review, receipt, register
@@ -116,6 +116,7 @@ flexyvotes/
 ├── locale/fr/LC_MESSAGES/      French translations (django.po, compiled django.mo)
 │
 ├── deploy/
+│   ├── set-env.sh              Set KEY=VALUE lines in .env safely (replace in place or append)
 │   ├── backup/                 Backup worker image: Dockerfile, fv-backup.sh (nightly backup, GitHub push
 │   │                           to the `backups` branch, restore-on-setup, health)
 │   ├── pgadmin/servers.json    pgAdmin's pre-registered "FlexyVotes" server

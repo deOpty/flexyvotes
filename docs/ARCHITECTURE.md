@@ -80,15 +80,19 @@ Middleware runs in this order (see `vote_fund/settings.py`):
    `/payments/` and `/e/` when the total Celery queue depth exceeds
    `QUEUE_BACKPRESSURE_THRESHOLD`. Payment webhooks are exempt, so confirmations are never
    shed.
-5. Sessions, `LocaleMiddleware`, `CommonMiddleware`.
+5. `CookieSecurityMiddleware` applies `COOKIE_SECURE=auto`. Cookies keep `Secure` on HTTPS
+   responses and lose it on plain-HTTP ones, where browsers would drop them. Then sessions,
+   `LocaleMiddleware` and `CommonMiddleware`.
 6. `ApiCorsMiddleware` handles CORS for `/api/` only, from `API_CORS_ALLOWED_ORIGINS`.
 7. CSRF, then authentication.
 8. `SessionSecurityMiddleware` tracks the session (`UserSession`), handles revocation, idle
    expiry and enforcing MFA for staff.
 9. Messages, then `X-Frame-Options`.
 10. `UserPreferencesMiddleware` applies accessibility mode, timezone and the device cookie.
-11. `SecurityHeadersMiddleware` sets the nonce-based CSP, Permissions-Policy, COOP/CORP and
-    friends.
+11. `SecurityHeadersMiddleware` sets the nonce-based CSP (`connect-src` includes the
+    pinned CDNs so dev tools can load their source maps), Permissions-Policy, COOP (on
+    HTTPS and localhost only), CORP and friends. A failed CSRF check renders
+    `core.views.csrf_failure`, which explains what to do.
 
 ## 4. Key flows
 

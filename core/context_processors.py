@@ -17,6 +17,18 @@ def _is_election_page(request):
     return view_name.startswith('elections:') or view_name in ELECTION_PAGES
 
 
+def _secure_cookies_blocked(request):
+    """COOKIE_SECURE=True on a page the browser does not treat as secure
+    (plain http:// on an IP or domain): the CSRF and session cookies are
+    dropped, so the login form cannot work. The login and CSRF error pages
+    explain this instead of failing silently."""
+    if getattr(settings, 'COOKIE_SECURE_MODE', 'auto') != 'always':
+        return False
+    from .middleware import trustworthy_origin
+
+    return not trustworthy_origin(request)
+
+
 def _shows_approvals(perms):
     from .rbac import APPROVAL_QUEUE_PERMISSIONS
 
@@ -48,6 +60,7 @@ def platform(request):
         'PLATFORM_NAME': settings.PLATFORM_NAME,
         'SITE_URL': settings.SITE_URL,
         'csp_nonce': getattr(request, 'csp_nonce', ''),
+        'secure_cookies_blocked': _secure_cookies_blocked(request),
         'prefs': prefs,
         'lite_mode': 'lite' in prefs,
         'is_console_user': console,
