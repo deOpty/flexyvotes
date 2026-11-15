@@ -22,6 +22,7 @@ console_patterns = ([
     path('organizations/<int:org_id>/', console.organization_settings, name='organization'),
     path('organizations/<int:org_id>/team/', console.team, name='team_org'),
     path('organizers/', console.organizers, name='organizers'),
+    path('access-requests/', console.access_requests, name='access_requests'),
     path('health/', console.health, name='health'),
     path('support/', console.support, name='support'),
     path('support/<int:ticket_id>/', console.support_ticket, name='support_ticket'),

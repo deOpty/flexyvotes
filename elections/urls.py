@@ -32,6 +32,7 @@ urlpatterns = [
     path('console/elections/<int:event_id>/', console.overview, name='console_overview'),
     path('console/elections/<int:event_id>/transition/', console.do_transition, name='console_transition'),
     path('console/elections/<int:event_id>/settings/', console.settings_view, name='console_settings'),
+    path('console/elections/<int:event_id>/schedule/', console.schedule, name='console_schedule'),
     path('console/elections/<int:event_id>/ballot/', console.ballot, name='console_ballot'),
     path('console/elections/<int:event_id>/ballot/preview/', console.ballot_preview, name='console_ballot_preview'),
     path('console/elections/<int:event_id>/candidates/<int:candidate_id>/invite/', portal.invite_candidate,

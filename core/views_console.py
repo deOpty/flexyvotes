@@ -8,15 +8,18 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from . import audit, tenancy
-from .models import AuditChainHead, AuditEvent, Organization, Role, RoleAssignment, SupportMessage, SupportTicket
-from .rbac import (PERMISSIONS, events_for_user, has_perm, is_console_user, is_platform_admin,
-                   organizations_for_user, permission_required)
+from .models import (AccessRequest, AuditChainHead, AuditEvent, Organization, Role, RoleAssignment, SupportMessage,
+                     SupportTicket)
+from .rbac import (APPROVAL_QUEUE_PERMISSIONS, NON_REQUESTABLE_ROLES, ORGANIZER_PERMISSIONS, PERMISSIONS,
+                   events_for_user, has_perm, is_console_user, is_platform_admin, organizations_for_user,
+                   permission_required, permissions_anywhere)
 
 
 def _require_console(request):
@@ -37,36 +40,49 @@ def dashboard(request):
         return redirect('home')
     now = timezone.now()
     today = timezone.localtime(now).replace(hour=0, minute=0, second=0, microsecond=0)
+    platform_admin = is_platform_admin(request.user)
+    perms = permissions_anywhere(request.user)
     events = events_for_user(request.user, 'election.view').select_related('organization')
     paid_today = VoteTransaction.objects.filter(candidate__event__in=events, status='Success', created_at__gte=today)
-    revenue_events = events_for_user(request.user, 'payment.view')
-    revenue_30 = Payment.objects.filter(event__in=revenue_events, status='SUCCESS', created_at__gte=now - timedelta(days=30)) \
-        .aggregate(total=Sum('amount'))['total'] or Decimal('0')
-    legacy_revenue = VoteTransaction.objects.filter(candidate__event__in=revenue_events, status='Success', payment__isnull=True,
-                                                    created_at__gte=now - timedelta(days=30)).aggregate(t=Sum('amount'))['t'] or 0
-    fraud_scope = Q(event__in=events_for_user(request.user, 'fraud.view'))
-    if is_platform_admin(request.user):
-        fraud_scope |= Q(event__isnull=True)
     stats = {
         'active': events.filter(status=Event.Status.OPEN).count(),
         'votes_today': (paid_today.aggregate(n=Sum('number_of_votes'))['n'] or 0)
         + Voter.objects.filter(election__in=events, voted_at__gte=today).count(),
-        'revenue_30d': revenue_30 + legacy_revenue,
-        'voters': Voter.objects.filter(election__in=events).count(),
-        'fraud_alerts': FraudEvent.objects.filter(fraud_scope, status=FraudEvent.Status.OPEN).count(),
         'approvals': ApprovalRequest.objects.filter(status=ApprovalRequest.Status.PENDING,
                                                     election__in=events_for_user(request.user, 'approval.decide')).exclude(
             requested_by=request.user).count(),
         'in_review': events_for_user(request.user, 'election.review').filter(status=Event.Status.REVIEW).count(),
     }
+    # Figures behind permissions the user lacks are neither computed nor shown.
+    if 'payment.view' in perms:
+        revenue_events = events_for_user(request.user, 'payment.view')
+        revenue_30 = Payment.objects.filter(event__in=revenue_events, status='SUCCESS',
+                                            created_at__gte=now - timedelta(days=30)).aggregate(total=Sum('amount'))['total'] \
+            or Decimal('0')
+        legacy_revenue = VoteTransaction.objects.filter(
+            candidate__event__in=revenue_events, status='Success', payment__isnull=True,
+            created_at__gte=now - timedelta(days=30)).aggregate(t=Sum('amount'))['t'] or 0
+        stats['revenue_30d'] = revenue_30 + legacy_revenue
+    if 'voter.view' in perms:
+        stats['voters'] = Voter.objects.filter(election__in=events_for_user(request.user, 'voter.view')).count()
+    if 'fraud.view' in perms:
+        fraud_scope = Q(event__in=events_for_user(request.user, 'fraud.view'))
+        if platform_admin:
+            fraud_scope |= Q(event__isnull=True)
+        stats['fraud_alerts'] = FraudEvent.objects.filter(fraud_scope, status=FraudEvent.Status.OPEN).count()
+    logs = []
+    if platform_admin:
+        logs = AuditEvent.objects.all()[:12]
+    elif 'audit.view' in perms:
+        logs = AuditEvent.objects.filter(
+            organization_id__in=organizations_for_user(request.user, 'audit.view').values('pk'))[:12]
     status_counts = dict(events.values_list('status').annotate(n=Count('pk')))
-    logs = AuditEvent.objects.filter(organization_id__in=organizations_for_user(request.user).values('pk')) \
-        if not is_platform_admin(request.user) else AuditEvent.objects.all()
     notifications = request.user.notifications.filter(channel='IN_APP', read_at__isnull=True)[:10]
     return render(request, 'console/dashboard.html', {
         'stats': stats, 'events': events.order_by('-created_at')[:50], 'status_counts': status_counts,
-        'logs': logs[:12], 'notifications': notifications, 'organization': tenancy.current_organization(request),
+        'logs': logs, 'notifications': notifications, 'organization': tenancy.current_organization(request),
         'organizations': organizations_for_user(request.user)[:50], 'currency': settings.DEFAULT_CURRENCY,
+        'is_organizer_only': not platform_admin and not (perms - ORGANIZER_PERMISSIONS),
     })
 
 
@@ -84,6 +100,9 @@ def approvals(request):
     from elections import integrity
     from elections.models import ApprovalRequest
 
+    if not (permissions_anywhere(request.user) & APPROVAL_QUEUE_PERMISSIONS
+            or ApprovalRequest.objects.filter(requested_by=request.user).exists()):
+        raise PermissionDenied
     scope = Q(election__in=events_for_user(request.user, 'election.view'))
     if is_platform_admin(request.user):
         scope |= Q(election__isnull=True)
@@ -283,6 +302,134 @@ def organizers(request):
     return render(request, 'console/organizers.html', {
         'pending': Profile.objects.filter(is_approved_organizer=False).select_related('user').order_by('-user__date_joined'),
         'approved': Profile.objects.filter(is_approved_organizer=True).select_related('user').order_by('user__username')[:200]})
+
+
+def _requestable_roles():
+    return Role.objects.exclude(code__in=NON_REQUESTABLE_ROLES).order_by('name')
+
+
+def _role_rows(roles):
+    """Roles with human-readable permission labels for the request form."""
+    return [{'role': role, 'labels': [PERMISSIONS[p] for p in sorted(role.permissions) if p in PERMISSIONS]}
+            for role in roles]
+
+
+@login_required
+def access_requests(request):
+    """Organizers ask for extra privileges; platform admins grant or refuse them."""
+    if is_platform_admin(request.user):
+        return _review_access_requests(request)
+    if not is_console_user(request.user):
+        messages.error(request, 'Your organizer account is pending admin approval.')
+        return redirect('home')
+    return _my_access_requests(request)
+
+
+def _resolve_request_scope(request, scope):
+    """'org:<id>' or 'event:<id>' -> (organization, event), limited to what the user already works in."""
+    kind, _, raw_id = (scope or '').partition(':')
+    if not raw_id.isdigit():
+        return None, None
+    if kind == 'event':
+        event = events_for_user(request.user, 'election.view').filter(pk=int(raw_id)).first()
+        return (event.organization if event else None), event
+    if kind == 'org':
+        return organizations_for_user(request.user).filter(pk=int(raw_id)).first(), None
+    return None, None
+
+
+def _my_access_requests(request):
+    from notifications.service import notify_platform_admins
+
+    organizations = organizations_for_user(request.user)
+    events = events_for_user(request.user, 'election.view').select_related('organization').order_by('-created_at')[:200]
+    roles = _requestable_roles()
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'cancel':
+            req = get_object_or_404(AccessRequest, pk=request.POST.get('request'), requester=request.user,
+                                    status=AccessRequest.Status.PENDING)
+            req.status = AccessRequest.Status.CANCELLED
+            req.save(update_fields=['status'])
+            audit.record('ACCESS_REQUEST_CANCELLED', request=request, organization=req.organization, event=req.event,
+                         target=req, summary=f'{req.role.name} request cancelled')
+            messages.success(request, 'Request cancelled.')
+            return redirect('console:access_requests')
+        role = roles.filter(code=request.POST.get('role')).first()
+        organization, event = _resolve_request_scope(request, request.POST.get('scope'))
+        reason = (request.POST.get('reason') or '').strip()[:2000]
+        if role is None:
+            messages.error(request, 'Choose the role you need.')
+        elif organization is None and event is None:
+            messages.error(request, 'Choose where you need it: one of your organizations or elections.')
+        elif not reason:
+            messages.error(request, 'Tell the administrator why you need this access.')
+        elif RoleAssignment.objects.filter(user=request.user, role=role, organization=organization, event=event).exists():
+            messages.info(request, f'You already have the {role.name} role there.')
+        elif AccessRequest.objects.filter(requester=request.user, role=role, organization=organization, event=event,
+                                          status=AccessRequest.Status.PENDING).exists():
+            messages.info(request, 'You already have a pending request for that role and scope.')
+        else:
+            try:
+                with transaction.atomic():
+                    req = AccessRequest.objects.create(requester=request.user, role=role, organization=organization,
+                                                       event=event, reason=reason)
+            except IntegrityError:
+                messages.info(request, 'You already have a pending request for that role and scope.')
+                return redirect('console:access_requests')
+            audit.record('ACCESS_REQUESTED', request=request, organization=organization, event=event, target=req,
+                         summary=f'{role.name} requested ({req.scope_label})', reason=reason,
+                         metadata={'role': role.code})
+            transaction.on_commit(lambda: notify_platform_admins('access_requested', {
+                'username': request.user.username, 'role': role.name, 'scope': req.scope_label, 'reason': reason}))
+            messages.success(request, 'Request sent. A platform administrator will review it.')
+        return redirect('console:access_requests')
+    return render(request, 'console/access_requests.html', {
+        'reviewing': False, 'roles': _role_rows(roles), 'organizations': organizations, 'events': events,
+        'my_requests': AccessRequest.objects.filter(requester=request.user).select_related(
+            'role', 'organization', 'event', 'decided_by')[:100],
+        'my_roles': RoleAssignment.objects.filter(user=request.user).select_related('role', 'organization', 'event'),
+    })
+
+
+def _review_access_requests(request):
+    from notifications.service import notify_user
+
+    if request.method == 'POST':
+        approve = request.POST.get('decision') == 'approve'
+        note = (request.POST.get('note') or '').strip()[:1000]
+        with transaction.atomic():
+            req = get_object_or_404(AccessRequest.objects.select_for_update(), pk=request.POST.get('request'))
+            if req.status != AccessRequest.Status.PENDING:
+                messages.error(request, 'This request has already been decided.')
+                return redirect('console:access_requests')
+            requester, role = req.requester, req.role
+            if approve:
+                organization = req.organization or (req.event.organization if req.event_id else None)
+                req.assignment = tenancy.grant_role(organization, requester, role.code, request.user, event=req.event,
+                                                    request=request)
+            req.status = AccessRequest.Status.APPROVED if approve else AccessRequest.Status.REJECTED
+            req.decided_by = request.user
+            req.decided_at = timezone.now()
+            req.decision_note = note
+            req.save()
+            audit.record('ACCESS_REQUEST_APPROVED' if approve else 'ACCESS_REQUEST_REJECTED', request=request,
+                         organization=req.organization, event=req.event, target=req, reason=note,
+                         summary=f'{role.name} for {requester.username} {"granted" if approve else "refused"}',
+                         metadata={'role': role.code, 'requester': requester.username})
+            context = {'username': requester.username, 'role': role.name, 'scope': req.scope_label,
+                       'decision': 'approved' if approve else 'declined', 'note': note}
+            transaction.on_commit(lambda: notify_user(requester, 'access_decided', context))
+        messages.success(request, f'{role.name} {"granted to" if approve else "refused for"} {requester.username}.')
+        return redirect('console:access_requests')
+    queryset = AccessRequest.objects.select_related('requester', 'role', 'organization', 'event', 'decided_by')
+    pending = list(queryset.filter(status=AccessRequest.Status.PENDING).order_by('created_at'))
+    for req in pending:
+        req.permission_labels = [PERMISSIONS[p] for p in sorted(req.role.permissions) if p in PERMISSIONS]
+    return render(request, 'console/access_requests.html', {
+        'reviewing': True, 'pending': pending,
+        'history': queryset.exclude(status=AccessRequest.Status.PENDING)[:100],
+    })
 
 
 @permission_required('platform.admin')

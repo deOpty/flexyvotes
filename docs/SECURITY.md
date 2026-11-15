@@ -38,7 +38,25 @@ Authorization is permission-based (`core/rbac.py`). A user's permissions are the
 their role assignments.
 - **Scope:** each assignment applies to the platform, one organization (including all its
   elections) or one election.
-- **Organizers:** an event's `organizer` gets the Organizer column below for that event.
+- **Organizers:** an approved organizer gets the **Organizer** role (OG) on their personal
+  organization, and an event's `organizer` gets the same permissions on that event. They can
+  create and edit elections, add candidates, submit for review, and view turnout and
+  results. They cannot approve, publish/open, pause, resume, close, reschedule or archive
+  elections, or reach voter rolls, money, fraud, audit, team, billing or security settings.
+  They ask a platform admin for extra roles at `/console/access-requests/`. An approved
+  request becomes a normal, audited `RoleAssignment`, scoped to their organization or one
+  election. Menus, tabs and buttons are shown only for permissions the user holds
+  (`rbac.permissions_anywhere`). The views enforce the same permissions and return 403
+  otherwise.
+- **System-only lifecycle actions** (`certify`, `decertify`, `reopen_voting`, `restart`,
+  `restart_scheduled`) cannot be requested through the console or the API transition
+  endpoint (`lifecycle.manual_transition`). Only the service that does their extra work can
+  run them.
+- **Rescheduling** (`election.reschedule`) lets an administrator change voting times in any
+  state except archived, and restart ended voting, without a second approver. A reason is
+  required for live or ended elections, and every change is audited
+  (`ELECTION_RESCHEDULED`, `ELECTION_RESTART*`). A restart supersedes tallied results and
+  revokes any certification.
 - **Platform admins:** Django staff and superusers have every permission.
 - **Separation of duties:** this is enforced in code, not by roles. The approver must not be
   the submitter, and the certifier must not be the tallier. This holds even for an
@@ -46,53 +64,55 @@ their role assignments.
 
 SA Super Admin · OA Organization Admin · EA Election Admin · ER Election Reviewer ·
 EO Election Officer · AU Election Auditor · CM Candidate Manager · FO Finance Officer ·
-SU Support Agent · FA Fraud Analyst · RO Results Officer
+SU Support Agent · FA Fraud Analyst · RO Results Officer · OG Organizer
 
-| Permission | SA | OA | EA | ER | EO | AU | CM | FO | SU | FA | RO | Organizer |
+| Permission | SA | OA | EA | ER | EO | AU | CM | FO | SU | FA | RO | OG |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `election.create` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
+| `election.create` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |
 | `election.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `election.edit` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `election.submit` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `election.review` | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |
-| `election.publish` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `election.pause` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
-| `election.close` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `election.archive` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `election.freeze` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `candidate.create` | ✓ | ✓ | ✓ |  |  |  | ✓ |  |  |  |  | ✓ |
-| `candidate.edit` | ✓ | ✓ | ✓ |  |  |  | ✓ |  |  |  |  | ✓ |
-| `voter.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  |  | ✓ |  |  | ✓ |
-| `voter.import` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `voter.edit` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
-| `voter.credentials` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
-| `vote.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |  | ✓ |  | ✓ | ✓ | ✓ |
-| `vote.export` | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
-| `results.view` | ✓ | ✓ | ✓ |  |  | ✓ |  |  |  |  | ✓ | ✓ |
-| `results.tally` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  | ✓ | ✓ |
-| `results.approve` | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |
-| `results.certify` | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |
-| `results.publish` | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |  |
-| `results.recount` | ✓ | ✓ |  |  |  | ✓ |  |  |  |  | ✓ |  |
-| `payment.view` | ✓ | ✓ | ✓ |  |  | ✓ |  | ✓ | ✓ | ✓ |  | ✓ |
-| `payment.reconcile` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
-| `refund.create` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
-| `refund.approve` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
-| `pricing.manage` | ✓ | ✓ | ✓ |  |  |  |  | ✓ |  |  |  | ✓ |
-| `audit.view` | ✓ | ✓ | ✓ | ✓ |  | ✓ |  |  |  | ✓ |  | ✓ |
-| `fraud.view` | ✓ | ✓ |  |  |  | ✓ |  |  |  | ✓ |  |  |
-| `fraud.review` | ✓ | ✓ |  |  |  |  |  |  |  | ✓ |  |  |
-| `dispute.view` | ✓ | ✓ | ✓ |  | ✓ | ✓ |  |  |  |  |  | ✓ |
-| `dispute.manage` | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
-| `incident.manage` | ✓ | ✓ | ✓ |  | ✓ |  |  |  |  |  |  | ✓ |
-| `approval.decide` | ✓ | ✓ |  | ✓ |  |  |  |  |  |  |  |  |
-| `org.manage` | ✓ | ✓ |  |  |  |  |  |  |  |  |  |  |
-| `org.billing` | ✓ | ✓ |  |  |  |  |  | ✓ |  |  |  |  |
-| `support.view` | ✓ | ✓ |  |  | ✓ |  |  |  | ✓ |  |  |  |
-| `support.manage` | ✓ | ✓ |  |  |  |  |  |  | ✓ |  |  |  |
-| `ticket.manage` | ✓ | ✓ | ✓ |  |  |  |  |  |  |  |  | ✓ |
-| `store.manage` | ✓ |  |  |  |  |  |  |  |  |  |  |  |
-| `platform.admin` | ✓ |  |  |  |  |  |  |  |  |  |  |  |
+| `election.edit` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |
+| `election.settings` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `election.submit` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |
+| `election.review` | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |   |
+| `election.publish` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `election.pause` | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| `election.close` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `election.reschedule` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `election.archive` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `election.freeze` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `candidate.create` | ✓ | ✓ | ✓ |   |   |   | ✓ |   |   |   |   | ✓ |
+| `candidate.edit` | ✓ | ✓ | ✓ |   |   |   | ✓ |   |   |   |   | ✓ |
+| `voter.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   |   |
+| `voter.import` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `voter.edit` | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| `voter.credentials` | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| `vote.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   | ✓ |   | ✓ | ✓ | ✓ |
+| `vote.export` | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| `results.view` | ✓ | ✓ | ✓ |   |   | ✓ |   |   |   |   | ✓ | ✓ |
+| `results.tally` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   |
+| `results.approve` | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   |
+| `results.certify` | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   |
+| `results.publish` | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   |
+| `results.recount` | ✓ | ✓ |   |   |   | ✓ |   |   |   |   | ✓ |   |
+| `payment.view` | ✓ | ✓ | ✓ |   |   | ✓ |   | ✓ | ✓ | ✓ |   |   |
+| `payment.reconcile` | ✓ | ✓ |   |   |   |   |   | ✓ |   |   |   |   |
+| `refund.create` | ✓ | ✓ |   |   |   |   |   | ✓ |   |   |   |   |
+| `refund.approve` | ✓ | ✓ |   |   |   |   |   | ✓ |   |   |   |   |
+| `pricing.manage` | ✓ | ✓ | ✓ |   |   |   |   | ✓ |   |   |   |   |
+| `audit.view` | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |   |   | ✓ |   |   |
+| `fraud.view` | ✓ | ✓ |   |   |   | ✓ |   |   |   | ✓ |   |   |
+| `fraud.review` | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   |   |
+| `dispute.view` | ✓ | ✓ | ✓ |   | ✓ | ✓ |   |   |   |   |   |   |
+| `dispute.manage` | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| `incident.manage` | ✓ | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |
+| `approval.decide` | ✓ | ✓ |   | ✓ |   |   |   |   |   |   |   |   |
+| `org.manage` | ✓ | ✓ |   |   |   |   |   |   |   |   |   |   |
+| `org.billing` | ✓ | ✓ |   |   |   |   |   | ✓ |   |   |   |   |
+| `support.view` | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ |   |   |   |
+| `support.manage` | ✓ | ✓ |   |   |   |   |   |   | ✓ |   |   |   |
+| `ticket.manage` | ✓ | ✓ | ✓ |   |   |   |   |   |   |   |   |   |
+| `store.manage` | ✓ |   |   |   |   |   |   |   |   |   |   |   |
+| `platform.admin` | ✓ |   |   |   |   |   |   |   |   |   |   |   |
 
 The `VOTER` role is a marker with no permissions. Granting and revoking roles is audited
 (`ROLE_GRANTED` / `ROLE_REVOKED`).

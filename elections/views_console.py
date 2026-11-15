@@ -11,12 +11,15 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMinute
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core import audit, crypto
 from core.models import AuditEvent, Organization
-from core.rbac import check_perm, event_permission_required, events_for_user, has_perm, user_permissions
+from core.rbac import (check_perm, event_permission_required, events_for_user, has_any_perm, has_perm,
+                       user_permissions)
+from core.utils import safe_next
 from voting.models import Candidate, Category, Event, VoteTransaction
 from voting.views import sanitize_csv_value
 
@@ -26,8 +29,17 @@ from .models import (ApprovalRequest, CaseNote, Constituency, Dispute, Eligibili
                      Incident, Recount, TrusteeShare, Voter)
 
 
+# The Integrity tab (freezes, extensions, legal hold, disputes, incidents,
+# signed snapshots) is for officials holding at least one of these.
+INTEGRITY_PERMISSIONS = ('election.freeze', 'election.close', 'election.review', 'election.reschedule',
+                         'incident.manage', 'dispute.view', 'audit.view')
+
+
 def _base_context(request, event, tab):
-    return {'event': event, 'tab': tab, 'perms': user_permissions(request.user, event),
+    perms = user_permissions(request.user, event)
+    return {'event': event, 'tab': tab, 'perms': perms,
+            'show_integrity': any(p in perms for p in INTEGRITY_PERMISSIONS),
+            'ended_states': lifecycle.ENDED_STATES,
             'actions': lifecycle.available_actions(event, request.user)}
 
 
@@ -74,20 +86,56 @@ def do_transition(request, event_id):
     event = get_object_or_404(Event, pk=event_id)
     action = request.POST.get('action', '')
     try:
-        lifecycle.transition(event, action, actor=request.user, request=request,
-                             reason=(request.POST.get('reason') or '')[:500])
+        lifecycle.manual_transition(event, action, actor=request.user, request=request,
+                                    reason=(request.POST.get('reason') or '')[:500])
         messages.success(request, f'{lifecycle.ACTIONS[action].label}: done.')
     except PermissionDenied:
         messages.error(request, 'You do not have permission to do that.')
     except (lifecycle.LifecycleError, keys.KeyCustodyError, KeyError) as exc:
         messages.error(request, str(exc) or 'That action is not available.')
-    return redirect('elections:console_overview', event_id=event.pk)
+    return redirect(safe_next(request, request.POST.get('next'),
+                              reverse('elections:console_overview', args=[event.pk])))
+
+
+@event_permission_required('election.reschedule')
+def schedule(request, event):
+    """Administrators change the voting window at any stage and restart
+    voting after it has ended (see lifecycle.reschedule)."""
+    from voting.views import parse_local_datetime
+
+    event = lifecycle.tick(event)
+    context = _base_context(request, event, 'schedule')
+    if request.method == 'POST':
+        start = parse_local_datetime(request.POST.get('start_date'), request.POST.get('start_time'), event.timezone)
+        end = parse_local_datetime(request.POST.get('end_date'), request.POST.get('end_time'), event.timezone)
+        previous = event.status
+        try:
+            event = lifecycle.reschedule(event, start=start, end=end, actor=request.user,
+                                         reason=request.POST.get('reason', ''), request=request)
+        except (lifecycle.LifecycleError, keys.KeyCustodyError) as exc:
+            messages.error(request, str(exc))
+            context['form'] = request.POST
+        else:
+            if previous in lifecycle.ENDED_STATES:
+                messages.success(request, 'Voting has restarted.' if event.status == Event.Status.OPEN
+                                 else 'Voting will restart at the new start time.')
+            elif event.status != previous:
+                messages.success(request, f'Voting times updated; the election is now {event.get_status_display().lower()}.')
+            else:
+                messages.success(request, 'Voting times updated.')
+            return redirect('elections:console_overview', event_id=event.pk)
+    has_results = event.results.filter(kind=ElectionResult.Kind.OFFICIAL).exclude(
+        status__in=[ElectionResult.Status.SUPERSEDED, ElectionResult.Status.REJECTED]).exists()
+    context.update({'ended': event.status in lifecycle.ENDED_STATES, 'live': event.status in lifecycle.LIVE_STATES,
+                    'archived': event.status == Event.Status.ARCHIVED, 'has_results': has_results,
+                    'now': timezone.now()})
+    return render(request, 'console/elections/schedule.html', context)
 
 
 SETTINGS_FEATURES = {'SSO': 'sso', 'LDAP': 'ldap'}
 
 
-@event_permission_required('election.edit')
+@event_permission_required('election.settings')
 def settings_view(request, event):
     from billing.service import feature_enabled
 
@@ -298,11 +346,11 @@ def voters_export(request, event):
     return response
 
 
-@event_permission_required('election.view')
+@event_permission_required('voter.view')
 def eligibility(request, event):
     context = _base_context(request, event, 'eligibility')
     if request.method == 'POST':
-        check_perm(request.user, 'election.edit', event)
+        check_perm(request.user, 'election.settings', event)
         try:
             lifecycle.require_editable(event, 'config', request.user, request)
         except lifecycle.LifecycleError as exc:
@@ -344,7 +392,7 @@ def constituencies(request, org_id):
     organization = get_object_or_404(Organization, pk=org_id)
     check_perm(request.user, 'election.view', organization)
     if request.method == 'POST':
-        check_perm(request.user, 'election.edit', organization)
+        check_perm(request.user, 'election.settings', organization)
         if request.POST.get('action') == 'delete':
             node = get_object_or_404(Constituency, pk=request.POST.get('node'), organization=organization)
             if node.voters.exists() or node.positions.exists():
@@ -461,7 +509,7 @@ def trustees(request, event):
         action = request.POST.get('action')
         try:
             if action == 'add':
-                check_perm(request.user, 'election.edit', event)
+                check_perm(request.user, 'election.settings', event)
                 user = get_user_model().objects.filter(username=request.POST.get('username', '').strip()).first()
                 if user is None:
                     messages.error(request, 'No such user.')
@@ -485,6 +533,8 @@ def trustees(request, event):
 
 @event_permission_required('election.view')
 def integrity_view(request, event):
+    if not has_any_perm(request.user, INTEGRITY_PERMISSIONS, event):
+        raise PermissionDenied
     context = _base_context(request, event, 'integrity')
     snapshots = list(event.config_snapshots.all()[:10])
     for snapshot in snapshots:
@@ -650,25 +700,30 @@ def monitor_data(request, event):
 
     now = timezone.now()
     since = now - timedelta(minutes=60)
+    perms = user_permissions(request.user, event)
+    extra = {}
     if event.is_paid:
         series = VoteTransaction.objects.filter(candidate__event=event, status='Success', created_at__gte=since) \
             .annotate(minute=TruncMinute('created_at')).values('minute').annotate(n=Sum('number_of_votes')).order_by('minute')
-        payments = Payment.objects.filter(event=event, created_at__gte=since)
-        attempted = payments.count()
-        succeeded = payments.filter(status='SUCCESS').count()
-        extra = {'payments_last_hour': attempted, 'payment_success_rate': round(100.0 * succeeded / attempted, 1) if attempted else None,
-                 'held': Payment.objects.filter(event=event, held=True, status='SUCCESS').count()}
+        if 'payment.view' in perms:
+            payments = Payment.objects.filter(event=event, created_at__gte=since)
+            attempted = payments.count()
+            succeeded = payments.filter(status='SUCCESS').count()
+            extra = {'payments_last_hour': attempted,
+                     'payment_success_rate': round(100.0 * succeeded / attempted, 1) if attempted else None,
+                     'held': Payment.objects.filter(event=event, held=True, status='SUCCESS').count()}
     else:
         series = event.voters.filter(voted_at__gte=since).annotate(minute=TruncMinute('voted_at')).values('minute') \
             .annotate(n=Count('pk')).order_by('minute')
         extra = {'turnout': voter_service.turnout(event)}
-    alerts = FraudEvent.objects.filter(event=event, status=FraudEvent.Status.OPEN)
+    if 'fraud.view' in perms:
+        alerts = FraudEvent.objects.filter(event=event, status=FraudEvent.Status.OPEN)
+        extra.update({'open_alerts': alerts.count(),
+                      'latest_alerts': [{'id': a.pk, 'kind': a.kind, 'score': a.score, 'decision': a.decision,
+                                         'at': a.created_at.isoformat()} for a in alerts[:5]]})
     return JsonResponse({
         'status': event.status, 'generated_at': now.isoformat(),
         'series': [{'t': row['minute'].isoformat(), 'n': row['n']} for row in series],
         'last_5_min': sum(row['n'] for row in series if row['minute'] >= now - timedelta(minutes=5)),
-        'open_alerts': alerts.count(),
-        'latest_alerts': [{'id': a.pk, 'kind': a.kind, 'score': a.score, 'decision': a.decision,
-                           'at': a.created_at.isoformat()} for a in alerts[:5]],
         **extra,
     })

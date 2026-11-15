@@ -18,7 +18,7 @@ from django.views.decorators.http import require_POST
 
 from core import audit, captcha, crypto
 from core.ratelimit import ratelimit
-from core.rbac import check_perm, event_permission_required, events_for_user, has_perm
+from core.rbac import check_perm, event_permission_required, events_for_user, has_perm, has_perm_anywhere
 from voting.models import Candidate, Event
 from voting.views import parse_non_negative_decimal, parse_non_negative_int, sanitize_csv_value
 
@@ -136,6 +136,8 @@ def simulator(request, reference):
 # ---------------------------------------------------------------------------
 @login_required
 def payments_list(request):
+    if not has_perm_anywhere(request.user, 'payment.view'):
+        raise PermissionDenied
     events = events_for_user(request.user, 'payment.view')
     payments = Payment.objects.filter(Q(event__in=events) | Q(event__isnull=True) if has_perm(request.user, 'platform.admin')
                                       else Q(event__in=events)).select_related('event', 'candidate')
@@ -253,6 +255,8 @@ def _date(value, default):
 
 @login_required
 def revenue(request):
+    if not has_perm_anywhere(request.user, 'payment.view'):
+        raise PermissionDenied
     events = events_for_user(request.user, 'payment.view').filter(voting_mode=Event.VotingMode.PAY_TO_VOTE)
     end = _date(request.GET.get('to'), timezone.now()) + (timedelta(days=1) if request.GET.get('to') else timedelta())
     start = _date(request.GET.get('from'), timezone.now() - timedelta(days=30))
@@ -331,6 +335,8 @@ def pricing(request, event):
 
 @login_required
 def refunds(request):
+    if not has_perm_anywhere(request.user, 'refund.approve'):
+        raise PermissionDenied
     events = events_for_user(request.user, 'refund.approve')
     pending = Refund.objects.filter(payment__event__in=events).select_related('payment', 'requested_by', 'approved_by')
     return render(request, 'payments/console/refunds.html', {'refunds': pending[:200]})

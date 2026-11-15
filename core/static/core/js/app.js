@@ -184,7 +184,7 @@
       var list = document.getElementById('mon-alert-list');
       if (list) {
         list.innerHTML = '';
-        data.latest_alerts.forEach(function (a) {
+        (data.latest_alerts || []).forEach(function (a) {
           var li = document.createElement('li');
           li.className = 'list-group-item d-flex justify-content-between';
           li.textContent = a.kind + ' - ' + a.decision + ' (' + a.score + ')';

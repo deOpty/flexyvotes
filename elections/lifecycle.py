@@ -19,6 +19,10 @@ from voting.models import Event
 
 S = Event.Status
 
+# Voting has finished (results may be pending, certified or public). An
+# administrator holding election.reschedule can restart voting from here.
+ENDED_STATES = (S.CLOSED, S.TALLYING, S.CERTIFIED, S.PUBLISHED)
+
 
 class LifecycleError(Exception):
     pass
@@ -103,7 +107,7 @@ def _effect_open(event, actor):
 
 def _guard_resume(event, actor):
     if timezone.now() >= event.end_date:
-        raise LifecycleError('Voting period has ended; it cannot be resumed.')
+        raise LifecycleError('Voting period has ended; move the end time later on the Schedule tab, then resume.')
 
 
 def _effect_close(event, actor):
@@ -160,7 +164,25 @@ ACTIONS = {a.name: a for a in [
     Action('decertify', (S.CERTIFIED, S.PUBLISHED), S.TALLYING, 'results.certify', 'Decertify', manual=False),
     Action('reopen_voting', (S.CLOSED,), S.OPEN, 'election.close', 'Re-open voting', manual=False,
            effect=_effect_open),
+    # Administrator override, driven by reschedule() with the new window.
+    Action('restart', ENDED_STATES, S.OPEN, 'election.reschedule', 'Restart voting', manual=False,
+           effect=_effect_open),
+    Action('restart_scheduled', ENDED_STATES, S.SCHEDULED, 'election.reschedule', 'Restart voting later',
+           manual=False),
 ]}
+
+
+def manual_transition(event, action_name, **kwargs):
+    """Entry point for user-facing transition requests (console, API).
+
+    System-only actions (certify, decertify, reopen_voting, restart...) are
+    driven by their own services, which do the extra work they need (signing
+    a certification, applying a new voting window, superseding results), so
+    they cannot be requested directly."""
+    action = ACTIONS.get(action_name)
+    if action is None or not action.manual:
+        raise LifecycleError('That action is not available.')
+    return transition(event, action_name, **kwargs)
 
 
 def available_actions(event, user):
@@ -203,12 +225,89 @@ def transition(event, action_name, *, actor=None, request=None, reason='', syste
 def _after_transition(event_id, action_name):
     from . import tasks
 
-    if action_name in ('open', 'reopen_voting'):
+    if action_name in ('open', 'reopen_voting', 'restart'):
         tasks.notify_voting_opened.delay(event_id)
     elif action_name == 'close':
         tasks.auto_tally.delay(event_id)
     elif action_name == 'publish':
         tasks.notify_results_published.delay(event_id)
+
+
+def reschedule(event, *, start, end, actor, reason='', request=None):
+    """Administrator override of the voting window (``election.reschedule``).
+
+    * Not open yet (draft .. scheduled): the times change; any approval stands.
+    * Open or paused: the start is history, so it may only move within the
+      past; the end must be in the future (extend or shorten voting).
+    * Ended (closed .. published): voting restarts. Results that were tallied
+      or certified are superseded and the certification revoked, because more
+      ballots will be cast. Voting opens now if the start is not in the
+      future, otherwise the election is scheduled to open at the new start.
+
+    Every change is audited; for live or ended elections a reason is required.
+    """
+    reason = (reason or '').strip()[:500]
+    now = timezone.now()
+    if start is None or end is None:
+        raise LifecycleError('Enter a valid start and end date and time.')
+    if end <= start:
+        raise LifecycleError('The end time must be after the start time.')
+    with transaction.atomic():
+        locked = Event.objects.select_for_update().get(pk=event.pk)
+        check_perm(actor, 'election.reschedule', locked)
+        status = locked.status
+        if status == S.ARCHIVED:
+            raise LifecycleError('Archived elections are read-only; their voting times cannot change.')
+        ended, live = status in ENDED_STATES, status in LIVE_STATES
+        if (ended or live) and not reason:
+            raise LifecycleError('Give a reason: changing the voting time of a live or ended election is audited.')
+        if (ended or live or status == S.SCHEDULED) and end <= now:
+            raise LifecycleError('The new end time must be in the future.')
+        if live and start > now:
+            raise LifecycleError('Voting has already started, so the start time cannot move into the future. '
+                                 'Pause voting instead.')
+        changes = {'start_date': {'old': locked.start_date.isoformat(), 'new': start.isoformat()},
+                   'end_date': {'old': locked.end_date.isoformat(), 'new': end.isoformat()}}
+        if ended:
+            _restart(locked, start, end, actor, reason, request, changes, now)
+        else:
+            locked.start_date, locked.end_date = start, end
+            locked.save(update_fields=['start_date', 'end_date'])
+            audit.record('ELECTION_RESCHEDULED', request=request, actor=actor, event=locked, reason=reason,
+                         summary=f'Voting window changed while {status}', changes=changes)
+            if status not in (S.DRAFT, S.REVIEW):
+                # Keep the signed configuration (which includes the window)
+                # in step with what voters will actually experience.
+                from .integrity import snapshot_configuration
+
+                snapshot_configuration(locked, actor, reason='RESCHEDULED')
+    event.refresh_from_db()
+    return tick(event)
+
+
+def _restart(locked, start, end, actor, reason, request, changes, now):
+    from .models import ElectionResult
+
+    previous = locked.status
+    stale = list(ElectionResult.objects.filter(election=locked, kind=ElectionResult.Kind.OFFICIAL).exclude(
+        status__in=[ElectionResult.Status.SUPERSEDED, ElectionResult.Status.REJECTED]).values_list('pk', flat=True))
+    ElectionResult.objects.filter(pk__in=stale).update(status=ElectionResult.Status.SUPERSEDED)
+    revoked = locked.certifications.filter(revoked_at__isnull=True).update(
+        revoked_at=now, revoked_reason=f'Voting restarted: {reason}')
+    opens_now = start <= now
+
+    def effect(e):
+        e.start_date, e.end_date = start, end
+        e.closed_at = e.certified_at = e.published_at = None
+        if e.is_paid:
+            # Paid voting is never frozen while open (contestants can be added).
+            e.config_frozen = e.ballot_frozen = e.candidates_frozen = e.voter_list_frozen = False
+
+    transition(locked, 'restart' if opens_now else 'restart_scheduled', actor=actor, request=request, reason=reason,
+               extra_effect=effect)
+    audit.record('ELECTION_RESCHEDULED', request=request, actor=actor, event=locked, reason=reason,
+                 summary=f'Voting restarted from {previous} ({"open now" if opens_now else "scheduled"})',
+                 changes=changes, metadata={'superseded_results': stale, 'revoked_certifications': revoked})
 
 
 def tick(event, now=None):

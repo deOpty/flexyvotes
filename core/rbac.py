@@ -14,12 +14,14 @@ from django.shortcuts import get_object_or_404
 PERMISSIONS = {
     'election.create': 'Create elections',
     'election.view': 'View election configuration',
-    'election.edit': 'Edit election configuration, positions and rules',
+    'election.edit': 'Edit election details, positions and ballot rules',
+    'election.settings': 'Change voting security settings (sign-in, approvals, results visibility, keys, limits)',
     'election.submit': 'Submit an election for review',
     'election.review': 'Approve or reject an election configuration',
     'election.publish': 'Schedule / open an approved election',
     'election.pause': 'Pause and resume voting',
     'election.close': 'Close voting',
+    'election.reschedule': 'Change voting times at any stage and restart ended voting',
     'election.archive': 'Archive elections',
     'election.freeze': 'Freeze or request unfreeze of configuration',
     'candidate.create': 'Add candidates',
@@ -61,12 +63,24 @@ ALL_PERMISSIONS = frozenset(PERMISSIONS)
 
 _ORG_ADMIN = ALL_PERMISSIONS - {'platform.admin', 'store.manage'}
 
+# Approved organizer accounts: build elections and follow their results.
+# Everything else (approving, publishing/opening, pausing/resuming, closing,
+# voter rolls, money, audit...) is requested from a platform admin through
+# an AccessRequest and granted as an additional role.
+ORGANIZER_ROLE_PERMISSIONS = frozenset({
+    'election.create', 'election.view', 'election.edit', 'election.submit',
+    'candidate.create', 'candidate.edit', 'results.view', 'vote.view',
+})
+
 ROLE_DEFINITIONS = {
     'SUPER_ADMIN': ('Super Admin', 'Full platform access.', ALL_PERMISSIONS),
     'ORG_ADMIN': ('Organization Admin', 'Administers an organization and all of its elections.', _ORG_ADMIN),
+    'ORGANIZER': ('Organizer', 'Creates elections, adds candidates and views results. Other privileges are '
+                  'requested from a platform admin.', ORGANIZER_ROLE_PERMISSIONS),
     'ELECTION_ADMIN': ('Election Administrator', 'Creates and configures elections.', {
-        'election.create', 'election.view', 'election.edit', 'election.submit', 'election.publish',
-        'election.pause', 'election.close', 'election.archive', 'election.freeze',
+        'election.create', 'election.view', 'election.edit', 'election.settings', 'election.submit',
+        'election.publish', 'election.pause', 'election.close', 'election.reschedule', 'election.archive',
+        'election.freeze',
         'candidate.create', 'candidate.edit', 'voter.view', 'voter.import', 'voter.edit', 'voter.credentials',
         'vote.view', 'results.view', 'results.tally', 'pricing.manage', 'ticket.manage', 'audit.view',
         'dispute.view', 'incident.manage', 'payment.view',
@@ -103,8 +117,20 @@ ROLE_DEFINITIONS = {
 }
 
 # What the creator/organizer of an event can always do on it (legacy
-# organizer accounts relied on Event.organizer for access).
-ORGANIZER_PERMISSIONS = ROLE_DEFINITIONS['ELECTION_ADMIN'][2] | {'election.submit'}
+# organizer accounts relied on Event.organizer for access). Deliberately the
+# organizer role and nothing more: creating an election never grants the
+# power to approve, open, pause, resume or close it.
+ORGANIZER_PERMISSIONS = ORGANIZER_ROLE_PERMISSIONS
+
+# Roles an organizer may ask a platform admin for (AccessRequest).
+NON_REQUESTABLE_ROLES = frozenset({'SUPER_ADMIN', 'VOTER', 'ORGANIZER'})
+
+# Holding any of these makes the dual-approval queue relevant to a user: they
+# can raise sensitive-action requests or decide them.
+APPROVAL_QUEUE_PERMISSIONS = frozenset({
+    'approval.decide', 'election.freeze', 'election.close', 'voter.credentials', 'results.certify',
+    'dispute.manage', 'refund.create',
+})
 
 
 def _assignments(user):
@@ -121,8 +147,9 @@ def _assignments(user):
 
 
 def clear_cache(user):
-    if hasattr(user, '_fv_role_assignments'):
-        del user._fv_role_assignments
+    for attr in ('_fv_role_assignments', '_fv_perms_anywhere'):
+        if hasattr(user, attr):
+            delattr(user, attr)
 
 
 def is_platform_admin(user):
@@ -165,6 +192,32 @@ def user_permissions(user, obj=None):
     if event is not None and event.organizer_id == user.pk:
         granted |= ORGANIZER_PERMISSIONS
     return frozenset(granted)
+
+
+def permissions_anywhere(user):
+    """Every permission the user holds in at least one scope (platform,
+    organization, election, or as the organizer of an election).
+
+    Used to decide which console menus and pages to show; the per-object
+    checks in views remain the authority on what is actually allowed."""
+    if not user or not user.is_authenticated or not user.is_active:
+        return frozenset()
+    if is_platform_admin(user):
+        return ALL_PERMISSIONS
+    cached = getattr(user, '_fv_perms_anywhere', None)
+    if cached is None:
+        granted = set()
+        for perms, _org_id, _event_id in _assignments(user):
+            granted |= perms
+        if user.events.exists():
+            granted |= ORGANIZER_PERMISSIONS
+        cached = frozenset(granted)
+        user._fv_perms_anywhere = cached
+    return cached
+
+
+def has_perm_anywhere(user, perm):
+    return perm in permissions_anywhere(user)
 
 
 def has_perm(user, perm, obj=None):

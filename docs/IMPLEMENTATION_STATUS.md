@@ -163,6 +163,14 @@ how it is tested.
   legal hold, large refunds.
 - **Roles and separation of duties:** election officer, reviewer and results officer roles.
   The submitter can't approve, and the tallier can't certify.
+- **Organizer restrictions:** self-registered organizers get the Organizer role. They can
+  create elections, add candidates, submit for review and view results, and nothing else.
+  Admin-only menus, tabs and buttons are hidden, and the pages return 403. Organizers
+  request extra roles from a platform admin at `/console/access-requests/`.
+- **Admin rescheduling:** administrators with `election.reschedule` can change voting times
+  in any state except archived, and restart ended voting (Schedule tab). The change is
+  audited, results are superseded and any certification is revoked. No second approver is
+  needed.
 - **Workflows:** result approval, recount, disputes, incidents, evidence (SHA-256,
   append-only), legal hold.
 - **Tests:** `test_integrity_voters`, `test_secret_ballot`.
@@ -309,7 +317,7 @@ WebSockets.
 
 ### 26. Testing: Done
 
-- **Size:** 212 automated tests.
+- **Size:** 244 automated tests.
 - **Unit:** validation, eligibility, state transitions, payment states, limits, tally, fraud
   rules.
 - **Integration:** PostgreSQL in CI, Paystack mocked over HTTP, webhooks, authentication.

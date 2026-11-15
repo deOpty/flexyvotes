@@ -38,6 +38,7 @@ IdempotencyRecord ; OTPChallenge ; SupportTicket ─< SupportMessage ; ProductCa
 | `core_organization` | `name`, `slug` (unique), `kind`, default timezone, currency and language, `is_personal`, `sso_config`, `ldap_config`, `directory_config` | Tenant. The three configs are **encrypted JSON**. |
 | `core_role` | `code` (unique), `permissions` (JSON list), `is_system` | Synced from `core/rbac.py` after every `migrate` |
 | `core_roleassignment` | `user`, `role`, `organization` (nullable), `event` (nullable), `granted_by` | Scope: platform (both null), organization, or one election. Unique on `(user, role, organization, event)`. |
+| `core_accessrequest` | `requester`, `role`, `organization` (nullable), `event` (nullable), `reason`, `status` (PENDING / APPROVED / REJECTED / CANCELLED), `decided_by`, `decided_at`, `decision_note`, `assignment` (the granted `RoleAssignment`, nullable) | An organizer asking a platform admin for a role. Partial unique constraint `uniq_pending_access_request`: one **pending** request per `(requester, role, organization, event)`. |
 | `core_auditchainhead` | `chain` (unique), `seq`, `last_hash` | Locked on every append |
 | `core_auditevent` | `chain`, `seq`, `event_type`, actor, organization and election ids, target, `summary`, `changes`, `metadata`, `result`, `ip_address`, `correlation_id`, `prev_hash`, `hash` (unique) | **Append-only.** Unique `(chain, seq)`. Indexed on `(election_id, created_at)`, `(organization_id, created_at)` and `(actor_id, created_at)`. |
 | `core_idempotencyrecord` | `scope`, `key`, `request_hash`, `state`, `response_status`, `response_body`, `expires_at` | Unique `(scope, key)`; purged daily |
@@ -208,7 +209,7 @@ See [OPERATIONS.md](OPERATIONS.md#key-management).
 | App | Migrations |
 |---|---|
 | `voting` | `0001`–`0035`: original app. `0036_platform_election_fields`: new columns. `0037_migrate_legacy_data`: data move (see below). `0038_remove_legacy_models`: drops `ActivityLog` and `VotingCode`. |
-| `core` | `0001_initial`, `0002_append_only_triggers` (PostgreSQL only; does nothing on SQLite) |
+| `core` | `0001_initial`, `0002_append_only_triggers` (PostgreSQL only; does nothing on SQLite), `0003_accessrequest` (new table), `0004_organizer_role` (data, see below) |
 | `elections`, `payments`, `notifications` | `0001_initial` |
 | `fraud` | `0001`, `0002`, `0003_blocklistentry_organization` |
 | `billing` | `0001`, `0002` |
@@ -219,6 +220,16 @@ What `0037` does:
 - Turns legacy `VotingCode` rows into `Voter` rows. Codes are kept as HMACs, so existing
   codes still work, and emails are encrypted.
 - Writes audit events for the move.
+
+What `core.0004_organizer_role` does:
+- Creates the `ORGANIZER` system role.
+- Every `ORG_ADMIN` assignment on a **personal** organization held by a non-staff user
+  becomes `ORGANIZER`. Organizers can then no longer approve, open, pause, resume or close
+  elections. Institutional organizations and platform staff are untouched.
+- It is reversible: migrating back to `core 0003` turns personal-organization `ORGANIZER`
+  assignments back into `ORG_ADMIN`. It was tested on PostgreSQL, forwards and backwards.
+- To give a migrated organizer more access, approve an access request or grant a role on
+  Team & roles.
 
 This was tested against seeded pre-upgrade rows, and against an existing development
 database that was at `0035`. For production, take a backup first and run the restore test

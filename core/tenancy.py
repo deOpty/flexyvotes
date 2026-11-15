@@ -8,16 +8,27 @@ from .rbac import clear_cache, is_platform_admin, organizations_for_user
 SESSION_KEY = 'fv_org'
 
 
+PERSONAL_ORG_ROLE = 'ORGANIZER'
+
+
 def ensure_personal_organization(user, actor=None):
-    """Approved organizers administer their own organization."""
-    existing = RoleAssignment.objects.filter(user=user, role__code='ORG_ADMIN', organization__isnull=False,
-                                             event__isnull=True).select_related('organization').first()
+    """Approved organizers work in their own personal organization with the
+    Organizer role: they build elections there but cannot approve, open,
+    pause, resume or close them (those privileges are requested from a
+    platform admin)."""
+    existing = RoleAssignment.objects.filter(
+        user=user, organization__isnull=False, event__isnull=True,
+        role__code__in=[PERSONAL_ORG_ROLE, 'ORG_ADMIN']).select_related('organization') \
+        .order_by('-organization__is_personal').first()
     if existing:
         return existing.organization
     with transaction.atomic():
         org = Organization.objects.create(name=f"{user.get_full_name() or user.username}'s organization",
                                           is_personal=True, contact_email=user.email or '')
-        role = Role.objects.get(code='ORG_ADMIN')
+        # Platform staff hold every permission regardless; everyone else
+        # gets the restricted organizer role.
+        role_code = 'ORG_ADMIN' if is_platform_admin(user) else PERSONAL_ORG_ROLE
+        role = Role.objects.get(code=role_code)
         RoleAssignment.objects.create(user=user, role=role, organization=org, granted_by=actor)
         audit.record('ORGANIZATION_CREATED', actor=actor, organization=org, target=org,
                      summary=f'Personal organization created for {user.username}')
@@ -62,8 +73,9 @@ def grant_role(organization, user, role_code, actor, event=None, request=None):
 
 def revoke_role(assignment, actor, request=None):
     user, role, organization, event = assignment.user, assignment.role, assignment.organization, assignment.event
-    if role.code == 'ORG_ADMIN' and organization is not None and RoleAssignment.objects.filter(
-            organization=organization, role__code='ORG_ADMIN', event__isnull=True).count() <= 1:
+    if role.code == 'ORG_ADMIN' and organization is not None and not organization.is_personal and \
+            RoleAssignment.objects.filter(organization=organization, role__code='ORG_ADMIN',
+                                          event__isnull=True).count() <= 1:
         raise ValueError('An organization must keep at least one Organization Admin.')
     assignment.delete()
     audit.record('ROLE_REVOKED', request=request, actor=actor, organization=organization, event=event, target=user,

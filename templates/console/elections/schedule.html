@@ -1,0 +1,69 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% translate "Voting schedule" %} | {{ event.title }}{% endblock %}
+{% block console %}
+{% include 'console/elections/_header.html' %}
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="panel">
+            <h2 class="h5 fw-bold">{% if ended %}{% translate "Restart voting" %}{% else %}{% translate "Change voting times" %}{% endif %}</h2>
+            {% if archived %}
+            <div class="alert alert-secondary mb-0">{% translate "This election is archived and read-only." %}</div>
+            {% else %}
+            {% if ended %}
+            <div class="alert alert-warning small">
+                <strong>{% translate "Voting has ended." %}</strong>
+                {% translate "Saving a new end time in the future restarts voting. If the start time is now or earlier, voting opens immediately; otherwise it opens automatically at the new start time. People who already voted cannot vote again." %}
+                {% if has_results %}<div class="mt-1">{% translate "The current results (and any certification) will be superseded. Results are tallied again when voting closes." %}</div>{% endif %}
+            </div>
+            {% elif live %}
+            <div class="alert alert-info small">{% translate "Voting is in progress. Move the end time to extend or shorten voting. The start time can only be corrected to a time in the past." %}</div>
+            {% else %}
+            <p class="small text-muted">{% translate "The new times apply straight away; an approved election stays approved." %}</p>
+            {% endif %}
+            {% with f=form %}
+            <form method="post" class="row g-3">{% csrf_token %}
+                <fieldset class="col-md-6">
+                    <legend class="form-label fw-semibold fs-6">{% translate "Voting opens" %}</legend>
+                    <label for="sch-start-date" class="visually-hidden">{% translate "Start date" %}</label>
+                    <input type="date" id="sch-start-date" name="start_date" class="form-control mb-2" required value="{% if f %}{{ f.start_date }}{% else %}{{ event.start_date|in_tz:event.timezone|date:'Y-m-d' }}{% endif %}">
+                    <label for="sch-start-time" class="visually-hidden">{% translate "Start time" %}</label>
+                    <input type="time" id="sch-start-time" name="start_time" class="form-control" required value="{% if f %}{{ f.start_time }}{% else %}{{ event.start_date|in_tz:event.timezone|date:'H:i' }}{% endif %}">
+                </fieldset>
+                <fieldset class="col-md-6">
+                    <legend class="form-label fw-semibold fs-6">{% translate "Voting closes" %}</legend>
+                    <label for="sch-end-date" class="visually-hidden">{% translate "End date" %}</label>
+                    <input type="date" id="sch-end-date" name="end_date" class="form-control mb-2" required value="{% if f %}{{ f.end_date }}{% else %}{{ event.end_date|in_tz:event.timezone|date:'Y-m-d' }}{% endif %}">
+                    <label for="sch-end-time" class="visually-hidden">{% translate "End time" %}</label>
+                    <input type="time" id="sch-end-time" name="end_time" class="form-control" required value="{% if f %}{{ f.end_time }}{% else %}{{ event.end_date|in_tz:event.timezone|date:'H:i' }}{% endif %}">
+                </fieldset>
+                <div class="col-12 form-text mt-0">{% blocktranslate with tz=event.timezone %}Times are in the election's time zone ({{ tz }}).{% endblocktranslate %}
+                    {% translate "Now" %}: {{ now|in_tz:event.timezone|date:"d M Y H:i" }}</div>
+                <div class="col-12">
+                    <label for="sch-reason" class="form-label">{% translate "Reason" %}{% if ended or live %} <span class="text-danger">*</span>{% endif %}</label>
+                    <textarea id="sch-reason" name="reason" class="form-control" rows="2" maxlength="500" {% if ended or live %}required{% endif %} placeholder="{% translate 'Recorded in the audit log' %}">{% if f %}{{ f.reason }}{% endif %}</textarea>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn {% if ended %}btn-danger{% else %}btn-wine{% endif %}" {% if ended %}data-confirm="{% translate 'Restart voting for this election?' %}"{% endif %}>{% if ended %}{% translate "Restart voting" %}{% else %}{% translate "Save voting times" %}{% endif %}</button>
+                    <a href="{% url 'elections:console_overview' event.pk %}" class="btn btn-link">{% translate "Cancel" %}</a>
+                </div>
+            </form>
+            {% endwith %}
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="panel">
+            <h2 class="h6 fw-bold text-uppercase text-muted">{% translate "Current window" %}</h2>
+            <dl class="row small mb-0">
+                <dt class="col-5">{% translate "Status" %}</dt><dd class="col-7">{{ event.status|status_badge:event.get_status_display }}</dd>
+                <dt class="col-5">{% translate "Opens" %}</dt><dd class="col-7">{{ event.start_date|in_tz:event.timezone|date:"d M Y H:i" }}</dd>
+                <dt class="col-5">{% translate "Closes" %}</dt><dd class="col-7">{{ event.end_date|in_tz:event.timezone|date:"d M Y H:i" }}</dd>
+                {% if event.closed_at %}<dt class="col-5">{% translate "Closed at" %}</dt><dd class="col-7">{{ event.closed_at|in_tz:event.timezone|date:"d M Y H:i" }}</dd>{% endif %}
+            </dl>
+            <p class="small text-muted mt-3 mb-0">{% translate "Every change is written to the tamper-evident audit log with your reason." %}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

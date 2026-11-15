@@ -536,7 +536,8 @@ def update_election(request, event_id: int, payload: ElectionPatch):
 def transition_election(request, event_id: int, payload: TransitionIn):
     event = get_object_or_404(Event, pk=event_id)
     try:
-        return lifecycle.transition(event, payload.action, actor=request.user, request=request, reason=payload.reason)
+        return lifecycle.manual_transition(event, payload.action, actor=request.user, request=request,
+                                           reason=payload.reason)
     except lifecycle.LifecycleError as exc:
         raise ApiError(409, 'invalid_transition', str(exc)) from exc
 

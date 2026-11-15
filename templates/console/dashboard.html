@@ -17,16 +17,23 @@
             </select>
         </form>
         {% endif %}
-        <a href="{% url 'create_event' %}" class="btn btn-gold"><i class="bi bi-plus-lg" aria-hidden="true"></i> {% translate "New election" %}</a>
+        {% if 'election.create' in nav_perms %}<a href="{% url 'create_event' %}" class="btn btn-gold"><i class="bi bi-plus-lg" aria-hidden="true"></i> {% translate "New election" %}</a>{% endif %}
     </div>
 </div>
+
+{% if is_organizer_only %}
+<div class="alert alert-light border d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <span><i class="bi bi-info-circle me-1" aria-hidden="true"></i>{% translate "You can create elections, add candidates and view results. Submit an election for review when it is ready; an administrator approves and opens it." %}</span>
+    <a href="{% url 'console:access_requests' %}" class="btn btn-sm btn-outline-wine">{% translate "Need more access?" %}</a>
+</div>
+{% endif %}
 
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Active elections" %}</div><div class="kpi-value">{{ stats.active|number }}</div></div></div>
     <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Votes today" %}</div><div class="kpi-value">{{ stats.votes_today|number }}</div></div></div>
-    <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Revenue (30 days)" %}</div><div class="kpi-value">{{ stats.revenue_30d|money:currency }}</div></div></div>
-    <div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Voters on rolls" %}</div><div class="kpi-value">{{ stats.voters|number }}</div></div></div>
-    <div class="col-6 col-lg"><a href="{% url 'fraud:alerts' %}" class="text-decoration-none"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Fraud alerts" %}</div><div class="kpi-value {% if stats.fraud_alerts %}text-danger{% endif %}">{{ stats.fraud_alerts|number }}</div></div></a></div>
+    {% if 'payment.view' in nav_perms %}<div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Revenue (30 days)" %}</div><div class="kpi-value">{{ stats.revenue_30d|money:currency }}</div></div></div>{% endif %}
+    {% if 'voter.view' in nav_perms %}<div class="col-6 col-lg"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Voters on rolls" %}</div><div class="kpi-value">{{ stats.voters|number }}</div></div></div>{% endif %}
+    {% if 'fraud.view' in nav_perms %}<div class="col-6 col-lg"><a href="{% url 'fraud:alerts' %}" class="text-decoration-none"><div class="card kpi p-3 h-100"><div class="kpi-label">{% translate "Fraud alerts" %}</div><div class="kpi-value {% if stats.fraud_alerts %}text-danger{% endif %}">{{ stats.fraud_alerts|number }}</div></div></a></div>{% endif %}
 </div>
 
 {% if stats.approvals or stats.in_review %}
@@ -55,9 +62,14 @@
                             <td>{{ event.status|status_badge:event.get_status_display }}</td>
                             <td class="small">{{ event.end_date|in_tz:event.timezone|date:"d M Y H:i" }}</td>
                             <td class="text-end">
-                                <div class="d-inline-flex gap-1">
+                                <div class="d-inline-flex flex-wrap justify-content-end gap-1">
                                     {% if event.status == 'REVIEW' %}{% can request.user 'election.review' event as can_review %}{% if can_review %}
-                                    <form action="{% url 'approve_event' event.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success" title="{% translate 'Approve configuration' %}">{% translate "Approve" %}</button></form>
+                                    {% can request.user 'election.publish' event as can_publish %}
+                                    <form action="{% url 'approve_event' event.id %}" method="post">{% csrf_token %}<button type="submit" class="btn btn-sm btn-success" title="{% if can_publish %}{% translate 'Approve the configuration and publish the election' %}{% else %}{% translate 'Approve configuration' %}{% endif %}">{% if can_publish %}{% translate "Approve & publish" %}{% else %}{% translate "Approve" %}{% endif %}</button></form>
+                                    {% endif %}{% elif event.status == 'APPROVED' %}{% can request.user 'election.publish' event as can_publish %}{% if can_publish %}
+                                    <form action="{% url 'elections:console_transition' event.id %}" method="post">{% csrf_token %}<input type="hidden" name="action" value="schedule"><input type="hidden" name="next" value="{% url 'dashboard' %}"><button type="submit" class="btn btn-sm btn-primary">{% translate "Publish" %}</button></form>
+                                    {% endif %}{% elif event.status == 'CLOSED' or event.status == 'TALLYING' or event.status == 'CERTIFIED' or event.status == 'PUBLISHED' %}{% can request.user 'election.reschedule' event as can_reschedule %}{% if can_reschedule %}
+                                    <a href="{% url 'elections:console_schedule' event.id %}" class="btn btn-sm btn-outline-danger">{% translate "Restart" %}</a>
                                     {% endif %}{% endif %}
                                     <a href="{% url 'elections:console_overview' event.id %}" class="btn btn-sm btn-outline-wine">{% translate "Manage" %}</a>
                                 </div>
@@ -78,6 +90,7 @@
             <ul class="list-unstyled mb-0 small">{% for n in notifications %}<li class="border-bottom py-2"><strong>{{ n.subject }}</strong><div class="text-muted">{{ n.created_at|timesince }} {% translate "ago" %}</div></li>{% endfor %}</ul>
         </div>
         {% endif %}
+        {% if 'audit.view' in nav_perms %}
         <div class="panel">
             <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Recent activity" %}</h2><a href="{% url 'console:audit' %}" class="small">{% translate "Audit log" %}</a></div>
             <ul class="list-unstyled mb-0 small">
@@ -86,6 +99,7 @@
                 {% empty %}<li class="text-muted">{% translate "No activity yet." %}</li>{% endfor %}
             </ul>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -34,6 +34,8 @@ SUBJECTS = {
     'organizer_approved': 'Your organizer account is approved',
     'candidate_invitation': 'Set up your candidate profile: {election}',
     'approval_requested': 'Approval needed: {action}',
+    'access_requested': 'Access request from {username}: {role}',
+    'access_decided': 'Your access request was {decision}: {role}',
     'support_ticket': 'Support request {reference}: {subject}',
 }
 

@@ -1,0 +1,99 @@
+{% extends 'console/base.html' %}
+{% load i18n fv %}
+{% block title %}{% if reviewing %}{% translate "Access requests" %}{% else %}{% translate "Request access" %}{% endif %}{% endblock %}
+{% block console %}
+{% if reviewing %}
+<h1 class="h3 fw-bold text-wine">{% translate "Access requests" %}</h1>
+<p class="text-muted">{% translate "Organizers can build elections, add candidates and view results. Anything else - approving, opening, pausing, resuming or closing voting, voter rolls, payments, audit - is granted here, as a role, when you approve a request." %}</p>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "Pending" %}</h2>
+    {% for req in pending %}
+    <div class="border rounded-3 p-3 mb-2">
+        <div class="d-flex justify-content-between flex-wrap gap-3">
+            <div class="flex-grow-1">
+                <div><strong>{{ req.requester.username }}</strong> {% translate "asks for" %} <strong>{{ req.role.name }}</strong></div>
+                <div class="small text-muted">{% if req.event %}{% translate "Election" %}: <a href="{% url 'elections:console_overview' req.event.pk %}">{{ req.event.title }}</a>{% elif req.organization %}{% translate "Organization" %}: {{ req.organization.name }}{% endif %} · {{ req.created_at|date:"d M Y H:i" }}</div>
+                <div class="small mt-1">{% translate "Reason" %}: {{ req.reason }}</div>
+                <details class="small mt-1"><summary>{% translate "What this role allows" %}</summary>
+                    <ul class="mb-0">{% for label in req.permission_labels %}<li>{{ label }}</li>{% endfor %}</ul></details>
+            </div>
+            <form method="post" class="d-flex flex-wrap gap-1 align-items-start">{% csrf_token %}
+                <input type="hidden" name="request" value="{{ req.pk }}">
+                <label class="visually-hidden" for="note-{{ req.pk }}">{% translate "Note to the requester" %}</label>
+                <input id="note-{{ req.pk }}" name="note" class="form-control form-control-sm" placeholder="{% translate 'Note (optional)' %}">
+                <button name="decision" value="approve" class="btn btn-sm btn-success" data-confirm="{% translate 'Grant this role now?' %}">{% translate "Approve & grant" %}</button>
+                <button name="decision" value="reject" class="btn btn-sm btn-outline-danger">{% translate "Reject" %}</button>
+            </form>
+        </div>
+    </div>
+    {% empty %}<p class="text-muted mb-0">{% translate "Nothing waiting." %}</p>{% endfor %}
+</div>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "History" %}</h2>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle"><thead><tr><th scope="col">{% translate "Requester" %}</th><th scope="col">{% translate "Role" %}</th><th scope="col">{% translate "Scope" %}</th><th scope="col">{% translate "Decided" %}</th><th scope="col">{% translate "Status" %}</th></tr></thead>
+        <tbody>{% for req in history %}<tr><td>{{ req.requester.username }}</td><td>{{ req.role.name }}</td><td class="small">{{ req.scope_label }}</td><td class="small">{{ req.decided_by.username|default:"—" }} {{ req.decided_at|date:"d M H:i" }}{% if req.decision_note %}<div class="text-muted">{{ req.decision_note }}</div>{% endif %}</td><td>{{ req.status|status_badge:req.get_status_display }}</td></tr>{% empty %}<tr><td colspan="5" class="text-muted">—</td></tr>{% endfor %}</tbody></table>
+    </div>
+    <p class="small text-muted mb-0">{% translate "To remove a granted role later, use Team & roles on the organization." %}</p>
+</div>
+{% else %}
+<h1 class="h3 fw-bold text-wine">{% translate "Request access" %}</h1>
+<p class="text-muted">{% translate "As an organizer you can create elections, add candidates and view results. To approve, open, pause, resume or close voting, manage voter rolls, see payments or anything else, ask a platform administrator for the role that covers it." %}</p>
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="panel h-100">
+            <h2 class="h5 fw-bold">{% translate "New request" %}</h2>
+            {% if organizations or events %}
+            <form method="post">{% csrf_token %}
+                <input type="hidden" name="action" value="request">
+                <div class="mb-3">
+                    <label for="ar-role" class="form-label">{% translate "Role" %}</label>
+                    <select id="ar-role" name="role" class="form-select" required>
+                        <option value="">{% translate "Choose a role" %}</option>
+                        {% for row in roles %}<option value="{{ row.role.code }}">{{ row.role.name }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="ar-scope" class="form-label">{% translate "Where you need it" %}</label>
+                    <select id="ar-scope" name="scope" class="form-select" required>
+                        {% if organizations %}<optgroup label="{% translate 'All elections in an organization' %}">{% for org in organizations %}<option value="org:{{ org.pk }}">{{ org.name }}</option>{% endfor %}</optgroup>{% endif %}
+                        {% if events %}<optgroup label="{% translate 'One election only' %}">{% for event in events %}<option value="event:{{ event.pk }}">{{ event.title }}</option>{% endfor %}</optgroup>{% endif %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="ar-reason" class="form-label">{% translate "Why you need it" %}</label>
+                    <textarea id="ar-reason" name="reason" class="form-control" rows="3" maxlength="2000" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-wine">{% translate "Send request" %}</button>
+            </form>
+            {% else %}
+            <p class="text-muted mb-0">{% translate "Create an election first; you can then request access for it or for your organization." %}</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="panel h-100">
+            <h2 class="h5 fw-bold">{% translate "What each role allows" %}</h2>
+            {% for row in roles %}
+            <details class="small border-bottom py-2"><summary><strong>{{ row.role.name }}</strong> - {{ row.role.description }}</summary>
+                <ul class="mb-0 mt-1">{% for label in row.labels %}<li>{{ label }}</li>{% endfor %}</ul></details>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+<div class="panel mt-4">
+    <h2 class="h5 fw-bold">{% translate "Your requests" %}</h2>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle"><thead><tr><th scope="col">{% translate "Role" %}</th><th scope="col">{% translate "Scope" %}</th><th scope="col">{% translate "Sent" %}</th><th scope="col">{% translate "Status" %}</th><th scope="col"><span class="visually-hidden">{% translate "Actions" %}</span></th></tr></thead>
+        <tbody>{% for req in my_requests %}<tr><td>{{ req.role.name }}</td><td class="small">{{ req.scope_label }}</td><td class="small">{{ req.created_at|date:"d M Y H:i" }}</td>
+            <td>{{ req.status|status_badge:req.get_status_display }}{% if req.decision_note %}<div class="small text-muted">{{ req.decision_note }}</div>{% endif %}</td>
+            <td class="text-end">{% if req.status == 'PENDING' %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="cancel"><input type="hidden" name="request" value="{{ req.pk }}"><button class="btn btn-sm btn-outline-secondary">{% translate "Cancel" %}</button></form>{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-muted">{% translate "No requests yet." %}</td></tr>{% endfor %}</tbody></table>
+    </div>
+</div>
+<div class="panel">
+    <h2 class="h5 fw-bold">{% translate "Your current roles" %}</h2>
+    <ul class="mb-0 small">{% for a in my_roles %}<li><strong>{{ a.role.name }}</strong> · {% if a.event %}{% translate "Election" %}: {{ a.event.title }}{% elif a.organization %}{{ a.organization.name }}{% else %}{% translate "Platform" %}{% endif %}</li>{% empty %}<li class="text-muted">{% translate "Organizer of your own elections." %}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endblock %}

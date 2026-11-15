@@ -1,0 +1,8 @@
+{% autoescape off %}Hi {{ username }},
+
+Your request for the {{ role }} role ({{ scope }}) was {{ decision }}.
+{% if note %}
+Note from the administrator: {{ note }}
+{% endif %}
+Your requests: {{ site_url }}/console/access-requests/
+{% endautoescape %}

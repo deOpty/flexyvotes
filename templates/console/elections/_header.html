@@ -12,6 +12,9 @@
     </div>
     <div class="d-flex flex-wrap gap-2">
         <a href="{% url 'event_detail' event.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> {% translate "Public page" %}</a>
+        {% if 'election.reschedule' in perms and event.status in ended_states %}
+        <a href="{% url 'elections:console_schedule' event.pk %}" class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> {% translate "Restart voting" %}</a>
+        {% endif %}
         {% for action in actions %}
         <form method="post" action="{% url 'elections:console_transition' event.pk %}" {% if action.confirm %}data-confirm="{{ action.confirm }}"{% endif %}>
             {% csrf_token %}<input type="hidden" name="action" value="{{ action.name }}">
@@ -21,18 +24,22 @@
     </div>
 </div>
 <ul class="nav nav-pills election-tabs mb-4 flex-wrap gap-1" role="list">
+    {# Tabs are shown only when the user holds the permission the page enforces. #}
     <li class="nav-item"><a class="nav-link {% if tab == 'overview' %}active{% endif %}" href="{% url 'elections:console_overview' event.pk %}">{% translate "Overview" %}</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'settings' %}active{% endif %}" href="{% url 'elections:console_settings' event.pk %}">{% translate "Settings" %}</a></li>
+    {% if 'election.settings' in perms %}<li class="nav-item"><a class="nav-link {% if tab == 'settings' %}active{% endif %}" href="{% url 'elections:console_settings' event.pk %}">{% translate "Settings" %}</a></li>{% endif %}
     <li class="nav-item"><a class="nav-link {% if tab == 'ballot' %}active{% endif %}" href="{% url 'elections:console_ballot' event.pk %}">{% if event.is_paid %}{% translate "Categories & contestants" %}{% else %}{% translate "Ballot" %}{% endif %}</a></li>
     {% if event.is_institutional %}
+    {% if 'voter.view' in perms %}
     <li class="nav-item"><a class="nav-link {% if tab == 'voters' %}active{% endif %}" href="{% url 'elections:console_voters' event.pk %}">{% translate "Voters" %}</a></li>
     <li class="nav-item"><a class="nav-link {% if tab == 'eligibility' %}active{% endif %}" href="{% url 'elections:console_eligibility' event.pk %}">{% translate "Eligibility" %}</a></li>
+    {% endif %}
     {% else %}
-    <li class="nav-item"><a class="nav-link" href="{% url 'payments:pricing' event.pk %}">{% translate "Pricing" %}</a></li>
-    <li class="nav-item"><a class="nav-link" href="{% url 'payments:console_list' %}?event={{ event.pk }}">{% translate "Payments" %}</a></li>
+    {% if 'pricing.manage' in perms %}<li class="nav-item"><a class="nav-link" href="{% url 'payments:pricing' event.pk %}">{% translate "Pricing" %}</a></li>{% endif %}
+    {% if 'payment.view' in perms %}<li class="nav-item"><a class="nav-link" href="{% url 'payments:console_list' %}?event={{ event.pk }}">{% translate "Payments" %}</a></li>{% endif %}
     {% endif %}
     <li class="nav-item"><a class="nav-link {% if tab == 'results' %}active{% endif %}" href="{% url 'elections:console_results' event.pk %}">{% translate "Results" %}</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'monitor' %}active{% endif %}" href="{% url 'elections:console_monitor' event.pk %}">{% translate "Live monitor" %}</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'integrity' %}active{% endif %}" href="{% url 'elections:console_integrity' event.pk %}">{% translate "Integrity" %}</a></li>
-    <li class="nav-item"><a class="nav-link {% if tab == 'audit' %}active{% endif %}" href="{% url 'elections:console_audit' event.pk %}">{% translate "Audit" %}</a></li>
+    {% if 'vote.view' in perms %}<li class="nav-item"><a class="nav-link {% if tab == 'monitor' %}active{% endif %}" href="{% url 'elections:console_monitor' event.pk %}">{% translate "Live monitor" %}</a></li>{% endif %}
+    {% if show_integrity %}<li class="nav-item"><a class="nav-link {% if tab == 'integrity' %}active{% endif %}" href="{% url 'elections:console_integrity' event.pk %}">{% translate "Integrity" %}</a></li>{% endif %}
+    {% if 'audit.view' in perms %}<li class="nav-item"><a class="nav-link {% if tab == 'audit' %}active{% endif %}" href="{% url 'elections:console_audit' event.pk %}">{% translate "Audit" %}</a></li>{% endif %}
+    {% if 'election.reschedule' in perms %}<li class="nav-item"><a class="nav-link {% if tab == 'schedule' %}active{% endif %}" href="{% url 'elections:console_schedule' event.pk %}">{% translate "Schedule" %}</a></li>{% endif %}
 </ul>

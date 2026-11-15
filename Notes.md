@@ -76,6 +76,18 @@ Still using a single agent and not exhausting all tokens and also having full co
 
 ---
 
+Using a single agent and not exhausting all tokens with multiple agents and also having full control to implement the full features needed for the following items to work properly without breaking. Build and test fully the listed items below:
+
+1. Admin features should not be accessible to organizers. Let organizers be able to create events, add candidates and see results. They should not be able to approve, start, pause or resume events and votes. Organizers should request for any other privileges they want from the admin.
+
+2. Hide all features and menu items that the organizer does not have access to from the organizer dashboard. Let them see only menu options and items they have access to.
+
+3. Votes can not be extended or started again by the admin when it starts. Let the admin be able to edit and change voting time and restart ended voting events even after the voting period.
+
+---
+
+---
+
 set_env() { grep -q "^$1=" .env && sed -i "s|^$1=.\*|$1=$2|" .env || echo "$1=$2" >> .env; }
 set_env ALLOWED_HOSTS 16.192.12.135,localhost,127.0.0.1
 set_env CSRF_TRUSTED_ORIGINS http://16.192.12.135:5000

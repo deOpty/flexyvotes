@@ -22,6 +22,7 @@
         {% if 'election.close' in perms %}
         <div class="panel">
             <h2 class="h5 fw-bold">{% translate "Extend or re-open voting" %}</h2>
+            {% if 'election.reschedule' in perms %}<p class="small text-muted">{% translate "As an administrator you can also change the voting times or restart ended voting directly, without a second approver:" %} <a href="{% url 'elections:console_schedule' event.pk %}">{% translate "Voting schedule" %}</a></p>{% endif %}
             <form method="post" action="{% url 'elections:console_integrity_action' event.pk %}" class="row g-2">{% csrf_token %}
                 <div class="col-sm-6"><label class="form-label small" for="ne">{% translate "New end (ISO, election time zone)" %}</label><input id="ne" type="datetime-local" name="new_end" class="form-control" required></div>
                 <div class="col-sm-6"><label class="form-label small" for="nr">{% translate "Reason" %}</label><input id="nr" name="reason" class="form-control" required></div>

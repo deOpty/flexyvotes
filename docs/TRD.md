@@ -40,6 +40,21 @@ The lifecycle is a table of `Action(name, sources, target, permission, guard, ef
 | publish | CERTIFIED → PUBLISHED | `results.publish` | |
 | archive | PUBLISHED/CLOSED/DRAFT → ARCHIVED | `election.archive` | No legal hold; no open disputes |
 | decertify, reopen_voting | — | — | System-only, run through dual approval |
+| restart / restart_scheduled | CLOSED/TALLYING/CERTIFIED/PUBLISHED → OPEN / SCHEDULED | `election.reschedule` | System-only, run by `reschedule()`: applies the new window, supersedes tallied results, revokes any certification |
+
+System-only actions can't be requested through the console or `POST
+/api/v1/elections/{id}/transitions`. Those entry points go through
+`lifecycle.manual_transition()`, which accepts only manual actions.
+
+`lifecycle.reschedule(event, start, end, actor, reason)` is the administrator override for
+the voting window (permission `election.reschedule`):
+
+| State | Effect |
+|---|---|
+| DRAFT … SCHEDULED | Dates change and approval stands. After approval, a new signed config snapshot (`RESCHEDULED`) is stored. |
+| OPEN, PAUSED | End must be in the future. Start may only move within the past. Reason required. |
+| CLOSED … PUBLISHED | Restart. Opens now if start ≤ now, otherwise SCHEDULED. Reason required. Paid elections are unfrozen again. |
+| ARCHIVED | Refused (read-only) |
 
 `lifecycle_tick` (every 60 s) opens SCHEDULED elections whose start has passed and closes
 OPEN or PAUSED ones whose end has passed. It uses `skip_guard` and `system=True`.

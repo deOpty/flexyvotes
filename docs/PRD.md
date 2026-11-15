@@ -60,9 +60,14 @@ Two kinds of customers need online voting, and today they are served badly.
 | **Support agent** | Answer tickets from voters and organizers |
 | **Platform admin** | Organizations, organizer approval, system health |
 
-These map onto 12 built-in roles (Super Admin, Organization Admin, Election Administrator,
-Election Reviewer, Election Officer, Election Auditor, Candidate Manager, Finance Officer,
-Support Agent, Fraud Analyst, Results Officer, Voter). A role can be granted for the whole
+These map onto 13 built-in roles (Super Admin, Organization Admin, Organizer, Election
+Administrator, Election Reviewer, Election Officer, Election Auditor, Candidate Manager,
+Finance Officer, Support Agent, Fraud Analyst, Results Officer, Voter). Self-registered
+organizers get the **Organizer** role: they create elections, add candidates and view
+results. Approving, publishing, opening, pausing, resuming and closing elections stay with
+administrators. Organizers request any other privilege from a platform admin (Access
+requests), and the admin grants it as a scoped role. Administrators can change voting
+times at any stage and restart voting after it has ended. A role can be granted for the whole
 platform, for one organization, or for one election. The permission matrix is in
 [SECURITY.md](SECURITY.md#3-access-control).
 

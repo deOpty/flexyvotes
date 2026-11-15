@@ -406,12 +406,27 @@ def logout_view(request):
 @login_required
 @require_POST
 def approve_event(request, event_id):
+    from elections.keys import KeyCustodyError
+
     event = get_object_or_404(Event, id=event_id)
     try:
-        lifecycle.transition(event, 'approve', actor=request.user, request=request, reason='Approved from dashboard')
-        messages.success(request, f'"{event.title}" has been approved. The organizer can now publish it.')
+        event = lifecycle.transition(event, 'approve', actor=request.user, request=request,
+                                     reason='Approved from dashboard')
     except (lifecycle.LifecycleError, PermissionDenied) as exc:
         messages.error(request, str(exc) or 'You are not allowed to approve this election.')
+        return redirect(safe_next(request, request.POST.get('next'), reverse('dashboard')))
+    # Organizers cannot publish their own elections, so an approver who may
+    # also publish takes it live in the same step.
+    if has_perm(request.user, 'election.publish', event):
+        try:
+            lifecycle.transition(event, 'schedule', actor=request.user, request=request,
+                                 reason='Published on approval from dashboard')
+            messages.success(request, f'"{event.title}" has been approved and published. Voting opens at the start time.')
+        except (lifecycle.LifecycleError, PermissionDenied, KeyCustodyError) as exc:
+            messages.warning(request, f'"{event.title}" was approved but could not be published yet: {exc}')
+    else:
+        messages.success(request, f'"{event.title}" has been approved. An administrator with publishing rights can '
+                                  f'now publish it.')
     return redirect(safe_next(request, request.POST.get('next'), reverse('dashboard')))
 
 
@@ -519,6 +534,9 @@ def edit_event(request, event):
                'currencies': settings.SUPPORTED_CURRENCIES}
     if request.method == 'POST':
         if not _editable_or_message(request, event, 'config'):
+            if has_perm(request.user, 'election.reschedule', event) and event.status != Event.Status.ARCHIVED:
+                messages.info(request, 'Voting times can still be changed (or ended voting restarted) on the Schedule tab.')
+                return redirect('elections:console_schedule', event_id=event.pk)
             return redirect('elections:console_overview', event_id=event.pk)
         values, errors = _event_form_values(request, event)
         if values['voting_mode'] != event.voting_mode and (event.voters.exists() or VoteTransaction.objects.filter(

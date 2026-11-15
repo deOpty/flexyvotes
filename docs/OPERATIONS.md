@@ -218,7 +218,16 @@ move it onto dedicated keys:
 
 - **Problems with the election itself.**
   - Pause voting from the overview if there is a systemic problem, and record an incident.
-  - Extending the end time needs dual approval (`EXTEND_VOTING`).
+  - To extend or shorten voting, an administrator with `election.reschedule` (platform admin,
+    Organization Admin or Election Admin) opens the election's **Schedule** tab, sets the
+    new end time and gives a reason. The change applies at once and is audited. Officials
+    without that permission can still request an extension on the Integrity tab, which
+    needs dual approval (`EXTEND_VOTING`).
+  - To restart voting after it has ended (closed, tallying, certified or published), use the
+    same Schedule tab, or **Restart** on the dashboard. Set a future end time and a reason.
+    If the start is now or earlier, voting opens at once; otherwise it opens at the new start.
+    Tallied results are superseded and any certification is revoked. People who already
+    voted can't vote again. Results are tallied again when voting closes.
 
 **After closing**
 
@@ -277,7 +286,9 @@ move it onto dedicated keys:
 
 | Task | How |
 |---|---|
-| Approve a new organizer | `/console/organizers/` → approve. Creates their personal organization and Organization Admin role. |
+| Approve a new organizer | `/console/organizers/` → approve. Creates their personal organization and gives them the **Organizer** role there: they can create elections, add candidates and view results, nothing more. |
+| Approve an organizer's election | Dashboard → **Approve & publish** on an election in review. It approves the configuration and publishes it, and voting opens at the start time. Organizers cannot publish, open, pause, resume or close elections themselves. |
+| Grant an organizer extra access | `/console/access-requests/` → review the pending request (role, scope, reason) → **Approve & grant** or **Reject**. The organizer is notified. To remove a role later, use Team & roles on the organization. Common grants: Election Officer (pause/resume, voter help), Election Administrator (publish, open, close, voter rolls), Finance Officer (payments and revenue). |
 | Add staff to an organization | `/console/organizations/<id>/team/` → grant a role, scoped to the organization or one election |
 | Support tickets | `/console/support/` → reply. Internal notes aren't sent to the requester. |
 | Database access | pgAdmin (compose `--profile admin`) behind VPN or IP allow-list only, or `psql` through a bastion or SSM. Use a read-only role for browsing. |

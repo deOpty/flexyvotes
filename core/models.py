@@ -90,6 +90,52 @@ class RoleAssignment(models.Model):
         return f'{self.user} - {self.role.code} @ {scope}'
 
 
+class AccessRequest(models.Model):
+    """An organizer asking a platform admin for a role they do not have
+    (e.g. permission to open, pause or close their own elections). Approving
+    it grants the role through a normal RoleAssignment."""
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    requester = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='access_requests')
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name='access_requests')
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True,
+                                     related_name='access_requests')
+    event = models.ForeignKey('voting.Event', on_delete=models.CASCADE, null=True, blank=True,
+                              related_name='access_requests')
+    reason = models.TextField()
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    decided_at = models.DateTimeField(null=True, blank=True)
+    decision_note = models.TextField(blank=True)
+    assignment = models.ForeignKey(RoleAssignment, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            # One open request per user, role and scope.
+            models.UniqueConstraint(fields=['requester', 'role', 'organization', 'event'],
+                                    condition=models.Q(status='PENDING'), name='uniq_pending_access_request'),
+        ]
+
+    def __str__(self):
+        return f'{self.requester} requests {self.role.code} ({self.status})'
+
+    @property
+    def scope_label(self):
+        if self.event_id:
+            return f'Election: {self.event.title}'
+        if self.organization_id:
+            return f'Organization: {self.organization.name}'
+        return 'Platform'
+
+
 # ---------------------------------------------------------------------------
 # Tamper-evident audit log
 # ---------------------------------------------------------------------------

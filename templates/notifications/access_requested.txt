@@ -1,0 +1,8 @@
+{% autoescape off %}{{ username }} is asking for more access on {{ platform }}.
+
+Role requested: {{ role }}
+Scope: {{ scope }}
+Reason: {{ reason }}
+
+Review: {{ site_url }}/console/access-requests/
+{% endautoescape %}

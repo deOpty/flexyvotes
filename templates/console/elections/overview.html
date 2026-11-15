@@ -14,7 +14,7 @@
     </ol>
     {% endwith %}
     <p class="small text-muted mt-2 mb-0">
-        {% if event.status == 'DRAFT' %}{% translate "Configure the ballot, voters and settings, then submit the election for review." %}
+        {% if event.status == 'DRAFT' %}{% if 'election.publish' in perms %}{% translate "Configure the ballot, voters and settings, then submit the election for review." %}{% else %}{% translate "Add positions and candidates, then submit the election for review. An administrator approves it and opens voting." %}{% endif %}
         {% elif event.status == 'REVIEW' %}{% translate "An election reviewer must approve the configuration. The approved configuration is signed." %}
         {% elif event.status == 'APPROVED' %}{% translate "Publish & schedule: the ballot key is generated and voting opens automatically at the start time." %}
         {% elif event.status == 'SCHEDULED' %}{% translate "Voting opens automatically at the start time (or open it now)." %}
@@ -64,25 +64,43 @@
                 {% endif %}
                 <dt class="col-sm-5">{% translate "Open disputes" %}</dt><dd class="col-sm-7">{{ open_disputes }}</dd>
             </dl>
-            {% if pending_approvals %}<div class="alert alert-info small mt-3 mb-0">{% blocktranslate count n=pending_approvals|length %}{{ n }} request is awaiting a second approver.{% plural %}{{ n }} requests are awaiting a second approver.{% endblocktranslate %} <a href="{% url 'console:approvals' %}">{% translate "Review" %}</a></div>{% endif %}
+            {% if pending_approvals and nav_approvals %}<div class="alert alert-info small mt-3 mb-0">{% blocktranslate count n=pending_approvals|length %}{{ n }} request is awaiting a second approver.{% plural %}{{ n }} requests are awaiting a second approver.{% endblocktranslate %} <a href="{% url 'console:approvals' %}">{% translate "Review" %}</a></div>{% endif %}
         </div>
     </div>
+    {% if 'audit.view' in perms %}
     <div class="col-lg-6">
         <div class="panel h-100">
-            <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Recent activity" %}</h2>{% if 'audit.view' in perms %}<a class="small" href="{% url 'elections:console_audit' event.pk %}">{% translate "Full audit trail" %}</a>{% endif %}</div>
+            <div class="d-flex justify-content-between"><h2 class="h5 fw-bold">{% translate "Recent activity" %}</h2><a class="small" href="{% url 'elections:console_audit' event.pk %}">{% translate "Full audit trail" %}</a></div>
             <ul class="list-unstyled small mb-0">
                 {% for log in recent_audit %}<li class="border-bottom py-1"><span class="text-muted">{{ log.created_at|date:"d M H:i" }}</span> · <strong>{{ log.actor_label|default:"system" }}</strong> · {{ log.summary|default:log.event_type }}</li>
                 {% empty %}<li class="text-muted">{% translate "No activity yet." %}</li>{% endfor %}
             </ul>
         </div>
     </div>
+    {% elif not is_platform_admin %}
+    <div class="col-lg-6">
+        <div class="panel h-100">
+            <h2 class="h5 fw-bold">{% translate "What you can do" %}</h2>
+            <ul class="small mb-2">
+                {% if 'election.edit' in perms %}<li>{% translate "Edit the election details and add positions." %}</li>{% endif %}
+                {% if 'candidate.create' in perms %}<li>{% translate "Add and edit candidates." %}</li>{% endif %}
+                {% if 'results.view' in perms %}<li>{% translate "Follow turnout and results." %}</li>{% endif %}
+                {% if 'election.submit' in perms %}<li>{% translate "Submit the election for an administrator to approve and open." %}</li>{% endif %}
+            </ul>
+            <a href="{% url 'console:access_requests' %}" class="btn btn-sm btn-outline-wine">{% translate "Request more access" %}</a>
+        </div>
+    </div>
+    {% endif %}
 </div>
 <div class="panel mt-3 d-flex flex-wrap gap-2">
-    <a href="{% url 'edit_event' event.pk %}" class="btn btn-sm btn-outline-wine">{% translate "Edit details & dates" %}</a>
+    {% if 'election.edit' in perms %}<a href="{% url 'edit_event' event.pk %}" class="btn btn-sm btn-outline-wine">{% translate "Edit details & dates" %}</a>{% endif %}
+    {% if 'election.reschedule' in perms and event.status != 'ARCHIVED' %}<a href="{% url 'elections:console_schedule' event.pk %}" class="btn btn-sm btn-outline-wine">{% if event.status in ended_states %}{% translate "Restart voting" %}{% else %}{% translate "Change voting times" %}{% endif %}</a>{% endif %}
     <a href="{% url 'elections:console_ballot_preview' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Preview ballot" %}</a>
-    {% if event.is_paid %}<a href="{% url 'event_analytics' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Analytics" %}</a>{% endif %}
+    {% if event.is_paid and 'vote.view' in perms %}<a href="{% url 'event_analytics' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Analytics" %}</a>{% endif %}
+    {% if 'ticket.manage' in perms %}
     {% if event.tickets.exists %}<a href="{% url 'event_guestlist' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Guest list" %}</a><a href="{% url 'event_scanner' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Ticket scanner" %}</a>{% endif %}
     <a href="{% url 'create_ticket' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Add ticket type" %}</a>
+    {% endif %}
     <a href="{% url 'elections:verify' event.pk %}" class="btn btn-sm btn-outline-secondary">{% translate "Public verification page" %}</a>
 </div>
 {% endblock %}
