@@ -1,7 +1,8 @@
 /* FlexyVotes platform layer: console layout, ballot, accessibility modes. */
 
-/* Content must never depend on JavaScript to become visible. */
-html.no-js .reveal { opacity: 1 !important; transform: none !important; }
+/* Content must never depend on JavaScript to become visible. Lite mode does
+   not load site.js (which adds .is-visible), and focused content must show. */
+html.no-js .reveal, body.lite .reveal, .reveal:focus-within { opacity: 1 !important; transform: none !important; }
 
 .site-footer { background-color: #1E1E1E; color: #F5F5F5; }
 .footer-muted { color: #b9b9c0; }

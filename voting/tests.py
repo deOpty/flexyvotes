@@ -219,3 +219,74 @@ class LegacyRedirectTests(TestCase):
         self.client.login(username='officer', password=PASSWORD)
         self.assertEqual(self.client.get(reverse('elections:console_voters', args=[event.pk])).status_code, 200)
         self.assertEqual(self.client.get(reverse('elections:console_settings', args=[event.pk])).status_code, 403)
+
+
+class InterfaceRegressionTests(TestCase):
+    """Front-end defects that hid the Create Event button and froze the pay page."""
+
+    def test_create_event_actions_do_not_wait_for_a_scroll_animation(self):
+        import re
+
+        make_user('platform', staff=True, superuser=True)
+        self.client.login(username='platform', password=PASSWORD)
+        html = self.client.get(reverse('create_event')).content.decode()
+        self.assertIn('Create Event', html)
+        actions = re.search(r'<div class="([^"]*)">\s*<a\s+href="%s"\s+class="btn btn-outline-secondary' % reverse('dashboard'),
+                            html)
+        self.assertIsNotNone(actions, 'Cancel / Create Event action row not found')
+        self.assertNotIn('reveal', actions.group(1).split())
+
+    def test_reveal_animation_cannot_strand_content(self):
+        from django.conf import settings
+
+        js = (settings.BASE_DIR / 'voting/static/voting/js/site.js').read_text()
+        css = (settings.BASE_DIR / 'core/static/core/css/platform.css').read_text()
+        # The 12% threshold with a -40px margin never fired for the last element on a page.
+        self.assertNotIn('threshold: 0.12', js)
+        self.assertIn('revealAll', js)
+        # Lite mode does not load site.js, so CSS must show .reveal content there.
+        self.assertIn('body.lite .reveal', css)
+
+    def test_only_success_and_info_messages_auto_dismiss(self):
+        from django.conf import settings
+
+        error = self.client.post(reverse('contact'), {'name': '', 'email': 'bad', 'message': ''})
+        self.assertContains(error, 'role="alert"')
+        self.assertNotContains(error, 'data-autodismiss')
+        success = self.client.post(reverse('contact'), {'name': 'Ama', 'email': 'ama@example.com', 'subject': 'Hi',
+                                                        'message': 'Hello'}, follow=True)
+        self.assertContains(success, 'data-autodismiss')
+        js = (settings.BASE_DIR / 'voting/static/voting/js/site.js').read_text()
+        self.assertIn(".alert[data-autodismiss]", js)
+
+
+class ContactDetailsTests(TestCase):
+    def test_contact_page_shows_support_phone_as_click_to_call(self):
+        response = self.client.get(reverse('contact'))
+        self.assertContains(response, 'href="tel:+233592999185"', count=3)  # card number, "Call us" button, footer
+        self.assertContains(response, '+233 59 299 9185')
+        self.assertContains(response, 'Kumasi, Ghana')
+        # Optional channels stay hidden until configured.
+        self.assertNotContains(response, 'wa.me')
+        self.assertNotContains(response, 'mailto:')
+
+    def test_footer_shows_support_phone(self):
+        self.assertContains(self.client.get(reverse('home')), 'href="tel:+233592999185"')
+
+    def test_optional_channels_and_local_number_format(self):
+        from django.test import override_settings
+
+        with override_settings(SUPPORT_PHONE='059 299 9185', SUPPORT_WHATSAPP='+233 59 299 9185',
+                               SUPPORT_EMAIL='support@example.com'):
+            response = self.client.get(reverse('contact'))
+        self.assertContains(response, 'href="tel:+233592999185"')
+        self.assertContains(response, 'href="https://wa.me/233592999185"')
+        self.assertContains(response, 'href="mailto:support@example.com"')
+
+    def test_blank_phone_hides_phone_entries(self):
+        from django.test import override_settings
+
+        with override_settings(SUPPORT_PHONE=''):
+            response = self.client.get(reverse('contact'))
+        self.assertNotContains(response, 'tel:')
+        self.assertContains(response, 'Support desk')

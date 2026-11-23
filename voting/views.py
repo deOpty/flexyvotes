@@ -31,7 +31,7 @@ from core.models import SupportTicket
 from core.ratelimit import ratelimit
 from core.rbac import check_perm, event_permission_required, has_perm, is_platform_admin
 from core.tenancy import current_organization
-from core.utils import client_ip, is_ajax, safe_next
+from core.utils import client_ip, is_ajax, public_base_url, safe_next
 from elections import lifecycle
 from elections.ballot import positions_for
 
@@ -1182,14 +1182,16 @@ def buy_ticket(request, ticket_id):
             return redirect('event_tickets', event_id=ticket.event.id)
         TicketPurchase.objects.create(ticket=locked, event=ticket.event, buyer_name=buyer_name, buyer_email=buyer_email,
                                       quantity=quantity, paystack_reference=reference, status='Pending')
+    base = public_base_url(request)
     try:
         data = paystack.initialize(email=buyer_email, amount_minor=int(ticket.price * quantity * 100),
                                    currency=ticket.event.currency, reference=reference,
-                                   callback_url=f'{settings.SITE_URL}/ticket/success/',
-                                   metadata={'type': 'ticket_purchase', 'ticket_id': ticket.pk, 'quantity': quantity})
+                                   callback_url=f"{base}{reverse('ticket_success')}",
+                                   metadata={'type': 'ticket_purchase', 'ticket_id': ticket.pk, 'quantity': quantity},
+                                   base_url=base)
     except paystack.PaystackError as exc:
         TicketPurchase.objects.filter(paystack_reference=reference).update(status='Failed')
-        messages.error(request, f'Could not initialize payment: {exc}')
+        messages.error(request, str(exc))
         return redirect('event_tickets', event_id=ticket.event.id)
     return redirect(data['authorization_url'])
 

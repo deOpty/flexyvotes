@@ -101,3 +101,29 @@ def safe_next(request, candidate, default='/'):
 def is_ajax(request):
     return request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
         'application/json' in request.headers.get('Accept', '')
+
+
+def public_base_url(request=None):
+    """Origin a visitor's browser should be sent back to (payment callbacks).
+
+    SITE_URL is canonical and wins whenever the request arrived on the same
+    host and port. When it did not - SITE_URL still holds the example value,
+    or PORT changed but SITE_URL was not updated - the request's own origin is
+    used, so the payer returns to an address that works and still carries
+    their session. The host is safe to use: Django's get_host() has already
+    checked it against ALLOWED_HOSTS.
+    """
+    from urllib.parse import urlparse
+
+    from django.core.exceptions import DisallowedHost
+
+    site = settings.SITE_URL.rstrip('/')
+    if request is None:
+        return site
+    try:
+        host = request.get_host()
+    except DisallowedHost:
+        return site
+    if urlparse(site).netloc.lower() == host.lower():
+        return site
+    return f'{request.scheme}://{host}'

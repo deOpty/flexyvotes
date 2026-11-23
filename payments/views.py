@@ -66,6 +66,9 @@ def pay(request, event_id, candidate_id):
             idempotency_key=f"web:{context['idempotency_key']}")
     except service.PaymentError as exc:
         messages.error(request, exc.message)
+        # The failed attempt may have used up this key (a FAILED payment holds it), and a
+        # retry with it would only replay that failure. The corrected form is a new attempt.
+        context['idempotency_key'] = uuid.uuid4().hex
         return render(request, 'payments/pay.html', context, status=400)
     if payment.status in (Payment.Status.PENDING, Payment.Status.INITIALIZED) and payment.authorization_url:
         return redirect(payment.authorization_url)

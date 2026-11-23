@@ -23,7 +23,15 @@ FAKE_SECRET = 'sk_test_flexyvotes_local_simulator'  # nosec B105
 
 
 class PaystackError(Exception):
-    pass
+    """``str(exc)`` is safe to show to payers. ``detail`` holds the provider's
+    own reason (e.g. "Invalid key") for logs and the payment's history."""
+
+    def __init__(self, message, detail=''):
+        super().__init__(message)
+        self.detail = detail or message
+
+
+UNAVAILABLE = 'Online payment is temporarily unavailable. Please try again in a few minutes.'
 
 
 def fake_mode():
@@ -41,23 +49,37 @@ def configured():
 
 def _request(method, path, **kwargs):
     if not settings.PAYSTACK_SECRET_KEY:
-        raise PaystackError('Paystack is not configured.')
+        raise PaystackError(UNAVAILABLE, 'PAYSTACK_SECRET_KEY is not set.')
     url = f'{settings.PAYSTACK_BASE_URL.rstrip("/")}{path}'
     try:
         response = safe_request(method, url, integration='paystack', timeout=20,
                                 headers={'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY}',
                                          'Content-Type': 'application/json'}, **kwargs)
     except CircuitOpen as exc:
-        raise PaystackError('The payment provider is temporarily unavailable. Please try again shortly.') from exc
+        raise PaystackError(UNAVAILABLE, 'Paystack circuit breaker is open after repeated failures.') from exc
     except Exception as exc:  # noqa: BLE001 - network failure
         logger.warning('Paystack request failed: %s %s (%s)', method, path, exc.__class__.__name__)
-        raise PaystackError('Could not reach the payment provider.') from exc
+        raise PaystackError('Could not reach the payment provider. Please check your connection and try again.',
+                            f'Network error talking to Paystack: {exc.__class__.__name__}') from exc
     try:
         body = response.json()
     except ValueError as exc:
-        raise PaystackError('Unexpected response from the payment provider.') from exc
+        logger.warning('Paystack returned a non-JSON response: %s %s (HTTP %s)', method, path, response.status_code)
+        raise PaystackError(UNAVAILABLE, f'Non-JSON response from Paystack (HTTP {response.status_code}).') from exc
+    if not isinstance(body, dict):
+        body = {}
     if response.status_code >= 400 or not body.get('status'):
-        raise PaystackError(body.get('message') or f'Payment provider error ({response.status_code}).')
+        reason = str(body.get('message') or f'HTTP {response.status_code}')[:300]
+        if response.status_code in (401, 403):
+            # A wrong, revoked or test/live-mismatched key. Payers can do nothing about it; operators must.
+            logger.error('Paystack rejected the API key on %s %s (HTTP %s: %s). Check PAYSTACK_SECRET_KEY.',
+                         method, path, response.status_code, reason)
+            raise PaystackError(UNAVAILABLE, f'Paystack rejected the secret key (HTTP {response.status_code}): {reason}')
+        logger.warning('Paystack %s %s failed (HTTP %s): %s', method, path, response.status_code, reason)
+        if response.status_code >= 500:
+            raise PaystackError(UNAVAILABLE, f'Paystack server error (HTTP {response.status_code}): {reason}')
+        # 4xx validation problems (amount, email, currency, channel) describe the request itself.
+        raise PaystackError(f'The payment could not be started: {reason}', reason)
     return body
 
 
@@ -79,11 +101,16 @@ def fake_set(reference, data):
 # ---------------------------------------------------------------------------
 # API
 # ---------------------------------------------------------------------------
-def initialize(*, email, amount_minor, currency, reference, callback_url, metadata, channels=None):
+def initialize(*, email, amount_minor, currency, reference, callback_url, metadata, channels=None, base_url=None):
+    """``base_url``: the public origin the payer is on (core.utils.public_base_url);
+    used for the simulator's checkout link. Defaults to SITE_URL."""
     if fake_mode():
+        from django.urls import reverse
+
         fake_set(reference, {'status': 'ongoing', 'amount': amount_minor, 'currency': currency, 'email': email,
                              'metadata': metadata, 'reference': reference})
-        return {'authorization_url': f'{settings.SITE_URL}/payments/simulator/{reference}/',
+        origin = (base_url or settings.SITE_URL).rstrip('/')
+        return {'authorization_url': f"{origin}{reverse('payments:simulator', args=[reference])}",
                 'access_code': f'fake_{reference}', 'reference': reference}
     payload = {'email': email, 'amount': amount_minor, 'currency': currency, 'reference': reference,
                'callback_url': callback_url, 'metadata': metadata}

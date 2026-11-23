@@ -88,6 +88,70 @@ Using a single agent and not exhausting all tokens with multiple agents and also
 
 ---
 
+Using a single agent and not exhausting all tokens with multiple agents and also having full control to implement the full features needed for the following items to work properly without breaking. Build and test fully the listed items below:
+
+1. Admins can not login now even with the right creds. Investigate and fix the issues causing this.
+
+2. Fix the errors below and fix what is causing them.
+
+Error with Permissions-Policy header: Unrecognized feature: 'interest-cohort'.
+login/?next=/console/elections/10/:1 The Cross-Origin-Opener-Policy header has been ignored, because the URL's origin was untrustworthy. It was defined either in the final response or a redirect. Please deliver the response using the HTTPS protocol. You can also use the 'localhost' origin instead. See https://www.w3.org/TR/powerful-features/#potentially-trustworthy-origin and https://html.spec.whatwg.org/#the-cross-origin-opener-policy-header.
+Connecting to 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js.map' violates the following Content Security Policy directive: "connect-src 'self'". The request has been blocked.
+
+Connecting to 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css.map' violates the following Content Security Policy directive: "connect-src 'self'". The request has been blocked.
+
+---
+
+---
+
+Using a single agent and not exhausting all tokens with multiple agents and also having full control to implement the full features needed for the following items to work properly without breaking the current implementation. Build and test fully the listed items below:
+
+1. The create event button is not visible when creating your event.
+
+2. The Payment gateway is also not responding.
+
+3. Add real contact details to the contact page and the number +233592999185
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
 set_env() { grep -q "^$1=" .env && sed -i "s|^$1=.\*|$1=$2|" .env || echo "$1=$2" >> .env; }
 set_env ALLOWED_HOSTS 16.192.12.135,localhost,127.0.0.1
 set_env CSRF_TRUSTED_ORIGINS http://16.192.12.135:5000

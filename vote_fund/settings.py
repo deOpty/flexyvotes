@@ -63,6 +63,13 @@ if TESTING:
     ALLOWED_HOSTS = ['*']
 
 PLATFORM_NAME = env('PLATFORM_NAME', 'FlexyVotes')
+# Public support contacts, shown on the contact page and in the site footer.
+# Email and WhatsApp are shown only when set.
+SUPPORT_PHONE = env('SUPPORT_PHONE', '+233592999185')
+SUPPORT_WHATSAPP = env('SUPPORT_WHATSAPP', '')
+SUPPORT_EMAIL = env('SUPPORT_EMAIL', '')
+SUPPORT_ADDRESS = env('SUPPORT_ADDRESS', 'Accra, Ghana')
+SUPPORT_HOURS = env('SUPPORT_HOURS', 'Mon–Fri, 8am – 6pm GMT')
 # Public base URL used to build absolute links (payment callbacks, emails, SSO).
 SITE_URL = env('SITE_URL', 'http://localhost:8000').rstrip('/')
 # Moving the Django admin off /admin/ cuts automated scanning noise.

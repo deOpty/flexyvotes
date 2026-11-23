@@ -36,7 +36,7 @@ mocked with `responses`.
 
 ## 2. What is covered
 
-**276 tests** in 21 modules. The backup worker's shell
+**289 tests** in 21 modules. The backup worker's shell
 scripts are tested end to end against Docker; see the restore test log in
 [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md#restore-test-log).
 

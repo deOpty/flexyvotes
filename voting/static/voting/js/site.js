@@ -32,26 +32,59 @@
     window.addEventListener('scroll', toggle, { passive: true });
   }
 
-  /* --- Fade + rise elements marked with .reveal as they enter viewport --- */
+  /* --- Fade + rise elements marked with .reveal as they enter viewport ---
+     Content must never stay hidden. A hidden .reveal element sits 24px lower
+     than its layout position, so the last element on a page (often a form's
+     submit row) can only ever be partly on screen, even at maximum scroll.
+     An earlier threshold of 12% with a -40px bottom margin left such elements
+     at opacity 0 for good (e.g. the "Create Event" button). So: reveal on
+     the first visible pixel, and reveal whatever is left once the page is
+     scrolled to the bottom or a hidden element receives focus. */
   function initScrollReveal() {
     var targets = document.querySelectorAll('.reveal');
     if (!targets.length) return;
 
+    var show = function (el) { el.classList.add('is-visible'); };
+
     if (prefersReducedMotion || !('IntersectionObserver' in window)) {
-      targets.forEach(function (el) { el.classList.add('is-visible'); });
+      targets.forEach(show);
       return;
     }
 
     var observer = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
+          show(entry.target);
           observer.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    }, { threshold: 0, rootMargin: '0px' });
 
     targets.forEach(function (el) { observer.observe(el); });
+
+    var revealAll = function () {
+      document.querySelectorAll('.reveal:not(.is-visible)').forEach(function (el) {
+        show(el);
+        observer.unobserve(el);
+      });
+    };
+    var atBottom = function () {
+      var doc = document.documentElement;
+      return window.innerHeight + window.scrollY >= doc.scrollHeight - 2;
+    };
+    var onScroll = function () {
+      if (!atBottom()) return;
+      revealAll();
+      window.removeEventListener('scroll', onScroll);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll(); // short pages: everything already fits on screen
+
+    // Keyboard users tabbing into a not-yet-revealed block must see it.
+    document.addEventListener('focusin', function (e) {
+      var el = e.target.closest && e.target.closest('.reveal:not(.is-visible)');
+      if (el) { show(el); observer.unobserve(el); }
+    });
   }
 
   /* --- Subtle ripple feedback on buttons (visual only, never blocks clicks) --- */
@@ -82,33 +115,46 @@
   }
 
   /* --- Show a loading spinner on the submit button when a form is submitted ---
-     Applies to every form on the page, including ones with their own
-     AJAX handlers - this never calls preventDefault, so it cannot
-     interfere with existing submit logic. A safety timeout clears the
-     state in case an AJAX call never navigates away or resets it. */
+     Applies to every form that really submits (forms whose handlers cancel
+     the submission, such as AJAX forms or a declined confirmation, are
+     skipped). It never calls preventDefault, so it cannot interfere with
+     existing submit logic. A safety timeout clears the state in case the
+     page never navigates away. */
   function initButtonLoadingState() {
     document.addEventListener('submit', function (e) {
       var form = e.target;
       if (!(form instanceof HTMLFormElement)) return;
 
-      var submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+      // The button that was pressed; a <button> without a type is a submit
+      // button too (e.g. "Continue to secure payment").
+      var submitBtn = (e.submitter && e.submitter.matches('button, input[type="submit"]')) ? e.submitter :
+        form.querySelector('button[type="submit"], button:not([type]), input[type="submit"]');
       if (!submitBtn || submitBtn.classList.contains('is-loading')) return;
 
-      submitBtn.classList.add('is-loading');
-      submitBtn.setAttribute('aria-busy', 'true');
-
+      // Runs after every other submit handler (e.g. a cancelled data-confirm
+      // dialog), so a submission that did not happen leaves no spinner behind.
       window.setTimeout(function () {
-        submitBtn.classList.remove('is-loading');
-        submitBtn.removeAttribute('aria-busy');
-      }, 8000);
+        if (e.defaultPrevented) return;
+        submitBtn.classList.add('is-loading');
+        submitBtn.setAttribute('aria-busy', 'true');
+
+        window.setTimeout(function () {
+          submitBtn.classList.remove('is-loading');
+          submitBtn.removeAttribute('aria-busy');
+        }, 8000);
+      }, 0);
     }, true);
   }
 
-  /* --- Auto-dismiss success/info alerts after a few seconds --- */
+  /* --- Auto-dismiss success/info flash messages after a few seconds ---
+     Only alerts marked [data-autodismiss] (success/info flash messages in
+     voting/base.html). Errors and warnings stay until closed so the reader
+     learns why an action failed, and .alert boxes that are page content
+     (the live price on the pay page, "voting is closed" notices, ...) are
+     never removed: closing those made the payment page stop updating. */
   function initAlertAutoDismiss() {
-    var alerts = document.querySelectorAll('.alert.show, .alert:not(.alert-permanent)');
+    var alerts = document.querySelectorAll('.alert[data-autodismiss]');
     alerts.forEach(function (alertEl) {
-      if (alertEl.classList.contains('alert-permanent')) return;
       window.setTimeout(function () {
         if (window.bootstrap && window.bootstrap.Alert) {
           var instance = window.bootstrap.Alert.getOrCreateInstance(alertEl);

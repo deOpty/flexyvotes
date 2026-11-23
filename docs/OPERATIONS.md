@@ -22,8 +22,12 @@ Everything is read from the environment, or from `.env` in development. Values m
 | `SECRET_KEY` | — (**secret**, required when `DEBUG=False`) | Django signing, plus the HMAC key for access codes, OTPs, ballot tokens and recovery codes. See [Key management](#key-management). |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1,0.0.0.0` | Comma-separated hostnames. Health probes bypass this check. |
 | `CSRF_TRUSTED_ORIGINS` | — | e.g. `https://vote.example.com` |
-| `SITE_URL` | `http://localhost:8000` | Absolute links in emails, callbacks and SSO |
+| `SITE_URL` | `http://localhost:8000` | Absolute links in emails, callbacks and SSO. A Paystack checkout returns the payer to `SITE_URL`, or to the address the payer actually used when that differs (another allowed host or port) |
 | `PLATFORM_NAME` | `FlexyVotes` | Branding |
+| `SUPPORT_PHONE` | `+233592999185` | Support phone on the contact page and footer (click-to-call). `+233…` or local `0…` format |
+| `SUPPORT_WHATSAPP` | — | WhatsApp number; shows a "Chat on WhatsApp" link when set |
+| `SUPPORT_EMAIL` | — | Public support email; shown when set |
+| `SUPPORT_ADDRESS`, `SUPPORT_HOURS` | `Accra, Ghana`, `Mon–Fri, 8am – 6pm GMT` | Office location and support hours on the contact page |
 | `ADMIN_URL` | `admin/` | Django admin path; move it off the default |
 | `PORT` | `8000` | Port Gunicorn binds to inside the container; compose publishes the same port |
 | `ENVIRONMENT` | `production` (or `development` when `DEBUG`) | Tag for logs and Sentry |

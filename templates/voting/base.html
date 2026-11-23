@@ -75,7 +75,7 @@
         {% if messages %}
             <div class="container mt-4" aria-live="polite">
                 {% for message in messages %}
-                    <div class="alert alert-dismissible fade show shadow-soft d-flex align-items-center gap-2 {% if message.tags == 'error' %}alert-brand-error{% else %}alert-{{ message.tags }}{% endif %}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}">
+                    <div class="alert alert-dismissible fade show shadow-soft d-flex align-items-center gap-2 {% if message.tags == 'error' %}alert-brand-error{% else %}alert-{{ message.tags }}{% endif %}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}"{% if message.level_tag == 'success' or message.level_tag == 'info' %} data-autodismiss{% endif %}>
                         <i class="bi {% if message.tags == 'error' %}bi-exclamation-triangle-fill{% elif message.tags == 'success' %}bi-check-circle-fill{% else %}bi-info-circle-fill{% endif %}" aria-hidden="true"></i>
                         <span>{{ message }}</span>
                         <button type="button" class="btn-close {% if message.tags == 'error' %}btn-close-white{% endif %}" data-bs-dismiss="alert" aria-label="{% translate 'Close' %}"></button>
@@ -112,8 +112,13 @@
                 </div>
                 <div class="col-lg-4 col-md-6">
                     <h3 class="text-uppercase fw-bold mb-3 footer-heading">{% translate "Contact us" %}</h3>
-                    <p class="small footer-muted mb-1">Accra, Ghana</p>
-                    <p class="small footer-muted"><a class="text-reset" href="{% url 'contact' %}">{% translate "Support desk" %}</a></p>
+                    <ul class="list-unstyled small footer-muted">
+                        {% if SUPPORT.phone %}<li class="mb-2"><i class="bi bi-telephone me-2" aria-hidden="true"></i><a class="text-reset" href="tel:{{ SUPPORT.phone.e164 }}">{{ SUPPORT.phone.display }}</a></li>{% endif %}
+                        {% if SUPPORT.whatsapp %}<li class="mb-2"><i class="bi bi-whatsapp me-2" aria-hidden="true"></i><a class="text-reset" href="{{ SUPPORT.whatsapp_url }}" target="_blank" rel="noopener noreferrer">{% translate "WhatsApp" %} {{ SUPPORT.whatsapp.display }}</a></li>{% endif %}
+                        {% if SUPPORT.email %}<li class="mb-2"><i class="bi bi-envelope me-2" aria-hidden="true"></i><a class="text-reset text-break" href="mailto:{{ SUPPORT.email }}">{{ SUPPORT.email }}</a></li>{% endif %}
+                        {% if SUPPORT.address %}<li class="mb-2"><i class="bi bi-geo-alt me-2" aria-hidden="true"></i>{{ SUPPORT.address }}</li>{% endif %}
+                        <li class="mb-2"><i class="bi bi-life-preserver me-2" aria-hidden="true"></i><a class="text-reset" href="{% url 'contact' %}">{% translate "Support desk" %}</a></li>
+                    </ul>
                 </div>
             </div>
             <hr class="my-4 footer-rule">

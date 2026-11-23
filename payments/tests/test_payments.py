@@ -435,3 +435,80 @@ class ReconciliationScopingTests(TestCase):
         self.assertContains(page, self.items['a'].reference)
         self.assertContains(page, self.items['b'].reference)
         self.assertContains(page, 'Run now')
+
+
+@override_settings(PAYSTACK_SECRET_KEY=SECRET, PAYMENTS_FAKE_GATEWAY=False, SITE_URL='https://vote.example.com')
+class GatewayResponsivenessTests(TestCase):
+    """The pay button must always lead somewhere: to checkout, or to a clear, retryable error."""
+
+    def setUp(self):
+        owner = make_user('owner')
+        org = make_org('Show', admin=owner)
+        self.event = make_event(org=org, institutional=False, status=Event.Status.OPEN)
+        _, (self.alice, *_rest) = add_position(self.event, 'Best Singer')
+        self.url = reverse('payments:pay', args=[self.event.pk, self.alice.pk])
+
+    def post(self, key, **extra):
+        return self.client.post(self.url, {'votes': '2', 'email': 'fan@gmail.com', 'idempotency_key': key}, **extra)
+
+    @staticmethod
+    def mock_init(status=200, body=None):
+        responses.add(responses.POST, f'{BASE}/transaction/initialize', status=status, json=body or {
+            'status': True, 'data': {'authorization_url': 'https://checkout.paystack.com/ok', 'access_code': 'ok'}})
+
+    @responses.activate
+    def test_success_redirects_to_paystack_checkout(self):
+        self.mock_init()
+        response = self.post('k-success-000001')
+        self.assertRedirects(response, 'https://checkout.paystack.com/ok', fetch_redirect_response=False)
+        self.assertEqual(Payment.objects.get().status, Payment.Status.PENDING)
+
+    @responses.activate
+    def test_rejected_key_shows_friendly_error_and_records_real_reason(self):
+        self.mock_init(401, {'status': False, 'message': 'Invalid key'})
+        with self.assertLogs('payments.paystack', 'ERROR') as logs:
+            response = self.post('k-badkey-000001')
+        self.assertContains(response, 'Online payment is temporarily unavailable', status_code=400)
+        self.assertNotContains(response, 'Invalid key', status_code=400)
+        self.assertIn('PAYSTACK_SECRET_KEY', logs.output[0])
+        payment = Payment.objects.get()
+        self.assertEqual(payment.status, Payment.Status.FAILED)
+        self.assertTrue(payment.history.filter(message__contains='Invalid key').exists())
+
+    @responses.activate
+    def test_paystack_validation_message_reaches_the_payer(self):
+        self.mock_init(400, {'status': False, 'message': 'Currency not supported by merchant'})
+        response = self.post('k-currency-00001')
+        self.assertContains(response, 'Currency not supported by merchant', status_code=400)
+
+    @responses.activate
+    def test_error_page_offers_a_fresh_attempt_that_can_succeed(self):
+        self.mock_init(503, {'status': False, 'message': 'Service unavailable'})
+        self.mock_init()
+        first = self.post('k-retry-0000001')
+        self.assertEqual(first.status_code, 400)
+        new_key = re.search(r'name="idempotency_key" value="([^"]+)"', first.content.decode()).group(1)
+        self.assertNotEqual(new_key, 'k-retry-0000001')
+        second = self.post(new_key)
+        self.assertRedirects(second, 'https://checkout.paystack.com/ok', fetch_redirect_response=False)
+        self.assertEqual(sorted(Payment.objects.values_list('status', flat=True)),
+                         sorted([Payment.Status.FAILED, Payment.Status.PENDING]))
+
+    @responses.activate
+    def test_callback_returns_payer_to_the_address_they_used(self):
+        self.mock_init()
+        self.mock_init()
+        # SITE_URL does not match the address in use (e.g. still the example value, or another port).
+        self.post('k-host-00000001', HTTP_HOST='16.192.12.135:5000')
+        self.assertEqual(json.loads(responses.calls[0].request.body)['callback_url'],
+                         'http://16.192.12.135:5000/payments/callback/')
+        # When it matches, the canonical SITE_URL (https behind the TLS proxy) is kept.
+        self.post('k-host-00000002', HTTP_HOST='vote.example.com')
+        self.assertEqual(json.loads(responses.calls[1].request.body)['callback_url'],
+                         'https://vote.example.com/payments/callback/')
+
+    def test_live_total_on_pay_page_is_not_an_auto_dismissed_message(self):
+        # site.js removed every .alert after 6 s, including this box, so the total stopped updating.
+        response = self.client.get(self.url)
+        self.assertContains(response, 'id="quote-output"')
+        self.assertNotContains(response, 'data-autodismiss')

@@ -21,7 +21,7 @@ from django.utils.dateparse import parse_datetime
 
 from core import audit, crypto, metrics
 from core.rbac import check_perm, has_perm
-from core.utils import client_ip, device_hash, user_agent
+from core.utils import client_ip, device_hash, public_base_url, user_agent
 from voting.models import Candidate, Event, TicketPurchase, VoteTransaction
 
 from . import paystack
@@ -301,14 +301,15 @@ def initiate_vote_payment(request, event, candidate, *, votes=None, package=None
                 phone=mobile_money['phone'], provider=mobile_money['provider'], reference=payment.reference,
                 metadata=metadata)
         else:
+            base = public_base_url(request)
             data = paystack.initialize(
                 email=gateway_email, amount_minor=payment.amount_minor, currency=payment.currency,
-                reference=payment.reference, callback_url=f'{settings.SITE_URL}/payments/callback/',
-                metadata=metadata, channels=event.payment_channels or None,
+                reference=payment.reference, callback_url=f'{base}/payments/callback/',
+                metadata=metadata, channels=event.payment_channels or None, base_url=base,
             )
     except paystack.PaystackError as exc:
         with transaction.atomic():
-            transition(payment, P.FAILED, 'INIT', f'Gateway initialization failed: {exc}')
+            transition(payment, P.FAILED, 'INIT', f'Gateway initialization failed: {exc.detail}')
         raise PaymentError(str(exc), 'gateway') from exc
     with transaction.atomic():
         Payment.objects.filter(pk=payment.pk).update(authorization_url=data.get('authorization_url', ''),
@@ -476,7 +477,7 @@ def verify_and_apply(reference, source='VERIFY', actor=None):
     try:
         data = paystack.verify(reference)
     except paystack.PaystackError as exc:
-        logger.warning('Verification failed for %s: %s', reference, exc)
+        logger.warning('Verification failed for %s: %s', reference, exc.detail)
         return None
     if Payment.objects.filter(reference=reference).exists():
         return apply_gateway_result(reference, data, source, actor)
@@ -651,9 +652,9 @@ def approve_refund(refund_id, approver, via_approval=False):
         data = paystack.refund(refund.payment.reference, int((refund.amount * 100).quantize(Decimal('1'))))
     except paystack.PaystackError as exc:
         refund.status = Refund.Status.FAILED
-        refund.error = str(exc)[:1000]
+        refund.error = exc.detail[:1000]
         refund.save(update_fields=['status', 'error'])
-        _record(refund.payment, 'REFUND', f'Gateway refused refund: {exc}', actor=approver)
+        _record(refund.payment, 'REFUND', f'Gateway refused refund: {exc.detail}', actor=approver)
         return refund
     refund.status = Refund.Status.PROCESSING
     refund.gateway_refund_id = str(data.get('id', ''))[:40]
@@ -871,13 +872,14 @@ def initiate_invoice_payment(request, invoice, email):
     with transaction.atomic():
         payment.save()
         _record(payment, 'INIT', f'Invoice {invoice.number} payment created', to_status=P.INITIALIZED)
+    base = public_base_url(request)
     try:
         data = paystack.initialize(email=email, amount_minor=payment.amount_minor, currency=payment.currency,
-                                   reference=payment.reference, callback_url=f'{settings.SITE_URL}/payments/callback/',
-                                   metadata={'purpose': 'invoice', 'invoice': invoice.number})
+                                   reference=payment.reference, callback_url=f'{base}/payments/callback/',
+                                   metadata={'purpose': 'invoice', 'invoice': invoice.number}, base_url=base)
     except paystack.PaystackError as exc:
         with transaction.atomic():
-            transition(payment, P.FAILED, 'INIT', str(exc))
+            transition(payment, P.FAILED, 'INIT', exc.detail)
         raise PaymentError(str(exc), 'gateway') from exc
     with transaction.atomic():
         Payment.objects.filter(pk=payment.pk).update(authorization_url=data['authorization_url'])

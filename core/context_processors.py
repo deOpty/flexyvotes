@@ -41,6 +41,34 @@ def _pending_access_requests():
     return AccessRequest.objects.filter(status=AccessRequest.Status.PENDING).count()
 
 
+def _phone(value):
+    """{'display': '+233 59 299 9185', 'e164': '+233592999185', 'digits': '233592999185'} or None."""
+    from .utils import normalize_phone
+
+    e164 = normalize_phone(value)
+    if not e164.startswith('+') or len(e164) < 8:
+        return None
+    digits = e164[1:]
+    display = e164
+    if digits.startswith('233') and len(digits) == 12:  # Ghana: +233 XX XXX XXXX
+        local = digits[3:]
+        display = f'+233 {local[:2]} {local[2:5]} {local[5:]}'
+    return {'display': display, 'e164': e164, 'digits': digits}
+
+
+def support_contacts():
+    """Public support contacts (SUPPORT_* settings) for the contact page and footer."""
+    whatsapp = _phone(settings.SUPPORT_WHATSAPP)
+    return {
+        'phone': _phone(settings.SUPPORT_PHONE),
+        'whatsapp': whatsapp,
+        'whatsapp_url': f"https://wa.me/{whatsapp['digits']}" if whatsapp else '',
+        'email': settings.SUPPORT_EMAIL,
+        'address': settings.SUPPORT_ADDRESS,
+        'hours': settings.SUPPORT_HOURS,
+    }
+
+
 def platform(request):
     user = getattr(request, 'user', None)
     console = False
@@ -59,6 +87,7 @@ def platform(request):
     return {
         'PLATFORM_NAME': settings.PLATFORM_NAME,
         'SITE_URL': settings.SITE_URL,
+        'SUPPORT': support_contacts(),
         'csp_nonce': getattr(request, 'csp_nonce', ''),
         'secure_cookies_blocked': _secure_cookies_blocked(request),
         'prefs': prefs,

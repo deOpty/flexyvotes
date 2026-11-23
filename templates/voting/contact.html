@@ -11,9 +11,48 @@
         <div class="col-lg-4">
             <div class="card border-0 rounded-4 p-4 h-100 text-white" style="background-color: #800020;">
                 <h2 class="h4 fw-bold mb-3 text-gold">{% translate "Contact information" %}</h2>
-                <p class="mb-2"><i class="bi bi-geo-alt-fill me-2" aria-hidden="true"></i>Accra, Ghana</p>
-                <p class="mb-2"><i class="bi bi-clock-fill me-2" aria-hidden="true"></i>{% translate "Mon–Fri, 8am – 6pm GMT" %}</p>
-                <p class="small mb-0 mt-3 opacity-75">{% translate "Election day emergencies: open a ticket with the category 'Voting problem' and include the election name." %}</p>
+                <ul class="list-unstyled mb-0 contact-details">
+                    {% if SUPPORT.phone %}
+                    <li class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-telephone-fill mt-1" aria-hidden="true"></i>
+                        <div><div class="small text-uppercase opacity-75">{% translate "Phone" %}</div>
+                            <a class="text-white fw-semibold" href="tel:{{ SUPPORT.phone.e164 }}">{{ SUPPORT.phone.display }}</a></div>
+                    </li>
+                    {% endif %}
+                    {% if SUPPORT.whatsapp %}
+                    <li class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-whatsapp mt-1" aria-hidden="true"></i>
+                        <div><div class="small text-uppercase opacity-75">{% translate "WhatsApp" %}</div>
+                            <a class="text-white fw-semibold" href="{{ SUPPORT.whatsapp_url }}" target="_blank" rel="noopener noreferrer">{{ SUPPORT.whatsapp.display }}<span class="visually-hidden"> {% translate "(opens in a new tab)" %}</span></a></div>
+                    </li>
+                    {% endif %}
+                    {% if SUPPORT.email %}
+                    <li class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-envelope-fill mt-1" aria-hidden="true"></i>
+                        <div><div class="small text-uppercase opacity-75">{% translate "Email" %}</div>
+                            <a class="text-white fw-semibold text-break" href="mailto:{{ SUPPORT.email }}">{{ SUPPORT.email }}</a></div>
+                    </li>
+                    {% endif %}
+                    {% if SUPPORT.address %}
+                    <li class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-geo-alt-fill mt-1" aria-hidden="true"></i>
+                        <div><div class="small text-uppercase opacity-75">{% translate "Office" %}</div>{{ SUPPORT.address }}</div>
+                    </li>
+                    {% endif %}
+                    {% if SUPPORT.hours %}
+                    <li class="d-flex align-items-start gap-2 mb-3">
+                        <i class="bi bi-clock-fill mt-1" aria-hidden="true"></i>
+                        <div><div class="small text-uppercase opacity-75">{% translate "Support hours" %}</div>{{ SUPPORT.hours }}</div>
+                    </li>
+                    {% endif %}
+                </ul>
+                {% if SUPPORT.phone or SUPPORT.whatsapp %}
+                <div class="d-flex flex-wrap gap-2 mt-1">
+                    {% if SUPPORT.phone %}<a class="btn btn-gold btn-sm fw-semibold" href="tel:{{ SUPPORT.phone.e164 }}"><i class="bi bi-telephone me-1" aria-hidden="true"></i>{% translate "Call us" %}</a>{% endif %}
+                    {% if SUPPORT.whatsapp %}<a class="btn btn-outline-light btn-sm fw-semibold" href="{{ SUPPORT.whatsapp_url }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-whatsapp me-1" aria-hidden="true"></i>{% translate "Chat on WhatsApp" %}</a>{% endif %}
+                </div>
+                {% endif %}
+                <p class="small mb-0 mt-3 opacity-75">{% translate "Election day emergencies: call us, or open a ticket with the category 'Voting problem' and include the election name." %}</p>
             </div>
         </div>
         <div class="col-lg-7">
